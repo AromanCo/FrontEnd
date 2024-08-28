@@ -23,7 +23,7 @@ const Home = () => {
     fetchProtectedData();
   }, []);
 
-  return <div>{message}</div>;
+  return <div>{`${message} Aroman`}</div>;
 };
 
 export default Home;
