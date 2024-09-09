@@ -7,23 +7,33 @@ const Home = () => {
     const fetchProtectedData = async () => {
       const token = localStorage.getItem("token");
 
-      const response = await fetch("http://localhost:8080/api/protected", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      if (!token) {
+        setMessage("No token found. Please log in.");
+        return;
+      }
 
-      if (response.ok) {
-        setMessage("You are authenticated!");
-      } else {
-        setMessage("You are not authenticated.");
+      try {
+        const response = await fetch("http://localhost:8080/api/protected", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          setMessage("You are authenticated!");
+        } else {
+          setMessage("You are not authenticated.");
+        }
+      } catch (error) {
+        setMessage("Error fetching data.");
+        console.error("Fetch error:", error);
       }
     };
 
     fetchProtectedData();
   }, []);
 
-  return <div>{`${message} Aroman`}</div>;
+  return <div>{message} Aroman</div>;
 };
 
 export default Home;
