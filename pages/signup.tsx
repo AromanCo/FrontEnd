@@ -37,7 +37,7 @@ const Signup = () => {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
-      <button type="submit">Sign Up</button>
+      <button type="submit">ثبت نام</button>
     </form>
   );
 };
