@@ -1,0 +1,9 @@
+import React from 'react';
+import {expect,it,vi} from 'vitest';
+import {act,fireEvent,render,screen,waitFor} from '@testing-library/react';
+const mocks=vi.hoisted(()=>({session:vi.fn(),me:vi.fn(),logout:vi.fn(),renewCsrf:vi.fn(),setCsrf:vi.fn()}));
+vi.mock('@/lib/api/client',()=>({ApiError:class ApiError extends Error {constructor(public status:number,message:string){super(message)}},auth:{session:mocks.session,me:mocks.me,logout:mocks.logout},renewCsrf:mocks.renewCsrf,setCsrf:mocks.setCsrf}));
+import {AuthProvider,useAuth} from '@/components/auth/AuthProvider';
+function Probe(){const{user,loading,logout}=useAuth();return <div><span>{loading?'loading':user?'signed-in':'guest'}</span><button onClick={()=>void logout()}>خروج</button></div>}
+it('restores a cookie session, renews CSRF, and clears state on expiry',async()=>{mocks.session.mockResolvedValue({user_id:'id',role:'customer'});mocks.renewCsrf.mockResolvedValue('csrf');mocks.me.mockResolvedValue({id:'id',mobile_e164:'+989121234567',role:'customer'});render(<AuthProvider><Probe/></AuthProvider>);await waitFor(()=>expect(screen.getByText('signed-in')).toBeTruthy());expect(mocks.renewCsrf).toHaveBeenCalledOnce();act(()=>window.dispatchEvent(new Event('aroman:session-expired')));await waitFor(()=>expect(screen.getByText('guest')).toBeTruthy());expect(mocks.setCsrf).toHaveBeenCalledWith(null)});
+it('logs out through backend and clears account state',async()=>{mocks.session.mockResolvedValue({user_id:'id',role:'customer'});mocks.renewCsrf.mockResolvedValue('csrf');mocks.me.mockResolvedValue({id:'id',mobile_e164:'+989121234567',role:'customer'});mocks.logout.mockResolvedValue(undefined);render(<AuthProvider><Probe/></AuthProvider>);await waitFor(()=>screen.getByText('signed-in'));fireEvent.click(screen.getByRole('button',{name:'خروج'}));await waitFor(()=>expect(screen.getByText('guest')).toBeTruthy());expect(mocks.logout).toHaveBeenCalled()});

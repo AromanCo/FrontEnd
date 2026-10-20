@@ -1,0 +1,9 @@
+# Local development
+
+1. In Backend, copy `.env.example` to `.env`. Set strong, different OTP and session peppers, `CORS_ORIGINS=http://localhost:3000`, and `COOKIE_SECURE=false` for local HTTP. Keep `SMS_PROVIDER=unconfigured` for ordinary development. Run `docker compose up --build` and confirm `http://localhost:8000/health/ready` returns 200. Seed data is managed by the backend.
+2. In FrontEnd, copy `.env.example` to `.env.local`, run `npm ci`, then `npm run dev`. Open `http://localhost:3000`. Both hosts must be `localhost`.
+3. Run `npm run test`, `npm run typecheck`, `npm run lint`, `npm run build`, and `git diff --check` before review. With the frontend and backend running and system Chrome installed, run `npm run screenshots` to capture and check home, shop, and Studio at 320, 390, 768, and 1440 pixels. Set `CHROME_BIN` if Chrome is installed elsewhere.
+
+A real SMS service is not configured. With the default provider, login shows the backend's unavailable response. To exercise OTP in isolated backend tests, use the backend's existing `tests/conftest.py` fixture: `SMS_PROVIDER=fake` is limited to test/development with `FAKE_SMS_ENABLED=true`; the fixture reads the code from backend process memory, not HTTP. Run `cd ../Backend && .venv/bin/pytest tests/test_foundation.py ../FrontEnd/tests/integration/test_contract.py`. The FrontEnd contract test creates its own temporary SQLite database and checks save, reopen, edit, duplicate, and delete through FastAPI TestClient. Do not run the fake provider as a publicly reachable application or expose its messages. The UI can be visually checked through challenge and error states without a delivered code.
+
+To refresh API types after backend schema changes, export the schema as documented in Backend `docs/API_CONTRACT.md`, place it at `docs/openapi.m1a.json`, then run `npm run types:api`.
