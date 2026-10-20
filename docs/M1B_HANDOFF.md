@@ -4,9 +4,17 @@ The application foundation includes a Persian RTL shell, editorial homepage, bac
 
 Review the interface at 320, 390, 768, and 1440 pixels with the API running. The supplied Figma screenshots were unavailable, so compare manually when provided. Local fake SMS is test-only and cannot log in through public HTTP without a separate delivery channel. A production SMS provider and backend commerce endpoints are needed for subsequent milestones.
 
-The adjacent Backend checkout is on committed `feature/foundation-v1`. Its `develop` branch has not received M1-A, so the frontend contract is based on the available M1-A feature commit. Align the backend integration branch before merging the frontend milestone.
+The adjacent Backend checkout is clean on `develop` at M1-A merge commit `0dfbb8d` (PR #12). The frontend contract is based on that implementation and its exported OpenAPI schema.
 
 Verification artifacts are in `artifacts/screenshots/`: home, shop, and Studio at 320, 390, 768, and 1440 pixels. Browser checks found RTL, no horizontal overflow, and no page errors at those sizes. The frontend unit tests and the isolated FastAPI contract test pass. The real SMS provider remains unavailable, so a public browser login and authenticated UI save cannot be verified against a delivered OTP yet.
+
+## M1-B.1 browser verification
+
+The original Studio screenshots were taken while the client was still fetching notes: the capture script waited for the server-rendered heading, not for the note request and rendered library. A live Chrome trace confirmed `GET /api/v1/fragrance-notes?limit=50&offset=0` returned HTTP 200 and all 24 seeded notes. The corrected script waits for that response and 24 rendered note controls, then fails clearly if the expected state never appears. It checks unexpected HTTP, network, console, and page errors, plus RTL and horizontal overflow. The four original `studio-*.png` files now show the loaded library; `studio-selected-*`, `studio-layers-*`, `studio-six-*`, and `studio-result-*` show the subsequent states at each width.
+
+The Studio now distinguishes a request in progress, request failure, successful empty response, and loaded notes. Failed requests provide a retry action. A 15-second API timeout prevents an indefinite request. Selected notes and the concept name remain in memory during transient note-fetch failures; unsaved work resets on page reload, as the current implementation promises no local persistence. On mobile the note list follows page scrolling, making its final item reachable without a nested scroll area.
+
+The real-browser mobile journey passed against seeded FastAPI for note loading, search and family filters, top/heart/base composition, removal, replacement, six-note limit, seventh-note explanation, all three tabs, renaming, live preview, refresh behavior, unauthenticated save preservation, protected request 401, and SMS-unavailable 503. The isolated FastAPI TestClient contract test passed save/reopen/edit/duplicate/delete with a private in-process OTP fixture. Authenticated browser save remains unverified because no real SMS delivery service is connected; no OTP fixture or bypass is exposed through the running application. Visual approval against the unavailable Figma screenshots remains pending.
 
 Recommended M1-C: implement the Guided Studio questionnaire with approved product logic, then add real cart/order endpoints and demonstration checkout in a separate commerce milestone. Replace bottle art and wordmark only with approved brand assets.
 

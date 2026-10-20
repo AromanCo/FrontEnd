@@ -15,7 +15,9 @@ const messages:Record<number,string>={400:'کد نامعتبر یا منقضی �
 export async function request<T>(path:string,init:RequestInit={},server=false):Promise<T>{
  const base=server?serverBase:browserBase;
  let response:Response;
- try{response=await fetch(`${base}${path}`,{...init,credentials:'include',headers:{...(init.body?{'Content-Type':'application/json'}:{}),...init.headers},cache:'no-store'});}catch{throw new ApiError(0,'ارتباط با سرور برقرار نشد. اتصال خود را بررسی کنید.');}
+ const timeout=AbortSignal.timeout(15000);
+ const signal=init.signal?AbortSignal.any([init.signal,timeout]):timeout;
+ try{response=await fetch(`${base}${path}`,{...init,signal,credentials:'include',headers:{...(init.body?{'Content-Type':'application/json'}:{}),...init.headers},cache:'no-store'});}catch{throw new ApiError(0,timeout.aborted?'پاسخ سرور بیش از حد طول کشید. دوباره تلاش کنید.':'ارتباط با سرور برقرار نشد. اتصال خود را بررسی کنید.');}
  if(!response.ok){if(response.status===401&&typeof window!=='undefined')window.dispatchEvent(new Event('aroman:session-expired'));throw new ApiError(response.status,messages[response.status]||'درخواست انجام نشد.');}
  return response.status===204?undefined as T:await response.json() as T;
 }
