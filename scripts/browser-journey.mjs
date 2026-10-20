@@ -16,7 +16,7 @@ const select = async note => {
   await tab('نت‌ها').click();
   await page.locator(`[data-note-id="${note.id}"]`).click();
 };
-const count = async value => page.getByText(`${value} از ۶ نت انتخاب شده`).waitFor();
+const count = async value => page.getByRole('status', { name: `${value} از ۶ نت انتخاب شده` }).waitFor();
 try {
   const notes = await openLoadedStudio(page);
   assert.equal(notes.length, 24);
@@ -32,7 +32,7 @@ try {
   await count(1);
   injectingNoteFailure = true;
   await page.route('**/api/v1/fragrance-notes?*', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail: 'Injected network failure for retry test' }) }));
-  await page.getByPlaceholder('جستجوی نت…').fill(notes[0].name);
+  await page.getByPlaceholder('جستجو میان نت‌ها…').fill(notes[0].name);
   await notesPanel.locator('[role="alert"]').getByRole('button', { name: 'تلاش دوباره' }).waitFor({ timeout: 10000 });
   await count(1);
   await page.unroute('**/api/v1/fragrance-notes?*');
@@ -43,7 +43,7 @@ try {
   await page.locator('#studio-panel-0[data-note-status="ready"][data-note-count="1"]').waitFor({ timeout: 10000 });
   await count(1);
   const retryClearResponse = page.waitForResponse(response => response.url().includes('/api/v1/fragrance-notes?') && !new URL(response.url()).searchParams.has('q'));
-  await page.getByPlaceholder('جستجوی نت…').fill('');
+  await page.getByPlaceholder('جستجو میان نت‌ها…').fill('');
   assert.equal((await retryClearResponse).status(), 200);
   await page.locator('#studio-panel-0[data-note-count="24"]').waitFor({ timeout: 10000 });
   console.log('Injected note request failure displayed an error; retry loaded real API data and preserved the selection');
@@ -69,22 +69,23 @@ try {
   for (const note of notes.slice(4, 7)) await select(note);
   await count(6);
   await page.locator(`[data-note-id="${notes[7].id}"]`).click();
-  await page.getByText('حداکثر شش نت می‌توانید انتخاب کنید.').waitFor();
+  await page.getByRole('status').filter({ hasText: 'برای افزودن نت تازه، یکی را از ترکیب بردارید.' }).waitFor();
   await count(6);
+  await tab('نت‌ها').click();
   console.log('Top/heart/base assignment, removal, replacement, six-note cap, and live bottle changes passed');
 
   const searchName = notes[0].name;
   const searchResponse = page.waitForResponse(response =>
     response.url().includes('/api/v1/fragrance-notes?') && new URL(response.url()).searchParams.get('q') === searchName,
   );
-  await page.getByPlaceholder('جستجوی نت…').fill(searchName);
+  await page.getByPlaceholder('جستجو میان نت‌ها…').fill(searchName);
   assert.equal((await searchResponse).status(), 200);
   await page.locator('#studio-panel-0[data-note-status="ready"]').waitFor({ timeout: 10000 });
   assert.equal(await notesPanel.locator('[data-note-id]').count(), 1);
   const clearResponse = page.waitForResponse(response =>
     response.url().includes('/api/v1/fragrance-notes?') && !new URL(response.url()).searchParams.has('q') && !new URL(response.url()).searchParams.has('family_id'),
   );
-  await page.getByPlaceholder('جستجوی نت…').fill('');
+  await page.getByPlaceholder('جستجو میان نت‌ها…').fill('');
   await clearResponse;
   await page.locator('#studio-panel-0[data-note-count="24"]').waitFor({ timeout: 10000 });
   const familyResponse = page.waitForResponse(response =>

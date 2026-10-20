@@ -21,12 +21,12 @@ it('shows a retry after failure, renders loaded notes, keeps selections, and dis
   fireEvent.click(within(panel).getByRole('button',{name:'تلاش دوباره'}));
   await waitFor(()=>expect(panel.getAttribute('data-note-status')).toBe('ready'));
   fireEvent.click(within(panel).getByRole('button',{name:/اسطوخودوس/}));
-  expect(screen.getByText('1 از ۶ نت انتخاب شده')).toBeTruthy();
-  fireEvent.change(screen.getByPlaceholderText('جستجوی نت…'),{target:{value:'ناموجود'}});
+  expect(screen.getByRole('status',{name:'1 از ۶ نت انتخاب شده'})).toBeTruthy();
+  fireEvent.change(screen.getByPlaceholderText('جستجو میان نت‌ها…'),{target:{value:'ناموجود'}});
   await waitFor(()=>expect(panel.getAttribute('data-note-status')).toBe('error'));
-  expect(screen.getByText('1 از ۶ نت انتخاب شده')).toBeTruthy();
+  expect(screen.getByRole('status',{name:'1 از ۶ نت انتخاب شده'})).toBeTruthy();
   fireEvent.click(within(panel).getByRole('button',{name:'تلاش دوباره'}));
   await waitFor(()=>expect(panel.getAttribute('data-note-status')).toBe('ready'));
-  expect(within(panel).getByText('نتی برای این جستجو پیدا نشد.')).toBeTruthy();
-  expect(within(panel).queryByText('در حال دریافت نت‌ها…')).toBeNull();
+  expect(within(panel).getByText('نتی پیدا نشد')).toBeTruthy();
+  expect(within(panel).queryByText('در حال دریافت نت‌های آرومان…')).toBeNull();
 });

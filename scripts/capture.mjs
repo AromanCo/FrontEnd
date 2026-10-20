@@ -38,7 +38,7 @@ try {
         await page.locator(`[data-note-id="${note.id}"]`).click();
       };
       await select(notes[0]);
-      await page.getByText('1 از ۶ نت انتخاب شده').waitFor();
+      await page.getByRole('status', { name: '1 از ۶ نت انتخاب شده' }).waitFor();
       await shot('studio-selected');
       await select(notes[1]);
       await select(notes[2]);
@@ -52,7 +52,7 @@ try {
       await shot('studio-layers');
       for (const note of notes.slice(3, 6)) await select(note);
       await tab('ترکیب');
-      await page.getByText('6 از ۶ نت انتخاب شده').waitFor();
+      await page.getByRole('status', { name: '6 از ۶ نت انتخاب شده' }).waitFor();
       await shot('studio-six');
       await page.locator('#studio-panel-1 input').fill('باغ آزمون');
       await tab('نتیجه');
