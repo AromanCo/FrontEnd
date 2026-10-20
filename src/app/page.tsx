@@ -1,4 +1,83 @@
 import Link from 'next/link';
-import {catalog,type Product,type Family} from '@/lib/api/client';
-import {ProductCard} from '@/components/catalog/ProductCard';
-export default async function Home(){let products:Product[]=[];let families:Family[]=[];let unavailable=false;try{[products,families]=await Promise.all([catalog.products({limit:3},true),catalog.families('',6,0,true)])}catch{unavailable=true}return <><section className="relative overflow-hidden bg-darkplum text-ivory"><div className="container grid min-h-[650px] items-center gap-8 py-20 md:grid-cols-2"><div className="relative z-10"><p className="eyebrow !text-champagne">THE ART OF SCENT · آرومان</p><h1 className="display mt-5">هر رایحه،<br/><span className="text-champagne">روایتی از شما.</span></h1><p className="mt-7 max-w-lg text-lg leading-9 text-ivory/80">از کشف عطرهای نمایشی تا ساخت یک مفهوم رایحه شخصی؛ مسیر خودتان را در آرومان آغاز کنید.</p><div className="mt-9 flex flex-wrap gap-3"><Link className="btn bg-champagne text-darkplum" href="/studio/creative">عطر خود را بسازید</Link><Link className="btn border border-ivory text-ivory" href="/shop">کشف فروشگاه</Link></div></div><div className="relative mx-auto flex aspect-square w-full max-w-[520px] items-center justify-center rounded-full border border-champagne/30 bg-[radial-gradient(circle,#ab8397_0%,#5e4565_45%,#302434_75%)]"><div className="absolute inset-10 rounded-full border border-champagne/30"/><div className="absolute inset-20 rounded-full border border-champagne/30"/><div className="bottle !h-56 !w-36 !rounded-[3rem] !border-champagne" style={{'--bottle-color':'#d6ad72'} as React.CSSProperties}/><span className="absolute bottom-12 text-xs tracking-[.3em] text-champagne">A SCENT TO CALL YOURS</span></div></div></section><section className="container section"><div className="flex flex-wrap items-end justify-between gap-5"><div><p className="eyebrow">DISCOVER</p><h2 className="heading mt-3">نگاهی به رایحه‌ها</h2><p className="mt-4 text-plum/70">داده‌های نمایشی دریافت‌شده از کاتالوگ آرومان</p></div><Link className="btn btn-secondary" href="/shop">همه محصولات</Link></div>{unavailable?<p className="card mt-8 p-6" role="status">کاتالوگ اکنون در دسترس نیست. لطفاً پس از راه‌اندازی API دوباره تلاش کنید.</p>:products.length?<div className="mt-9 grid gap-5 md:grid-cols-3">{products.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<p className="card mt-8 p-6">هنوز محصولی در کاتالوگ ثبت نشده است.</p>}</section><section className="bg-blush/40"><div className="container section"><p className="eyebrow">SCENT FAMILIES</p><h2 className="heading mt-3">از چه خانواده‌ای آغاز کنیم؟</h2><div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{families.map((f,i)=><Link href={`/shop?family_id=${f.id}`} className="card group min-h-52 p-7 transition hover:-translate-y-1" key={f.id}><span className="text-4xl text-champagne">0{i+1}</span><h3 className="mt-7 text-2xl">{f.name}</h3><p className="mt-2 text-sm text-plum/65">{f.description||'این خانواده را در کاتالوگ کشف کنید.'}</p><span className="mt-5 inline-block border-b border-plum">مشاهده محصولات</span></Link>)}</div>{!families.length&&!unavailable&&<p className="mt-7">هنوز خانواده رایحه‌ای ثبت نشده است.</p>}</div></section><section className="container section grid items-center gap-10 md:grid-cols-2"><div className="rounded-[2rem] bg-[linear-gradient(145deg,#c8aecf,#f2d5cf,#d6ad72)] p-10 text-center"><div className="bottle !h-56 !w-36" style={{'--bottle-color':'#c8aecf'} as React.CSSProperties}/><p className="text-sm">پیش‌نمایش مفهومی · تصویرسازی محلی</p></div><div><p className="eyebrow">CREATIVE STUDIO</p><h2 className="heading mt-4">سازنده رایحه خودتان باشید</h2><p className="mt-6 leading-9 text-plum/75">نت‌های واقعی کاتالوگ را جستجو کنید، در لایه‌های آغازین، میانی و پایه بچینید و تغییر مفهوم خود را همان لحظه ببینید.</p><Link className="btn btn-primary mt-8" href="/studio/creative">ورود به استودیو خلاق</Link></div></section><section className="bg-sage/25"><div className="container section grid gap-8 md:grid-cols-2"><div><p className="eyebrow">GUIDED STUDIO</p><h2 className="heading mt-4">برای آغاز، یک همراه</h2><p className="mt-5 leading-9">استودیو راهنما در مرحله بعد به شما کمک می‌کند مسیر کشف رایحه را قدم‌به‌قدم طی کنید.</p><Link className="btn btn-secondary mt-6" href="/studio/guided">آشنایی با مسیر راهنما</Link></div><div className="card flex items-center justify-center p-10 text-center text-3xl leading-[1.7]">از یک حس شروع کنید؛<br/>به یک داستان برسید.</div></div></section><section className="container section text-center"><p className="eyebrow">OUR STORY</p><h2 className="heading mt-4">آرومان، جایی میان هنر و خاطره</h2><p className="mx-auto mt-6 max-w-2xl leading-9 text-plum/75">ما رایحه را راهی برای روایت کردن می‌بینیم. این فضای اولیه برای کشف و ساخت مفهوم عطر است؛ محصول و امکان خرید در مراحل بعد کامل می‌شود.</p></section></>}
+import { catalog, type Family, type Product } from '@/lib/api/client';
+import { ProductCard } from '@/components/catalog/ProductCard';
+import { FamilyCard } from '@/components/home/FamilyCard';
+import { AtelierHeroArtwork } from '@/components/home/AtelierHeroArtwork';
+import { StudioInvitationArtwork } from '@/components/home/StudioInvitationArtwork';
+
+export default async function Home() {
+  let products: Product[] = [];
+  let families: Family[] = [];
+  let unavailable = false;
+  try {
+    [products, families] = await Promise.all([catalog.products({ limit: 3 }, true), catalog.families('', 6, 0, true)]);
+  } catch {
+    unavailable = true;
+  }
+
+  return <>
+    <section className="atelier-hero">
+      <div className="atelier-hero-inner container">
+        <div className="atelier-hero-copy">
+          <p className="eyebrow"><span className="hero-kicker-mark">✳</span> آتلیه‌ی رایحه‌ی آرومان</p>
+          <h1>رایحه‌ای که<br /><em>از شما آغاز می‌شود.</em></h1>
+          <p className="atelier-hero-lede">راه خودتان را میان کشف عطرها و ساخت یک مفهوم شخصی پیدا کنید؛ هر انتخاب، بخشی از روایت شماست.</p>
+          <div className="atelier-hero-actions">
+            <Link className="btn btn-primary" href="/shop">کشف عطرها <span aria-hidden="true">←</span></Link>
+            <Link className="btn btn-atelier-outline" href="/studio/creative">ساخت رایحه شخصی <span aria-hidden="true">✳</span></Link>
+          </div>
+          <div className="hero-pathways" aria-label="دو مسیر آرومان">
+            <span><i>۰۱</i> کشف مجموعه</span><span><i>۰۲</i> ساخت روایت</span>
+          </div>
+        </div>
+        <AtelierHeroArtwork />
+      </div>
+      <div className="atelier-hero-foot container"><span>PERFUME · MEMORY · YOU</span><span aria-hidden="true">↓</span><span>از تجربه‌ی رایحه آغاز کنید</span></div>
+    </section>
+
+    <section className="home-discovery section" id="discover">
+      <div className="container">
+        <header className="section-editorial-heading">
+          <div><p className="eyebrow">۰۱ / مجموعه‌ی آرومان</p><h2 className="heading">رایحه‌هایی برای کشف</h2><p>با مجموعه‌ی نمایشی کاتالوگ آشنا شوید.</p></div>
+          <Link className="text-link" href="/shop">رفتن به فروشگاه <span aria-hidden="true">←</span></Link>
+        </header>
+        {unavailable ? <p className="catalog-state" role="status">کاتالوگ در دسترس نیست. لطفاً کمی بعد دوباره سر بزنید.</p> : products.length ? <div className="home-product-grid">{products.map(product => <ProductCard key={product.id} product={product} />)}</div> : <p className="catalog-state">هنوز محصولی در کاتالوگ ثبت نشده است.</p>}
+        <p className="demo-data-note">تصویرها، تصویرسازی مفهومی هستند؛ جزئیات واقعی هر محصول را در صفحه‌ی آن ببینید.</p>
+      </div>
+    </section>
+
+    <section className="family-atelier section">
+      <div className="container">
+        <header className="section-editorial-heading family-heading">
+          <div><p className="eyebrow">۰۲ / جهان‌های بویایی</p><h2 className="heading">از کدام فضا آغاز کنیم؟</h2><p>خانواده‌های رایحه را از کاتالوگ انتخاب کنید و مسیر کشف را ادامه دهید.</p></div>
+          <span className="family-heading-note">هر خانواده<br />یک حال‌وهوا</span>
+        </header>
+        {unavailable ? <p className="catalog-state" role="status">خانواده‌های رایحه اکنون در دسترس نیستند.</p> : families.length ? <div className="family-world-grid">{families.map((family, index) => <FamilyCard key={family.id} family={family} index={index} />)}</div> : <p className="catalog-state">هنوز خانواده‌ی رایحه‌ای ثبت نشده است.</p>}
+      </div>
+    </section>
+
+    <section className="studio-invitation section">
+      <div className="container studio-invitation-inner">
+        <StudioInvitationArtwork />
+        <div className="studio-invitation-copy">
+          <p className="eyebrow">۰۳ / استودیو خلاق</p>
+          <h2 className="heading">ساختن، راه دیگری برای کشف است.</h2>
+          <p>از میان نت‌های واقعی کاتالوگ انتخاب کنید، آن‌ها را در سه لایه بچینید و پیش‌نمایش مفهومی روایت خود را ببینید.</p>
+          <div className="invitation-facts"><span>تا ۶ نت</span><span>۳ لایه‌ی رایحه</span><span>یک مفهوم شخصی</span></div>
+          <Link className="btn btn-light" href="/studio/creative">ورود به استودیو خلاق <span aria-hidden="true">↗</span></Link>
+        </div>
+      </div>
+    </section>
+
+    <section className="guided-invitation section">
+      <div className="container guided-invitation-inner">
+        <div><p className="eyebrow">۰۴ / استودیو راهنما</p><h2 className="heading">برای آغاز، یک همراه</h2><p>مسیر راهنمای کشف رایحه در مرحله‌ی بعد تکمیل می‌شود. فعلاً می‌توانید با استودیو خلاق، آزادانه تجربه کنید.</p><Link className="text-link" href="/studio/guided">آشنایی با استودیو راهنما <span aria-hidden="true">←</span></Link></div>
+        <div className="guided-note"><span aria-hidden="true">✳</span><p>یک حس را دنبال کنید؛<br />روایت خودش پیدا می‌شود.</p><small>به‌زودی در آرومان</small></div>
+      </div>
+    </section>
+
+    <section className="atelier-story section">
+      <div className="container"><p className="eyebrow">درباره‌ی آرومان</p><h2 className="heading">عطر، حافظه‌ای که می‌سازیم.</h2><p>آرومان فضایی برای کشف رایحه و ساخت روایت شخصی است؛ جایی که انتخاب‌های کوچک، قصه‌ی بزرگ‌تری را شکل می‌دهند.</p><Link href="/studio/creative" className="text-link">روایت خود را آغاز کنید <span aria-hidden="true">←</span></Link></div>
+    </section>
+  </>;
+}

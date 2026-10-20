@@ -1,3 +1,20 @@
 import Link from 'next/link';
-import type {Product} from '@/lib/api/client';
-export function ProductCard({product}:{product:Product}){return <article className="card overflow-hidden"><div className="relative flex h-56 items-center justify-center bg-[radial-gradient(circle_at_50%_40%,#f9e7d9,#e8d6de_50%,#c3b5bd)]"><div className="bottle scale-75"/><span className="absolute bottom-3 left-3 rounded-full bg-ivory/90 px-3 py-1 text-xs">تصویر مفهومی</span></div><div className="p-6"><p className="eyebrow">{product.is_demo?'محصول نمایشی':'محصول'}</p><h3 className="mt-2 text-xl font-semibold">{product.name}</h3><p className="mt-3 line-clamp-2 min-h-14 text-sm leading-7 text-plum/70">{product.description||'شرح محصول هنوز ارائه نشده است.'}</p><Link className="mt-5 inline-flex border-b border-plum pb-1 font-semibold" href={`/shop/${product.id}`}>مشاهده جزئیات ←</Link></div></article>}
+import type { Product } from '@/lib/api/client';
+
+const sceneFor = (slug: string) => [...slug].reduce((sum, letter) => sum + letter.charCodeAt(0), 0) % 3;
+
+export function ProductCard({ product }: { product: Product }) {
+  return <article className="product-editorial-card">
+    <div className="product-concept-art" data-scene={sceneFor(product.slug)} role="img" aria-label="تصویرسازی مفهومی؛ تصویر محصول در دسترس نیست">
+      <span className="product-art-halo" /><span className="product-art-orbit" /><span className="product-art-petal product-art-petal-one" /><span className="product-art-petal product-art-petal-two" />
+      <span className="product-art-caption">AROMAN · CONCEPT</span>
+      <span className="product-art-label">تصویر مفهومی</span>
+    </div>
+    <div className="product-editorial-copy">
+      <p className="eyebrow">{product.is_demo ? 'محصول نمایشی' : 'محصول'}</p>
+      <h3>{product.name}</h3>
+      <p className="product-description">{product.description || 'شرح محصول هنوز ارائه نشده است.'}</p>
+      <Link className="product-detail-link" href={`/shop/${product.id}`}>مشاهده جزئیات <span aria-hidden="true">←</span></Link>
+    </div>
+  </article>;
+}

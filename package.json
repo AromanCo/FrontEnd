@@ -11,7 +11,9 @@
     "test": "vitest run",
     "types:api": "openapi-typescript docs/openapi.m1a.json -o src/lib/api/generated.ts",
     "screenshots": "node scripts/capture.mjs",
-    "test:browser": "node scripts/browser-journey.mjs"
+    "screenshots:visual": "node scripts/capture-visual-alignment.mjs",
+    "test:browser": "node scripts/browser-journey.mjs",
+    "test:browser:responsive": "node scripts/responsive-studio-journey.mjs"
   },
   "dependencies": {
     "next": "^16.4.2",

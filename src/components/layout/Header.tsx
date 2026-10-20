@@ -1,9 +1,30 @@
 'use client';
 import Link from 'next/link';
-import {useState} from 'react';
-import {useAuth} from '@/components/auth/AuthProvider';
-const PersonIcon=()=> <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.5-4 3-6 7-6s6.5 2 7 6"/></svg>;
-const BagIcon=()=> <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 8h16l-1 12H5L4 8Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg>;
-const MenuIcon=()=> <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6h16M4 12h16M4 18h16"/></svg>;
-const links=[['/shop','فروشگاه'],['/studio/creative','استودیو خلاق'],['/studio/guided','استودیو راهنما']];
-export function Header(){const[open,setOpen]=useState(false);const{user}=useAuth();return <><a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:p-3">رفتن به محتوا</a><header className="relative z-30 border-b border-plum/10 bg-ivory/95"><div className="container flex min-h-20 items-center gap-3"><Link href="/" className="text-xl tracking-[.12em] font-semibold sm:text-2xl" aria-label="آرومان، صفحه اصلی">AROMAN</Link><nav aria-label="ناوبری اصلی" className="hidden lg:flex flex-1 gap-7 text-sm">{links.map(([href,label])=><Link key={href} href={href} className="hover:text-[#946284]">{label}</Link>)}</nav><div className="ms-auto flex items-center gap-1 text-sm sm:gap-3"><Link className="hidden lg:inline" href="/shop" aria-label="جستجوی محصولات">جستجو</Link><Link className="min-h-11 min-w-10 rounded-lg p-2 text-center hover:bg-blush" href={user?'/account':'/login'} aria-label={user?'حساب من':'ورود'}><span className="lg:hidden" aria-hidden="true"><PersonIcon/></span><span className="hidden lg:inline">{user?'حساب من':'ورود'}</span></Link><Link className="min-h-11 min-w-10 rounded-lg p-2 text-center hover:bg-blush" href="/cart" aria-label="سبد خرید"><span className="lg:hidden" aria-hidden="true"><BagIcon/></span><span className="hidden lg:inline">سبد خرید</span></Link><button className="min-h-11 min-w-10 rounded-lg border px-2 lg:hidden" aria-label="باز کردن فهرست" aria-expanded={open} onClick={()=>setOpen(!open)}><MenuIcon/></button></div></div>{open&&<nav aria-label="ناوبری موبایل" className="container flex flex-col gap-1 pb-5 lg:hidden"><Link className="rounded-xl p-3 hover:bg-blush" onClick={()=>setOpen(false)} href="/shop">جستجو و فروشگاه</Link>{links.slice(1).map(([href,label])=><Link className="rounded-xl p-3 hover:bg-blush" onClick={()=>setOpen(false)} key={href} href={href}>{label}</Link>)}</nav>}</header></>}
+import { useState } from 'react';
+import { useAuth } from '@/components/auth/AuthProvider';
+
+const PersonIcon = () => <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="8" r="3.5" /><path d="M5 20c.5-4 3-6 7-6s6.5 2 7 6" /></svg>;
+const BagIcon = () => <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 8h16l-1 12H5L4 8Z" /><path d="M9 9V6a3 3 0 0 1 6 0v3" /></svg>;
+const MenuIcon = () => <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6h16M4 12h16M4 18h16" /></svg>;
+const links = [['/shop', 'فروشگاه'], ['/studio/creative', 'استودیو خلاق'], ['/studio/guided', 'استودیو راهنما']];
+
+export function Header() {
+  const [open, setOpen] = useState(false);
+  const { user } = useAuth();
+  return <>
+    <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:p-3">رفتن به محتوا</a>
+    <header className="site-header">
+      <div className="container site-header-inner">
+        <Link href="/" className="site-wordmark" aria-label="آرومان، صفحه اصلی">AROMAN</Link>
+        <nav aria-label="ناوبری اصلی" className="site-nav">{links.map(([href, label]) => <Link key={href} href={href}>{label}</Link>)}</nav>
+        <div className="header-actions">
+          <Link className="header-action" href="/shop" aria-label="جستجوی محصولات"><span className="hidden lg:inline">جستجو</span><span className="lg:hidden" aria-hidden="true">⌕</span></Link>
+          <Link className="header-action" href={user ? '/account' : '/login'} aria-label={user ? 'حساب من' : 'ورود'}><span className="hidden lg:inline">{user ? 'حساب من' : 'ورود'}</span><span className="lg:hidden" aria-hidden="true"><PersonIcon /></span></Link>
+          <Link className="header-action" href="/cart" aria-label="سبد خرید"><span className="hidden lg:inline">سبد خرید</span><span className="lg:hidden" aria-hidden="true"><BagIcon /></span></Link>
+          <button className="header-menu" type="button" aria-label={open ? 'بستن فهرست' : 'باز کردن فهرست'} aria-expanded={open} onClick={() => setOpen(!open)}><MenuIcon /></button>
+        </div>
+      </div>
+      {open && <nav aria-label="ناوبری موبایل" className="container mobile-nav"><Link onClick={() => setOpen(false)} href="/shop">جستجو و فروشگاه</Link>{links.slice(1).map(([href, label]) => <Link onClick={() => setOpen(false)} key={href} href={href}>{label}</Link>)}</nav>}
+    </header>
+  </>;
+}

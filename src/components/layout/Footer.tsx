@@ -1,2 +1,12 @@
 import Link from 'next/link';
-export function Footer(){return <footer className="bg-darkplum text-ivory"><div className="container grid gap-10 py-14 md:grid-cols-3"><div><p className="text-3xl tracking-[.2em]">AROMAN</p><p className="mt-4 max-w-sm leading-8 text-ivory/75">فضایی برای کشف رایحه و ساخت روایت شخصی شما.</p></div><nav aria-label="پیوندهای پایانی" className="flex flex-col gap-3"><Link href="/shop">محصولات نمایشی</Link><Link href="/studio/creative">استودیو خلاق</Link><Link href="/studio/guided">استودیو راهنما</Link></nav><div><p>آرومان</p><p className="mt-4 text-sm leading-7 text-ivory/70">فروش، قیمت‌گذاری و سفارش آنلاین در مرحله بعد ارائه می‌شود.</p></div></div><div className="border-t border-white/15 py-5 text-center text-xs text-ivory/60">© {new Date().getFullYear()} AROMAN</div></footer>}
+
+export function Footer() {
+  return <footer className="site-footer">
+    <div className="container footer-grid">
+      <div><p className="footer-wordmark">AROMAN</p><p className="footer-copy">فضایی برای کشف رایحه و ساخت روایت شخصی شما.</p></div>
+      <nav aria-label="پیوندهای پایانی" className="footer-links"><Link href="/shop">مجموعه‌ی آرومان</Link><Link href="/studio/creative">استودیو خلاق</Link><Link href="/studio/guided">استودیو راهنما</Link></nav>
+      <div><p>آرومان</p><p className="footer-note">قیمت‌گذاری و سفارش آنلاین در مرحله‌ی بعد در دسترس قرار می‌گیرد.</p></div>
+    </div>
+    <div className="footer-legal">© {new Date().getFullYear()} AROMAN</div>
+  </footer>;
+}
