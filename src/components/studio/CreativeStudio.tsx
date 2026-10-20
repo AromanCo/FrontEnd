@@ -165,7 +165,7 @@ export function CreativeStudio({ conceptId }: { conceptId?: string }) {
           onKeyDown={event => {
             const next = event.key === 'ArrowLeft' ? (index + 1) % 3 : event.key === 'ArrowRight' ? (index + 2) % 3 : event.key === 'Home' ? 0 : event.key === 'End' ? 2 : null;
             if (next !== null) { event.preventDefault(); setTab(next); event.currentTarget.parentElement?.querySelectorAll('button')[next]?.focus(); }
-          }} onClick={() => setTab(index)}><span className="studio-tab-number" aria-hidden="true">{tabNumbers[index]}</span>{label}</button>)}
+          }} onClick={() => setTab(index)}><span className="studio-tab-number" aria-hidden="true">{tabNumbers[index]}</span>{label}{index === 0 && <span className="studio-tab-count" aria-label={`${selected.length} از ۶ نت`}>{selected.length.toLocaleString('fa-IR')}/۶</span>}</button>)}
       </nav>
 
       {notice && <p role="status" className="studio-global-notice">{notice}</p>}
@@ -173,7 +173,7 @@ export function CreativeStudio({ conceptId }: { conceptId?: string }) {
 
       <div className="studio-grid">
         <NoteLibrary notes={notes} families={families} selectedIds={selectedIds} count={selected.length} query={query} familyId={family} loading={loading} noteError={noteError} familyError={familyError} hasMore={hasMore} active={tab === 0}
-          onQuery={updateQuery} onFamily={updateFamily} onSelect={select} onRetry={() => void loadNotes(failedOffset)} onRetryFamilies={loadFamilies} onMore={() => void loadNotes(offset)} />
+          onQuery={updateQuery} onFamily={updateFamily} onSelect={select} onRetry={() => void loadNotes(failedOffset)} onRetryFamilies={loadFamilies} onMore={() => void loadNotes(offset)} onContinue={() => setTab(1)} />
         <CompositionWorkspace selected={selected} name={name} active={tab === 1} onName={setName}
           onLayer={(id, layer) => setSelected(current => moveNote(current, id, layer))}
           onRemove={id => { setSelected(current => current.filter(item => item.note.id !== id)); setNotice(''); }}

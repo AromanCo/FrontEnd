@@ -5,12 +5,12 @@ import { familyMood } from '@/lib/studio/presentation';
 
 export function NoteLibrary({
   notes, families, selectedIds, count, query, familyId, loading, noteError, familyError, hasMore, active,
-  onQuery, onFamily, onSelect, onRetry, onRetryFamilies, onMore,
+  onQuery, onFamily, onSelect, onRetry, onRetryFamilies, onMore, onContinue,
 }: {
   notes: Note[]; families: Family[]; selectedIds: Set<string>; count: number; query: string; familyId: string;
   loading: boolean; noteError: string; familyError: string; hasMore: boolean; active: boolean;
   onQuery: (value: string) => void; onFamily: (value: string) => void; onSelect: (note: Note) => void;
-  onRetry: () => void; onRetryFamilies: () => void; onMore: () => void;
+  onRetry: () => void; onRetryFamilies: () => void; onMore: () => void; onContinue: () => void;
 }) {
   const atLimit = count >= 6;
   return (
@@ -44,6 +44,7 @@ export function NoteLibrary({
         {notes.map(note => <FacetedNoteCard key={note.id} note={note} family={families.find(item => item.id === note.family_id)} selected={selectedIds.has(note.id)} atLimit={atLimit} onSelect={() => onSelect(note)} />)}
       </div>}
       {hasMore && !loading && !noteError && <button className="studio-more-button" type="button" onClick={onMore}>نمایش نت‌های بیشتر</button>}
+      {count > 0 && !loading && !noteError && <button className="studio-library-continue" type="button" onClick={onContinue} aria-label={`رفتن به ترکیب، ${count} از ۶ نت انتخاب شده`}><span>ادامه با نت‌های انتخاب‌شده</span><strong>{count.toLocaleString('fa-IR')} از ۶</strong><span aria-hidden="true">←</span></button>}
       <div className="studio-family-key" aria-hidden="true">{families.slice(0, 4).map(family => <span key={family.id} data-mood={familyMood(family.name)}>{family.name}</span>)}</div>
     </section>
   );

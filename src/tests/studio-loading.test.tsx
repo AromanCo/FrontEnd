@@ -15,7 +15,7 @@ it('shows a retry after failure, renders loaded notes, keeps selections, and dis
   mocks.families.mockResolvedValue([]);
   mocks.notes.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([demoNote]).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([]);
   render(<CreativeStudio/>);
-  const panel=screen.getByRole('tabpanel',{name:'نت‌ها'});
+  const panel=screen.getByRole('tabpanel',{name:/نت‌ها/});
   await waitFor(()=>expect(panel.getAttribute('data-note-status')).toBe('error'));
   expect(within(panel).getByRole('button',{name:'تلاش دوباره'})).toBeTruthy();
   fireEvent.click(within(panel).getByRole('button',{name:'تلاش دوباره'}));
