@@ -1,0 +1,5 @@
+import {describe,expect,it} from 'vitest';
+import {addNote,moveNote,payload,reorder,summary,type SelectedNote} from '@/lib/studio/composition';
+import type {Note} from '@/lib/api/client';
+const note=(id:string):Note=>({id,slug:id,name:id,description:null,is_demo:true,family_id:'family'});
+describe('Studio composition',()=>{it('enforces six unique notes',()=>{let state:SelectedNote[]=[];for(let i=0;i<8;i++)state=addNote(state,note(String(i)));expect(state).toHaveLength(6);expect(addNote(state,note('0'))).toBe(state)});it('moves layers, reorders within a layer, and emits layer-local positions',()=>{let state:SelectedNote[]=[{note:note('a'),layer:'heart'},{note:note('b'),layer:'heart'},{note:note('c'),layer:'top'}];state=reorder(state,'b',-1);state=moveNote(state,'a','top');expect(payload('  من  ',state)).toEqual({name:'من',notes:[{note_id:'b',layer:'heart',position:0},{note_id:'a',layer:'top',position:0},{note_id:'c',layer:'top',position:1}]});expect(summary(state)).toContain('آغازین')})});
