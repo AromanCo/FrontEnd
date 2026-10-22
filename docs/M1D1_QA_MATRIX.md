@@ -84,3 +84,23 @@ New screenshots are in `artifacts/integrated-qa/`; existing `artifacts/screensho
 ## CI recommendation
 
 Keep the existing mandatory Node 22 CI checks as-is. Add browser coverage in stages: first a separately reported, deterministic Playwright smoke against `next start` using clearly named network fixtures; treat it as UI smoke coverage only. Later, if desired, add an optional/manual integration job that checks out the Backend, creates a disposable PostgreSQL database, migrates/seeds it, and exercises real public catalog APIs. Do not make pull-request CI depend on public SMS, personal secrets, mutable external services, or a fake OTP HTTP endpoint. Continue to use the Backend's private TestClient fixture for authenticated contract coverage until a real provider or explicitly approved isolated browser-auth mechanism exists.
+
+## M1-D.3 acceptance addendum
+
+Verification was rerun from frontend HEAD `c8636e9` on `feature/integrated-qa-v1`; Backend remained at `develop` / `0dfbb8d`. New browser evidence was written under `artifacts/integrated-qa/m1d3/`. The original M1-D.1 and M1-D.2 evidence directories were not overwritten. The existing 106-test Vitest suite and four browser journeys passed again. The M1-D.2 removal-target regression remains **PASS / RESOLVED** at all four widths.
+
+| Area | Scenario | Evidence or test name | Environment | Result | Notes |
+|---|---|---|---|---|---|
+| Selected-note removal | Actual target rectangle, non-overlap, Like/Avoid removal, keyboard activation, count, hidden selected note, overflow | `npm run test:browser:guided`; `artifacts/integrated-qa/m1d3/` | Chromium production build + real seeded FastAPI | PASS | 44×44 CSS px at 320/390/768/1440; keyboard Enter/Space; no horizontal overflow. M1D1-F-001 remains resolved. |
+| Contrast | Guided Step 5 form/search/filter/metadata/focus colors | M1-D.3.1 browser computed-style assertions in `guided-studio-journey.mjs`; details in `docs/M1D3_ACCEPTANCE.md` | Chromium production build, four viewports, WCAG relative-luminance calculation | PASS — M1D3-F-001 RESOLVED | At each width: labels 8.20:1; placeholder 6.65:1; input/selection text 13.40:1; borders 5.46:1; note-family metadata 6.29:1 at 12px; keyboard focus 5.77:1. Targeted check only, not full WCAG conformance. |
+| Browser engine coverage | Representative flows in Chromium | `test:browser`, `test:browser:guided`, `test:browser:responsive`, `test:browser:integration` | Linux system Chrome/Chromium + real API where noted | PASS | Does not imply Firefox, WebKit, Safari, or screen-reader coverage. |
+| Firefox | Representative route and dialog smoke | Browser launch attempt | Local environment | NOT TESTED | Playwright Firefox executable missing; system Firefox snap could not initialize its mount namespace. No browser was installed. |
+| WebKit | Representative route and dialog smoke | Browser launch attempt | Local environment | NOT TESTED | Playwright WebKit executable missing. Safari was unavailable. |
+| Screen reader | Spoken names, state, error and dialog announcements | Manual checklist in `docs/M1D3_ACCEPTANCE.md` | No screen-reader session | NOT TESTED | Orca binary exists, but no actual screen-reader interaction/session was performed. |
+| Authenticated browser Save | Real SMS login then concept Save | Existing backend/provider limitation | Public browser + real API | NOT TESTED | SMS provider is not configured and challenge returns 503. Backend private TestClient and isolated frontend fixtures are not real authenticated browser evidence. |
+
+This addendum records final acceptance evidence without rewriting the historical M1-D.1 baseline. See `docs/M1D3_ACCEPTANCE.md` for environment, commands, detailed results, limitations, and merge recommendation.
+
+## M1-D.3.1 contrast correction
+
+The former Step 5 contrast failure is resolved by a focused CSS adjustment in `src/app/globals.css`. The guided browser journey now calculates ratios from computed colors and background surfaces and asserts them at 320, 390, 768, and 1440 CSS px. It also checks 12px family metadata, Tab order, visible focus, removal targets and no overflow. The updated journey and the other three requested browser journeys all passed against the existing seeded FastAPI stack. New screenshots are in `artifacts/integrated-qa/m1d31/`; earlier `m1d3` evidence is preserved.

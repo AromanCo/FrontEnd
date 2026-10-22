@@ -37,6 +37,109 @@ const checkLayout = async width => {
   assert.equal(state.dir, 'rtl');
   assert.ok(state.scrollWidth <= width, `Horizontal overflow at ${width}px: ${JSON.stringify(state)}`);
 };
+const parseColor = value => {
+  const match = value.match(/rgba?\((\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?)(?:,\s*(\d+(?:\.\d+)?))?\)/);
+  assert.ok(match, `Expected a computed rgb/rgba color, received: ${value}`);
+  return { r: Number(match[1]), g: Number(match[2]), b: Number(match[3]), a: match[4] === undefined ? 1 : Number(match[4]) };
+};
+const composite = (foreground, background) => {
+  const alpha = foreground.a + background.a * (1 - foreground.a);
+  if (alpha === 0) return { r: 0, g: 0, b: 0, a: 0 };
+  return {
+    r: (foreground.r * foreground.a + background.r * background.a * (1 - foreground.a)) / alpha,
+    g: (foreground.g * foreground.a + background.g * background.a * (1 - foreground.a)) / alpha,
+    b: (foreground.b * foreground.a + background.b * background.a * (1 - foreground.a)) / alpha,
+    a: alpha,
+  };
+};
+const luminance = color => {
+  const channels = [color.r, color.g, color.b].map(value => {
+    const channel = value / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+};
+const contrastRatio = (foreground, background) => {
+  const fg = luminance(foreground);
+  const bg = luminance(background);
+  return (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
+};
+const minContrast = (foreground, backgrounds) => Math.min(...backgrounds.map(background => contrastRatio(foreground, background)));
+const assertStep5Contrast = async width => {
+  const measured = await page.evaluate(() => {
+    const colorStops = css => [...css.matchAll(/rgba?\([^)]*\)/g)].map(match => match[0]);
+    const style = selector => getComputedStyle(document.querySelector(selector));
+    const pageStyle = style('.guided-page');
+    const panelStyle = style('.guided-question-main');
+    const inputStyle = style('.guided-search-label input');
+    const placeholder = getComputedStyle(document.querySelector('.guided-search-label input'), '::placeholder');
+    const selectStyle = style('.guided-family-label select');
+    const formLabelStyle = style('.guided-search-label');
+    const noteFamilyStyle = style('.guided-note-info small');
+    const noteCardStyle = style('.guided-note-item');
+    return {
+      pageBase: getComputedStyle(document.body).backgroundColor,
+      pageStops: colorStops(pageStyle.backgroundImage),
+      panelColor: panelStyle.backgroundColor,
+      input: { text: inputStyle.color, background: inputStyle.backgroundColor, border: inputStyle.borderTopColor, borderWidth: inputStyle.borderTopWidth, label: formLabelStyle.color, labelSize: formLabelStyle.fontSize, placeholder: placeholder.color },
+      select: { text: selectStyle.color, background: selectStyle.backgroundColor, border: selectStyle.borderTopColor, borderWidth: selectStyle.borderTopWidth, label: style('.guided-family-label').color },
+      noteFamily: { text: noteFamilyStyle.color, size: noteFamilyStyle.fontSize, gradient: noteCardStyle.backgroundImage },
+    };
+  });
+  const white = parseColor('rgb(255, 255, 255)');
+  const pageBase = parseColor(measured.pageBase);
+  const pageSurfaces = [pageBase, ...measured.pageStops.map(stop => composite(parseColor(stop), pageBase))];
+  const panelColor = parseColor(measured.panelColor);
+  const panelSurfaces = [white, ...pageSurfaces.map(surface => composite(panelColor, surface))];
+  const noteGradientStops = [...measured.noteFamily.gradient.matchAll(/rgba?\([^)]*\)/g)].map(match => parseColor(match[0]));
+  assert.ok(noteGradientStops.length >= 2, `Could not resolve the note-card gradient: ${measured.noteFamily.gradient}`);
+  const inputTextRatio = minContrast(parseColor(measured.input.text), [parseColor(measured.input.background)]);
+  const inputPlaceholderRatio = minContrast(parseColor(measured.input.placeholder), [parseColor(measured.input.background)]);
+  const searchLabelRatio = minContrast(parseColor(measured.input.label), panelSurfaces);
+  const inputBorderRatio = minContrast(parseColor(measured.input.border), [parseColor(measured.input.background), ...panelSurfaces]);
+  const selectTextRatio = minContrast(parseColor(measured.select.text), [parseColor(measured.select.background)]);
+  const selectBorderRatio = minContrast(parseColor(measured.select.border), [parseColor(measured.select.background), ...panelSurfaces]);
+  const familyFormLabelRatio = minContrast(parseColor(measured.select.label), panelSurfaces);
+  const familyMetadataRatio = minContrast(parseColor(measured.noteFamily.text), noteGradientStops);
+  assert.ok(inputPlaceholderRatio >= 4.5, `Search placeholder contrast ${inputPlaceholderRatio.toFixed(2)}:1 at ${width}px`);
+  assert.ok(searchLabelRatio >= 4.5, `Search label contrast ${searchLabelRatio.toFixed(2)}:1 at ${width}px`);
+  assert.ok(inputTextRatio >= 4.5, `Search input text contrast ${inputTextRatio.toFixed(2)}:1 at ${width}px`);
+  assert.ok(inputBorderRatio >= 3, `Search border contrast ${inputBorderRatio.toFixed(2)}:1 at ${width}px`);
+  assert.ok(familyFormLabelRatio >= 4.5, `Family filter label contrast ${familyFormLabelRatio.toFixed(2)}:1 at ${width}px`);
+  assert.ok(selectTextRatio >= 4.5, `Family select text contrast ${selectTextRatio.toFixed(2)}:1 at ${width}px`);
+  assert.ok(selectBorderRatio >= 3, `Family select border contrast ${selectBorderRatio.toFixed(2)}:1 at ${width}px`);
+  assert.ok(familyMetadataRatio >= 4.5, `Note family metadata contrast ${familyMetadataRatio.toFixed(2)}:1 at ${width}px`);
+  assert.ok(Number.parseFloat(measured.noteFamily.size) >= 12, `Note family metadata is only ${measured.noteFamily.size} at ${width}px`);
+  assert.ok(Number.parseFloat(measured.input.labelSize) >= 12, `Search label is only ${measured.input.labelSize} at ${width}px`);
+  assert.equal(measured.input.borderWidth, '1px');
+  assert.equal(measured.select.borderWidth, '1px');
+
+  const controlRects = await page.evaluate(() => ['.guided-search-label', '.guided-family-label'].map(selector => {
+    const { x, y, width, height } = document.querySelector(selector).getBoundingClientRect();
+    return { x, y, width, height };
+  }));
+  const [searchRect, familyRect] = controlRects;
+  const controlsOverlap = searchRect.x < familyRect.x + familyRect.width && searchRect.x + searchRect.width > familyRect.x && searchRect.y < familyRect.y + familyRect.height && searchRect.y + searchRect.height > familyRect.y;
+  assert.equal(controlsOverlap, false, `Search and family controls overlap at ${width}px: ${JSON.stringify(controlRects)}`);
+
+  const search = page.getByRole('searchbox', { name: 'جست‌وجو در نت‌ها' });
+  const family = page.getByRole('combobox', { name: 'خانوادهٔ رایحه' });
+  await page.getByRole('heading', { name: 'نت‌هایی که به دلتان می‌نشینند' }).focus();
+  await page.keyboard.press('Tab');
+  assert.equal(await search.evaluate(element => element === document.activeElement), true, `Tab did not reach labeled search at ${width}px`);
+  const searchFocus = await search.evaluate(element => ({ visible: element.matches(':focus-visible'), color: getComputedStyle(element).outlineColor, width: getComputedStyle(element).outlineWidth, style: getComputedStyle(element).outlineStyle }));
+  assert.ok(searchFocus.visible && searchFocus.style !== 'none' && Number.parseFloat(searchFocus.width) >= 3, `Search focus is not visibly outlined at ${width}px: ${JSON.stringify(searchFocus)}`);
+  if (width === 390) await screenshot('step-05-search-focused-390');
+  await page.keyboard.press('Tab');
+  assert.equal(await family.evaluate(element => element === document.activeElement), true, `Tab did not reach labeled family filter at ${width}px`);
+  const familyFocus = await family.evaluate(element => ({ visible: element.matches(':focus-visible'), color: getComputedStyle(element).outlineColor, width: getComputedStyle(element).outlineWidth, style: getComputedStyle(element).outlineStyle }));
+  assert.ok(familyFocus.visible && familyFocus.style !== 'none' && Number.parseFloat(familyFocus.width) >= 3, `Family filter focus is not visibly outlined at ${width}px: ${JSON.stringify(familyFocus)}`);
+  if (width === 768) await screenshot('step-05-family-focused-768');
+  assert.ok(minContrast(parseColor(searchFocus.color), [parseColor(measured.input.background), ...panelSurfaces]) >= 3, `Search focus indicator contrast is below 3:1 at ${width}px`);
+  assert.ok(minContrast(parseColor(familyFocus.color), [parseColor(measured.select.background), ...panelSurfaces]) >= 3, `Family focus indicator contrast is below 3:1 at ${width}px`);
+  console.log(`${width}px contrast: search label ${searchLabelRatio.toFixed(2)}:1, placeholder ${inputPlaceholderRatio.toFixed(2)}:1, input text ${inputTextRatio.toFixed(2)}:1, input border ${inputBorderRatio.toFixed(2)}:1; family label ${familyFormLabelRatio.toFixed(2)}:1, select text ${selectTextRatio.toFixed(2)}:1, select border ${selectBorderRatio.toFixed(2)}:1, note-family label ${familyMetadataRatio.toFixed(2)}:1 at ${measured.noteFamily.size}; focus ${minContrast(parseColor(searchFocus.color), [parseColor(measured.input.background), ...panelSurfaces]).toFixed(2)}:1/${minContrast(parseColor(familyFocus.color), [parseColor(measured.select.background), ...panelSurfaces]).toFixed(2)}:1`);
+  return { search, family };
+};
 const choose = async (role, name) => {
   const control = page.getByRole(role, { name });
   if (await control.isChecked()) return;
@@ -104,6 +207,7 @@ try {
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 850 });
     await checkLayout(width);
+    await assertStep5Contrast(width);
     const firstAction = await firstNoteRow.getByRole('button', { name: 'دوست دارم' }).boundingBox();
     assert.ok(firstAction && firstAction.height >= 44, `Note action is below 44px at ${width}px: ${JSON.stringify(firstAction)}`);
     const removeBox = await hiddenNoteRemoval.boundingBox();
