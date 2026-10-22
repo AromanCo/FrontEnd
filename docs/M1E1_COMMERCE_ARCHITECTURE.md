@@ -14,6 +14,8 @@ There is one initial Alembic foundation revision. The Backend documents that it 
 
 Commerce catalog records describe verified physical goods and their sale conditions. `FragranceConcept` and its note selections describe a user's conceptual composition. A saved concept must never become a product, variant, formula, stock unit, or order line implicitly. A future personalized product would require an explicit production capability, reviewed product specification, safety/labeling process, and separate customer consent.
 
+M1-E.2 owner direction adds two intended product lines: AROMAN-branded finished Signature Collection products and Controlled Personalization. The latter must not make a raw Studio note list orderable. It requires a separate approved production-configuration model described in [M1E2_PERSONALIZATION_ARCHITECTURE.md](M1E2_PERSONALIZATION_ARCHITECTURE.md). The M1-E.1 ready-made-first suggestion is historical and superseded as product direction by approved B+C; whether B may launch before C remains undecided. All commerce schemas and endpoints here remain proposals.
+
 ## Proposed entities and relationships
 
 The schema should be introduced incrementally after product decisions; names below are illustrative.
@@ -35,6 +37,17 @@ The schema should be introduced incrementally after product decisions; names bel
 | `AuditEvent` | Actor, action, target, timestamp, correlation ID, reason and minimal before/after metadata for sensitive catalog, price, stock, order and refund operations. Exclude secrets and unnecessary personal data. |
 
 Use foreign keys, check constraints, unique keys, explicit monetary currency, timestamps in UTC, and carefully defined deletion/retention policies. Product/variant deactivation should not delete order snapshots or payment history.
+
+### Proposed typed commercial item identity
+
+Future carts, checkout quotes, and order items may reference exactly one of two explicitly discriminated item kinds:
+
+- **Signature Collection (B):** a verified, published product variant/SKU, referenced by its stable variant ID and SKU snapshot.
+- **Controlled Personalization (C):** a separately approved, immutable `ConfigurationVersion` ID plus only its permitted customer-selected option IDs/values and exact version snapshot.
+
+Use a server-enforced discriminator and typed reference, not ambiguous nullable IDs. At cart, quote, and order creation, the server must resolve and validate the referenced item type, publication/approval state, market, options, price, and current stock or production capacity. Reserve physical stock for B and the approved capacity/resource for C using transactionally safe reservation. Persist immutable order-time identity, selected options, version, price/currency, terms, and fulfillment snapshots. Later catalog edits or configuration changes must not rewrite an existing order.
+
+A raw Studio note selection, saved concept, or advisory suggestion is never a valid cart item, quote line, order item, or production configuration. C requires a separately approved configuration and explicit customer selection/confirmation; no implicit note-to-product conversion is permitted.
 
 ## Proposed API shape
 
