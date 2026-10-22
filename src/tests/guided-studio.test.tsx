@@ -2,15 +2,21 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GuidedStudio } from '@/components/studio/guided/GuidedStudio';
+import { StudioDraftProvider } from '@/lib/studio/draft-transfer';
 import { MAX_CONCEPT_NAME_LENGTH } from '@/lib/studio/guided/config';
 import { seedFamilies, seedNotes, uuid } from './guided-fixtures';
 
-const { families, notes } = vi.hoisted(() => ({ families: vi.fn(), notes: vi.fn() }));
+const authMock = vi.hoisted(() => ({ user: null as { id: string; mobile_e164: string; role: string } | null, loading: false, autoLogin: false }));
+const { families, notes, createConcept, challenge, verify } = vi.hoisted(() => ({ families: vi.fn(), notes: vi.fn(), createConcept: vi.fn(), challenge: vi.fn(), verify: vi.fn() }));
 vi.mock('@/lib/api/client', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/api/client')>();
-  return { ...actual, catalog: { ...actual.catalog, families, notes } };
+  return { ...actual, auth: { ...actual.auth, challenge, verify }, catalog: { ...actual.catalog, families, notes }, concepts: { ...actual.concepts, create: createConcept } };
 });
+vi.mock('@/components/auth/AuthProvider', () => ({ useAuth: () => ({ ...authMock, refresh: vi.fn(async () => { if (authMock.autoLogin) authMock.user = { id: uuid(901), mobile_e164: '+989121234567', role: 'customer' }; }), logout: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('next/link', () => ({ default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => <a href={href} {...props}>{children}</a> }));
+
+function renderGuided() { return render(<StudioDraftProvider><GuidedStudio /></StudioDraftProvider>); }
 
 const continueButton = () => screen.getByRole('button', { name: /ادامه|دیدن پیشنهاد من/ });
 const selectRadio = (name: RegExp) => fireEvent.click(screen.getByRole('radio', { name }));
@@ -39,15 +45,42 @@ async function reachStep(step: number) {
   if (step === 5) await screen.findByRole('heading', { name: 'بازبینی و میزان کشف' });
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((accept, fail) => { resolve = accept; reject = fail; });
+  void promise.catch(() => undefined);
+  return { promise, resolve, reject };
+}
+
+async function changeFeelingAndRegenerate(label: RegExp, conceptName?: string) {
+  fireEvent.click(screen.getByRole('button', { name: 'مرور پاسخ‌ها' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'ویرایش حال‌وهوا' }));
+  fireEvent.click(screen.getByRole('radio', { name: label }));
+  goNext();
+  await screen.findByRole('heading', { name: 'جهان‌های رایحه' }); goNext();
+  await screen.findByRole('heading', { name: 'دمای حسی' }); goNext();
+  await screen.findByRole('heading', { name: 'یک تصویر برای خیال' }); goNext();
+  await screen.findByRole('heading', { name: 'نت‌هایی که به دلتان می‌نشینند' }); goNext();
+  await screen.findByRole('heading', { name: 'بازبینی و میزان کشف' });
+  if (conceptName) fireEvent.change(screen.getByLabelText('برای این تصویر چه نامی دوست دارید؟'), { target: { value: conceptName } });
+  fireEvent.click(screen.getByRole('button', { name: 'دیدن پیشنهاد من' }));
+  await screen.findByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' });
+}
+
 describe('Guided Studio questionnaire and result', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authMock.user = null;
+    authMock.autoLogin = false;
+    challenge.mockResolvedValue(undefined);
+    verify.mockResolvedValue(undefined);
     families.mockResolvedValue([...seedFamilies]);
     notes.mockResolvedValue([...seedNotes]);
   });
 
   it('loads real catalog pages and completes all six approved steps into a grounded result', async () => {
-    render(<GuidedStudio />);
+    renderGuided();
     await reachStep(5);
     await screen.findByRole('heading', { name: 'بازبینی و میزان کشف' });
     expect(screen.getAllByText('گلی').length).toBeGreaterThan(0);
@@ -61,8 +94,170 @@ describe('Guided Studio questionnaire and result', () => {
     expect(screen.getByText('این پیشنهاد یک تصویر مفهومی از سلیقهٔ شماست، نه فرمول ساخت یا پیش‌بینی عملکرد یک عطر واقعی.')).toBeInTheDocument();
     expect(families).toHaveBeenCalledWith('', 100, 0);
     expect(notes).toHaveBeenCalledWith({ limit: 100, offset: 0 });
-    expect(screen.getByRole('button', { name: /ذخیرهٔ مفهوم/ })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /رفتن به استودیوی خلاق/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /ذخیرهٔ مفهوم/ })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /رفتن به استودیوی خلاق/ })).toBeEnabled();
+  });
+
+  it('opens existing login for anonymous Save without posting or losing the result', async () => {
+    renderGuided();
+    await reachStep(5);
+    fireEvent.click(screen.getByRole('radio', { name: /کمی آشنا، کمی تازه/ }));
+    goNext();
+    await screen.findByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' });
+    fireEvent.click(screen.getByRole('button', { name: 'ذخیرهٔ مفهوم' }));
+    expect(screen.getByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'ورود برای ذخیرهٔ مفهوم' })).toBeInTheDocument();
+    expect(createConcept).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'بستن' }));
+    expect(screen.getByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' })).toBeInTheDocument();
+  });
+
+  it('requires an explicit Save retry after login succeeds', async () => {
+    authMock.autoLogin = true;
+    createConcept.mockResolvedValue({ id: uuid(903), name: 'رایحهٔ من', notes: [] });
+    renderGuided();
+    await reachStep(5);
+    fireEvent.click(screen.getByRole('radio', { name: /کمی آشنا، کمی تازه/ }));
+    goNext();
+    await screen.findByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' });
+    fireEvent.click(screen.getByRole('button', { name: 'ذخیرهٔ مفهوم' }));
+    const dialog = screen.getByRole('dialog', { name: 'ورود برای ذخیرهٔ مفهوم' });
+    fireEvent.change(within(dialog).getByLabelText('شماره موبایل'), { target: { value: '09123456789' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'دریافت کد' }));
+    fireEvent.change(await within(dialog).findByLabelText('کد شش رقمی'), { target: { value: '123456' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'تأیید و ورود' }));
+    await screen.findByText(/وارد شدید\. برای ذخیرهٔ این پیشنهاد، دوباره دکمهٔ ذخیره را بزنید/);
+    expect(createConcept).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'ذخیرهٔ مفهوم' }));
+    await screen.findByText('مفهوم رایحهٔ شما ذخیره شد.');
+    expect(createConcept).toHaveBeenCalledTimes(1);
+  });
+
+  it('creates an authenticated concept with the exact API payload and blocks duplicate Save', async () => {
+    authMock.user = { id: uuid(901), mobile_e164: '+989121234567', role: 'customer' };
+    const pendingSave = deferred<{ id: string; name: string; notes: never[] }>();
+    createConcept.mockReturnValue(pendingSave.promise);
+    renderGuided();
+    await reachStep(5);
+    fireEvent.click(screen.getByRole('radio', { name: /کمی آشنا، کمی تازه/ }));
+    goNext();
+    await screen.findByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' });
+    const save = screen.getByRole('button', { name: 'ذخیرهٔ مفهوم' });
+    fireEvent.click(save);
+    fireEvent.click(save);
+    expect(createConcept).toHaveBeenCalledTimes(1);
+    pendingSave.resolve({ id: uuid(902), name: 'رایحهٔ من', notes: [] });
+    await screen.findByText('مفهوم رایحهٔ شما ذخیره شد.');
+    expect(createConcept).toHaveBeenCalledTimes(1);
+    const body = createConcept.mock.calls[0]?.[0];
+    expect(Object.keys(body).sort()).toEqual(['name', 'notes']);
+    expect(body.name).toBe('رایحهٔ من');
+    expect(body.notes).toHaveLength(4);
+    expect(body.notes.every((item: { note_id: string }) => seedNotes.some(note => note.id === item.note_id))).toBe(true);
+    expect(body.notes.map((item: { layer: string; position: number }) => [item.layer, item.position])).toEqual([
+      ['top', 0], ['heart', 0], ['base', 0], ['heart', 1],
+    ]);
+    expect(screen.getByRole('link', { name: 'دیدن مفاهیم ذخیره‌شده' })).toHaveAttribute('href', '/account');
+  });
+
+  it('keeps a late success attached to Save A and allows changed result B to save separately', async () => {
+    authMock.user = { id: uuid(901), mobile_e164: '+989121234567', role: 'customer' };
+    const saveA = deferred<{ id: string; name: string; notes: never[] }>();
+    createConcept.mockReturnValueOnce(saveA.promise).mockResolvedValueOnce({ id: uuid(904), name: 'رایحهٔ من', notes: [] });
+    renderGuided();
+    await reachStep(5);
+    fireEvent.click(screen.getByRole('radio', { name: /کمی آشنا، کمی تازه/ })); goNext();
+    await screen.findByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' });
+    fireEvent.click(screen.getByRole('button', { name: 'ذخیرهٔ مفهوم' }));
+    await waitFor(() => expect(createConcept).toHaveBeenCalledTimes(1));
+    await changeFeelingAndRegenerate(/سرزنده و روشن/, 'روایت تازه');
+    expect(screen.queryByText('مفهوم رایحهٔ شما ذخیره شد.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ذخیرهٔ مفهوم' })).toBeEnabled();
+    saveA.resolve({ id: uuid(903), name: 'رایحهٔ من', notes: [] });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'ذخیرهٔ مفهوم' })).toBeEnabled());
+    expect(screen.queryByText('مفهوم رایحهٔ شما ذخیره شد.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'ذخیرهٔ مفهوم' }));
+    await screen.findByText('مفهوم رایحهٔ شما ذخیره شد.');
+    expect(createConcept).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not show stale failure from Save A after the user generates result B', async () => {
+    authMock.user = { id: uuid(901), mobile_e164: '+989121234567', role: 'customer' };
+    const saveA = deferred<{ id: string; name: string; notes: never[] }>();
+    createConcept.mockReturnValueOnce(saveA.promise);
+    renderGuided();
+    await reachStep(5);
+    fireEvent.click(screen.getByRole('radio', { name: /کمی آشنا، کمی تازه/ })); goNext();
+    await screen.findByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' });
+    fireEvent.click(screen.getByRole('button', { name: 'ذخیرهٔ مفهوم' }));
+    await waitFor(() => expect(createConcept).toHaveBeenCalledTimes(1));
+    await changeFeelingAndRegenerate(/سرزنده و روشن/, 'روایت تازه');
+    saveA.reject(new Error('A network failure'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'ذخیرهٔ مفهوم' })).toBeEnabled());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' })).toBeInTheDocument();
+  });
+
+  it('keeps late Save completion out of the restarted questionnaire', async () => {
+    authMock.user = { id: uuid(901), mobile_e164: '+989121234567', role: 'customer' };
+    const saveA = deferred<{ id: string; name: string; notes: never[] }>();
+    createConcept.mockReturnValue(saveA.promise);
+    renderGuided();
+    await reachStep(5);
+    fireEvent.click(screen.getByRole('radio', { name: /کمی آشنا، کمی تازه/ })); goNext();
+    await screen.findByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' });
+    fireEvent.click(screen.getByRole('button', { name: 'ذخیرهٔ مفهوم' }));
+    await waitFor(() => expect(createConcept).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'شروع دوباره' }));
+    fireEvent.click(screen.getByRole('button', { name: 'پاک‌کردن و شروع دوباره' }));
+    await screen.findByRole('heading', { name: 'حال‌وهوای شما' });
+    saveA.resolve({ id: uuid(905), name: 'رایحهٔ من', notes: [] });
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'حال‌وهوای شما' })).toBeInTheDocument());
+    expect(screen.queryByText('مفهوم رایحهٔ شما ذخیره شد.')).not.toBeInTheDocument();
+  });
+
+  it('does not attempt state updates when an in-flight Save resolves after unmount', async () => {
+    authMock.user = { id: uuid(901), mobile_e164: '+989121234567', role: 'customer' };
+    const save = deferred<{ id: string; name: string; notes: never[] }>();
+    createConcept.mockReturnValue(save.promise);
+    const view = renderGuided();
+    await reachStep(5);
+    fireEvent.click(screen.getByRole('radio', { name: /کمی آشنا، کمی تازه/ })); goNext();
+    await screen.findByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' });
+    fireEvent.click(screen.getByRole('button', { name: 'ذخیرهٔ مفهوم' }));
+    await waitFor(() => expect(createConcept).toHaveBeenCalledTimes(1));
+    view.unmount();
+    save.resolve({ id: uuid(907), name: 'رایحهٔ من', notes: [] });
+    await save.promise;
+  });
+
+  it('does not create a duplicate when the identical saved composition is regenerated', async () => {
+    authMock.user = { id: uuid(901), mobile_e164: '+989121234567', role: 'customer' };
+    createConcept.mockResolvedValue({ id: uuid(906), name: 'رایحهٔ من', notes: [] });
+    renderGuided();
+    await reachStep(5);
+    fireEvent.click(screen.getByRole('radio', { name: /کمی آشنا، کمی تازه/ })); goNext();
+    await screen.findByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' });
+    fireEvent.click(screen.getByRole('button', { name: 'ذخیرهٔ مفهوم' }));
+    await screen.findByText('مفهوم رایحهٔ شما ذخیره شد.');
+    await changeFeelingAndRegenerate(/آرام و آسوده/);
+    expect(screen.getByRole('button', { name: 'ذخیره شد' })).toBeDisabled();
+    expect(screen.getByText('مفهوم رایحهٔ شما ذخیره شد.')).toBeInTheDocument();
+    expect(createConcept).toHaveBeenCalledTimes(1);
+  });
+
+  it('retains the result and offers no success when Save fails', async () => {
+    authMock.user = { id: uuid(901), mobile_e164: '+989121234567', role: 'customer' };
+    createConcept.mockRejectedValue(new Error('offline'));
+    renderGuided();
+    await reachStep(5);
+    fireEvent.click(screen.getByRole('radio', { name: /کمی آشنا، کمی تازه/ }));
+    goNext();
+    await screen.findByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' });
+    fireEvent.click(screen.getByRole('button', { name: 'ذخیرهٔ مفهوم' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('ذخیره انجام نشد');
+    expect(screen.getByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ذخیرهٔ مفهوم' })).toBeEnabled();
   });
 
   it('loads every family and note page in limit-100 batches', async () => {
@@ -74,7 +269,7 @@ describe('Guided Studio questionnaire and result', () => {
     }));
     families.mockResolvedValueOnce(firstFamilyPage).mockResolvedValueOnce([seedFamilies[0]]);
     notes.mockResolvedValueOnce(firstNotePage).mockResolvedValueOnce([seedNotes[0]]);
-    render(<GuidedStudio />);
+    renderGuided();
     await screen.findByRole('heading', { name: 'حال‌وهوای شما' });
     selectRadio(/آرام و آسوده/); goNext();
     await screen.findByRole('heading', { name: 'جهان‌های رایحه' });
@@ -89,7 +284,7 @@ describe('Guided Studio questionnaire and result', () => {
   });
 
   it('preserves answers through Review Answers, editing and regeneration', async () => {
-    render(<GuidedStudio />);
+    renderGuided();
     await reachStep(5);
     fireEvent.click(screen.getByRole('radio', { name: /کمی آشنا، کمی تازه/ }));
     fireEvent.click(screen.getByRole('button', { name: /دیدن پیشنهاد من/ }));
@@ -106,7 +301,7 @@ describe('Guided Studio questionnaire and result', () => {
   });
 
   it('moves a note between like and avoid lists and records explicit skip', async () => {
-    render(<GuidedStudio />);
+    renderGuided();
     await reachStep(4);
     const roseRow = screen.getByText('رز').closest('li');
     expect(roseRow).not.toBeNull();
@@ -122,7 +317,7 @@ describe('Guided Studio questionnaire and result', () => {
   });
 
   it('rejects a third family and reports the limit accessibly', async () => {
-    render(<GuidedStudio />);
+    renderGuided();
     await screen.findByRole('heading', { name: 'حال‌وهوای شما' });
     selectRadio(/آرام و آسوده/); goNext();
     await screen.findByRole('heading', { name: 'جهان‌های رایحه' });
@@ -135,7 +330,7 @@ describe('Guided Studio questionnaire and result', () => {
 
   it('offers retry on real note API failure without losing prior answers', async () => {
     notes.mockRejectedValueOnce(new Error('private traceback')).mockResolvedValue([...seedNotes]);
-    render(<GuidedStudio />);
+    renderGuided();
     await reachStep(4);
     expect(await screen.findByRole('alert')).toHaveTextContent('دریافت نت‌ها انجام نشد. اتصال را بررسی و دوباره تلاش کنید.');
     expect(screen.queryByText('private traceback')).not.toBeInTheDocument();
@@ -151,7 +346,7 @@ describe('Guided Studio questionnaire and result', () => {
 
   it('shows an honest no-match when the API returns an empty note catalog', async () => {
     notes.mockResolvedValue([]);
-    render(<GuidedStudio />);
+    renderGuided();
     await reachStep(4);
     expect(screen.getByText(/در حال حاضر نتی برای انتخاب در دسترس نیست/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /فعلاً انتخابی ندارم/ }));
@@ -161,10 +356,11 @@ describe('Guided Studio questionnaire and result', () => {
     fireEvent.click(screen.getByRole('button', { name: /دیدن پیشنهاد من/ }));
     expect(await screen.findByRole('heading', { name: 'این بار، انتخاب‌ها را کمی تغییر دهیم' })).toBeInTheDocument();
     expect(screen.getByText(/در کاتالوگ فعلی نتی برای پیشنهاد در دسترس نیست/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /ذخیرهٔ مفهوم/ })).not.toBeInTheDocument();
   });
 
   it('uses the approved 60-character concept-name boundary and Persian counter', async () => {
-    render(<GuidedStudio />);
+    renderGuided();
     await reachStep(5);
     const name = screen.getByRole('textbox', { name: /برای این تصویر چه نامی دوست دارید/ });
     expect(name).toHaveAttribute('maxLength', String(MAX_CONCEPT_NAME_LENGTH));
@@ -174,7 +370,7 @@ describe('Guided Studio questionnaire and result', () => {
   });
 
   it('expands the note list, filters all loaded notes, and keeps selected notes removable', async () => {
-    render(<GuidedStudio />);
+    renderGuided();
     await reachStep(4);
     const noteRows = () => document.querySelectorAll('.guided-note-item');
     expect(noteRows()).toHaveLength(seedNotes.length);
@@ -197,7 +393,7 @@ describe('Guided Studio questionnaire and result', () => {
   });
 
   it('traps dialog focus, restores focus on cancellation, and focuses Step 1 after confirmed restart', async () => {
-    render(<GuidedStudio />);
+    renderGuided();
     await reachStep(5);
     fireEvent.click(screen.getByRole('radio', { name: /دوست دارم کشف کنم/ }));
     fireEvent.click(screen.getByRole('button', { name: /دیدن پیشنهاد من/ }));

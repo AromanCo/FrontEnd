@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright';
 
 const origin = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
-const screenshotDir = join(process.cwd(), 'artifacts/guided-studio');
+const screenshotDir = join(process.cwd(), 'artifacts/guided-studio/m1c2c');
 const browserPath = process.env.CHROME_BIN || '/usr/bin/google-chrome';
 const browser = await chromium.launch({ executablePath: browserPath, headless: true, args: ['--no-sandbox', '--no-proxy-server'] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
@@ -37,7 +37,13 @@ const checkLayout = async width => {
   assert.equal(state.dir, 'rtl');
   assert.ok(state.scrollWidth <= width, `Horizontal overflow at ${width}px: ${JSON.stringify(state)}`);
 };
-const choose = async (role, name) => page.getByRole(role, { name }).check({ force: true });
+const choose = async (role, name) => {
+  const control = page.getByRole(role, { name });
+  if (await control.isChecked()) return;
+  await control.locator('xpath=..').click();
+  const handle = await control.elementHandle();
+  await page.waitForFunction(element => element.checked, handle);
+};
 const next = async () => page.getByRole('button', { name: /ادامه|دیدن پیشنهاد من/ }).click();
 
 try {
@@ -155,20 +161,15 @@ try {
     await checkLayout(width);
     await screenshot(`result-ready-${width}`);
   }
-  await page.getByRole('button', { name: 'مرور پاسخ‌ها' }).click();
-  await page.getByRole('heading', { name: 'بازبینی و میزان کشف' }).waitFor();
-  await page.getByRole('button', { name: 'ویرایش حال‌وهوا' }).click();
-  await page.getByRole('heading', { name: 'حال‌وهوای شما' }).waitFor();
-  await choose('radio', /کنجکاو و ماجراجو/);
-  await page.getByRole('button', { name: 'ادامه' }).click();
-  await page.getByRole('heading', { name: 'جهان‌های رایحه' }).waitFor();
-  await next();
-  await page.getByRole('heading', { name: 'دمای حسی' }).waitFor(); await next();
-  await page.getByRole('heading', { name: 'یک تصویر برای خیال' }).waitFor(); await next();
-  await page.getByRole('heading', { name: 'نت‌هایی که به دلتان می‌نشینند' }).waitFor(); await next();
-  await page.getByRole('heading', { name: 'بازبینی و میزان کشف' }).waitFor();
-  await choose('radio', /کمی آشنا، کمی تازه/); await next();
-  await page.getByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' }).waitFor();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: 'ذخیرهٔ مفهوم' }).click();
+  const loginDialog = page.getByRole('dialog', { name: 'ورود برای ذخیرهٔ مفهوم' });
+  await loginDialog.waitFor();
+  assert.equal(await page.getByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' }).isVisible(), true, 'Anonymous Save must keep the result mounted');
+  assert.equal(responses.some(item => item.url.includes('/fragrance-concepts')), false, 'Anonymous Save must not POST before login');
+  await screenshot('result-save-login-1440');
+  await loginDialog.getByRole('button', { name: 'بستن' }).click();
+  assert.equal(await page.getByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' }).isVisible(), true, 'Closing login must preserve the result');
   const restartOpener = page.getByRole('button', { name: 'شروع دوباره' });
   await restartOpener.focus();
   await restartOpener.click();
@@ -193,6 +194,36 @@ try {
   await page.getByRole('heading', { name: 'حال‌وهوای شما' }).waitFor();
   assert.equal(await page.getByRole('heading', { name: 'حال‌وهوای شما' }).evaluate(element => element === document.activeElement), true, 'Confirmed restart did not focus Step 1');
   console.log(`Loaded ${apiFamilies.length} real families and ${apiNotes.length} real notes; result uses API note names. Review/edit/restart passed.`);
+
+  await choose('radio', /آرام و آسوده/); await next();
+  await page.locator(`input[name="familyIds"][value="${chosenFamily.id}"]`).check({ force: true }); await next();
+  await choose('radio', /نرم و متعادل/); await next();
+  await choose('radio', /گوشه‌ای پر از گل/); await next();
+  await page.getByRole('button', { name: /فعلاً انتخابی ندارم/ }).click(); await next();
+  await choose('radio', /کمی آشنا، کمی تازه/); await next();
+  await page.getByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' }).waitFor();
+  const expectedTransfer = await page.locator('.guided-result-layer li').evaluateAll(items => items.map(item => ({
+    id: item.getAttribute('data-note-id'),
+    layer: item.closest('.guided-result-layer')?.getAttribute('data-layer'),
+  })));
+  await page.getByRole('button', { name: 'رفتن به استودیوی خلاق' }).click();
+  await page.waitForURL('**/studio/creative?from=guided');
+  await page.getByText('پیشنهاد استودیوی هدایت‌شده برای ویرایش وارد شد.').waitFor();
+  await page.locator('.composition-note').first().waitFor();
+  const actualTransfer = await page.locator('.composition-note').evaluateAll(items => items.map(item => ({
+    id: item.getAttribute('data-selected-note-id'),
+    layer: item.querySelector('select')?.value,
+  })));
+  assert.equal(await page.getByLabel('نام مفهوم').inputValue(), 'رایحهٔ من');
+  assert.deepEqual(actualTransfer, expectedTransfer, 'Creative Studio must receive the same real UUIDs and layers');
+  assert.ok(actualTransfer.every(item => apiNotes.some(note => note.id === item.id)), 'Transferred notes must resolve from the actual API catalog');
+  await screenshot('creative-imported-guided-1440');
+  assert.equal(responses.some(item => item.url.includes('/fragrance-concepts')), false, 'Handoff must not save automatically');
+  console.log('Anonymous Save opened login without POST; same-tab transfer imported API UUIDs, concept name and layers without saving');
+
+  // The handoff has been consumed; return to a fresh Guided visit for the no-match check below.
+  await page.goto(`${origin}/studio/guided`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('heading', { name: 'حال‌وهوای شما' }).waitFor();
 
   const smallFamily = apiFamilies.find(family => apiNotes.filter(note => note.family_id === family.id).length > 0 && apiNotes.filter(note => note.family_id === family.id).length <= 3);
   if (smallFamily) {

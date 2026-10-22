@@ -1,12 +1,18 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Family } from '@/lib/api/client';
-import { catalog } from '@/lib/api/client';
+import type { Concept, Family } from '@/lib/api/client';
+import { ApiError, catalog, concepts } from '@/lib/api/client';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { LoginForm } from '@/components/auth/LoginForm';
+import { Dialog } from '@/components/ui/Dialog';
 import { validateConceptName, validateDiscovery, validateFamilyIds, validateFeeling, validateGuidedAnswers, validateNoteAffinity, validateScene, validateTemperature } from '@/lib/studio/guided/answers';
 import { DEFAULT_CONCEPT_NAME } from '@/lib/studio/guided/config';
 import { recommend } from '@/lib/studio/guided/recommendation';
+import { toConceptInput } from '@/lib/studio/guided/payload';
+import { useStudioDraft } from '@/lib/studio/draft-transfer';
 import type { Feeling, GuidedAnswersDraft, GuidedCatalogNote, NoteAffinityStatus, RecommendationResult, Scene, Temperature } from '@/lib/studio/guided/types';
 import { GuidedProgress } from './GuidedProgress';
 import { GuidedResult } from './GuidedResult';
@@ -15,6 +21,7 @@ import { GuidedStep } from './GuidedStep';
 
 type LoadState = 'loading' | 'ready' | 'error';
 type View = 'questionnaire' | 'result';
+type SaveSnapshotState = Readonly<{ status: 'pending' | 'saved' | 'error'; id?: string; message?: string }>;
 
 const stepForField = (field: string): number => {
   if (field === 'familyIds') return 1;
@@ -26,6 +33,9 @@ const stepForField = (field: string): number => {
 };
 
 export function GuidedStudio() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const { pending: pendingTransfer, createDraft } = useStudioDraft();
   const [families, setFamilies] = useState<Family[]>([]);
   const [notes, setNotes] = useState<GuidedCatalogNote[]>([]);
   const [familyState, setFamilyState] = useState<LoadState>('loading');
@@ -40,6 +50,11 @@ export function GuidedStudio() {
   const [feedback, setFeedback] = useState('');
   const [stepError, setStepError] = useState('');
   const [confirmRestart, setConfirmRestart] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [replaceTransferOpen, setReplaceTransferOpen] = useState(false);
+  const [transferBusy, setTransferBusy] = useState(false);
+  const [saveStates, setSaveStates] = useState<Record<string, SaveSnapshotState>>({});
+  const [authSaveMessage, setAuthSaveMessage] = useState('');
   const restartOpener = useRef<HTMLElement | null>(null);
   const restoreFocusAfterRestartClose = useRef(false);
   const restartDialog = useRef<HTMLElement | null>(null);
@@ -47,6 +62,92 @@ export function GuidedStudio() {
   const mounted = useRef(false);
   const familyRequest = useRef(0);
   const noteRequest = useRef(0);
+  const inFlightSaveKeys = useRef(new Set<string>());
+  const saveStatesRef = useRef<Record<string, SaveSnapshotState>>({});
+  const navigatingRef = useRef(false);
+
+  const readyRecommendation = recommendation?.status === 'ready' ? recommendation : null;
+  const resultName = validateConceptName(conceptName).value ?? DEFAULT_CONCEPT_NAME;
+  const resultSnapshotKey = readyRecommendation
+    ? JSON.stringify({ name: resultName, notes: readyRecommendation.selections.map(item => [item.note.id, item.layer, item.position]) })
+    : '';
+  const currentSaveState = resultSnapshotKey ? saveStates[resultSnapshotKey] : undefined;
+  const isCurrentResultSaved = currentSaveState?.status === 'saved';
+  const saveBusy = currentSaveState?.status === 'pending';
+  const saveMessage = currentSaveState?.status === 'saved'
+    ? 'مفهوم رایحهٔ شما ذخیره شد.'
+    : authSaveMessage;
+  const saveError = currentSaveState?.status === 'error' ? currentSaveState.message ?? 'ذخیره انجام نشد.' : '';
+  const updateSaveState = (key: string, value: SaveSnapshotState) => {
+    saveStatesRef.current = { ...saveStatesRef.current, [key]: value };
+    if (mounted.current) setSaveStates(saveStatesRef.current);
+  };
+  const closeLogin = useCallback(() => setLoginOpen(false), []);
+  const loginSucceeded = useCallback(() => {
+    setLoginOpen(false);
+    setAuthSaveMessage('وارد شدید. برای ذخیرهٔ این پیشنهاد، دوباره دکمهٔ ذخیره را بزنید.');
+  }, []);
+
+  const saveResult = async () => {
+    const submittedSnapshotKey = resultSnapshotKey;
+    if (!readyRecommendation || !submittedSnapshotKey || inFlightSaveKeys.current.has(submittedSnapshotKey)) return;
+    if (saveStatesRef.current[submittedSnapshotKey]?.status === 'saved') return;
+    setAuthSaveMessage('');
+    if (authLoading) {
+      setAuthSaveMessage('در حال بررسی وضعیت ورود هستیم. کمی بعد دوباره ذخیره را بزنید.');
+      return;
+    }
+    if (!user) {
+      setLoginOpen(true);
+      setAuthSaveMessage('برای ذخیره وارد شوید؛ پیشنهاد شما تا پایان این صفحه حفظ می‌شود.');
+      return;
+    }
+    const currentNoteIds = new Set(notes.map(note => note.id.toLowerCase()));
+    if (readyRecommendation.selections.some(item => !currentNoteIds.has(item.note.id.toLowerCase()))) {
+      updateSaveState(submittedSnapshotKey, { status: 'error', message: 'یکی از نت‌های پیشنهاد دیگر در کاتالوگ فعلی نیست. نت‌ها را دوباره دریافت یا پیشنهاد را بازبینی کنید.' });
+      return;
+    }
+    const converted = toConceptInput(readyRecommendation, conceptName, notes);
+    if (converted.status !== 'ready') {
+      updateSaveState(submittedSnapshotKey, { status: 'error', message: converted.issues[0]?.message ?? 'پیشنهاد فعلی برای ذخیره آماده نیست.' });
+      return;
+    }
+    inFlightSaveKeys.current.add(submittedSnapshotKey);
+    updateSaveState(submittedSnapshotKey, { status: 'pending' });
+    try {
+      const saved: Concept = await concepts.create(converted.payload);
+      updateSaveState(submittedSnapshotKey, { status: 'saved', id: saved.id });
+    } catch (cause) {
+      if (!mounted.current) return;
+      if (cause instanceof ApiError && cause.status === 401) {
+        setLoginOpen(true);
+        updateSaveState(submittedSnapshotKey, { status: 'error', message: 'نشست شما پایان یافته است. دوباره وارد شوید و سپس ذخیره را دوباره بزنید.' });
+      } else if (cause instanceof ApiError && cause.status === 422) {
+        updateSaveState(submittedSnapshotKey, { status: 'error', message: 'کاتالوگ یا جایگاه یکی از نت‌ها تغییر کرده است. پیشنهاد را بازبینی کنید و دوباره تلاش کنید.' });
+      } else {
+        updateSaveState(submittedSnapshotKey, { status: 'error', message: cause instanceof ApiError ? cause.message : 'ذخیره انجام نشد؛ پیشنهاد شما همچنان در همین صفحه حفظ شده است.' });
+      }
+    } finally {
+      inFlightSaveKeys.current.delete(submittedSnapshotKey);
+    }
+  };
+
+  const navigateWithDraft = () => {
+    if (!readyRecommendation || navigatingRef.current) return;
+    navigatingRef.current = true;
+    setTransferBusy(true);
+    const transfer = createDraft(resultName, readyRecommendation.selections.map(item => ({
+      noteId: item.note.id,
+      layer: item.layer,
+      position: item.position,
+    })));
+    if (!transfer.transferId) {
+      navigatingRef.current = false;
+      setTransferBusy(false);
+      return;
+    }
+    router.push('/studio/creative?from=guided');
+  };
 
   const openRestart = useCallback(() => {
     restartOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -301,7 +402,13 @@ export function GuidedStudio() {
     }
     const result = recommend(validated.value, families, notes);
     setRecommendation(result);
+    setAuthSaveMessage('');
     setView('result');
+  };
+
+  const continueToCreative = () => {
+    if (pendingTransfer) setReplaceTransferOpen(true);
+    else navigateWithDraft();
   };
 
   const openReview = () => { setStep(5); setView('questionnaire'); setStepError(''); };
@@ -312,6 +419,7 @@ export function GuidedStudio() {
     setStepError('');
     setFeedback('');
     setRecommendation(null);
+    setAuthSaveMessage('');
     setView('questionnaire');
     restoreFocusAfterRestartClose.current = false;
     setConfirmRestart(false);
@@ -377,6 +485,10 @@ export function GuidedStudio() {
         </> : recommendation && <GuidedResult
           result={recommendation} answers={answers} conceptName={validateConceptName(conceptName).value ?? DEFAULT_CONCEPT_NAME}
           families={families} notes={notes} onReview={openReview} onRestart={openRestart}
+          onSave={() => void saveResult()} onContinueCreative={continueToCreative}
+          saveBusy={saveBusy} saved={isCurrentResultSaved} saveMessage={saveMessage} saveError={saveError}
+          transferBusy={transferBusy}
+          savedConceptId={isCurrentResultSaved ? currentSaveState?.id : undefined}
           onInvalidStep={target => { setStep(target); setView('questionnaire'); }}
         />}
 
@@ -389,6 +501,11 @@ export function GuidedStudio() {
         <span className="guided-dialog-mark" aria-hidden="true">↺</span><h2 id="guided-restart-title">از ابتدا شروع کنیم؟</h2><p id="guided-restart-description">پاسخ‌ها و پیشنهاد فعلی از این صفحه پاک می‌شوند. این کار قابل بازگشت نیست.</p>
         <div><button ref={cancelRestartButton} type="button" className="guided-button-secondary" onClick={cancelRestart}>ادامهٔ مسیر</button><button type="button" className="guided-button-primary" onClick={restart}>پاک‌کردن و شروع دوباره</button></div>
       </section></div>}
+
+      {loginOpen && <Dialog title="ورود برای ذخیرهٔ مفهوم" onClose={closeLogin}><LoginForm onSuccess={loginSucceeded} /></Dialog>}
+      {replaceTransferOpen && <Dialog title="جایگزینی پیش‌نویس استودیو" onClose={() => setReplaceTransferOpen(false)}>
+        <div className="space-y-4"><h2 className="text-xl font-semibold">پیش‌نویس قبلی جایگزین شود؟</h2><p>یک پیشنهاد ذخیره‌نشده از استودیوی هدایت‌شده در همین برگه وجود دارد. با ادامه، پیش‌نویس قبلی کنار گذاشته می‌شود.</p><div className="flex flex-wrap gap-3"><button type="button" className="guided-button-secondary" onClick={() => setReplaceTransferOpen(false)}>بازگشت</button><button type="button" className="guided-button-primary" onClick={() => { setReplaceTransferOpen(false); navigateWithDraft(); }}>جایگزینی و ادامه</button></div></div>
+      </Dialog>}
     </div>
   );
 }
