@@ -390,6 +390,18 @@ describe('Guided Studio questionnaire and result', () => {
     expect(remove).toBeInTheDocument();
     fireEvent.click(remove);
     expect(screen.queryByRole('button', { name: `حذف ${coffee.name} از دوست دارم` })).not.toBeInTheDocument();
+
+    const rose = seedNotes.find(note => note.slug !== coffee.slug)!;
+    fireEvent.change(search, { target: { value: rose.name } });
+    fireEvent.click(screen.getByRole('button', { name: 'کنار بگذار' }));
+    fireEvent.change(search, { target: { value: '' } });
+    const avoidedRemove = screen.getByRole('button', { name: `حذف ${rose.name} از فهرست کنارگذاشته‌ها` });
+    expect(avoidedRemove).toBeInTheDocument();
+    fireEvent.click(avoidedRemove);
+    expect(screen.queryByRole('button', { name: `حذف ${rose.name} از فهرست کنارگذاشته‌ها` })).not.toBeInTheDocument();
+    const counts = screen.getByLabelText('شمار نت‌های انتخاب‌شده');
+    expect(counts).toHaveTextContent('۰ از ۳');
+    expect(counts).toHaveTextContent('ترجیح می‌دهم نباشد');
   });
 
   it('traps dialog focus, restores focus on cancellation, and focuses Step 1 after confirmed restart', async () => {
