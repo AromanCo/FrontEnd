@@ -14,7 +14,8 @@
     "screenshots:visual": "node scripts/capture-visual-alignment.mjs",
     "test:browser": "node scripts/browser-journey.mjs",
     "test:browser:responsive": "node scripts/responsive-studio-journey.mjs",
-    "test:browser:guided": "node scripts/guided-studio-journey.mjs && node scripts/guided-handoff-route-journey.mjs"
+    "test:browser:guided": "node scripts/guided-studio-journey.mjs && node scripts/guided-handoff-route-journey.mjs",
+    "test:browser:integration": "node scripts/integrated-qa-journey.mjs"
   },
   "dependencies": {
     "next": "^16.4.2",

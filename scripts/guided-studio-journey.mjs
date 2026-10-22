@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright';
 
 const origin = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
-const screenshotDir = join(process.cwd(), 'artifacts/guided-studio/m1c2c');
+const screenshotDir = join(process.cwd(), process.env.QA_SCREENSHOT_DIR || 'artifacts/guided-studio/m1c2c');
 const browserPath = process.env.CHROME_BIN || '/usr/bin/google-chrome';
 const browser = await chromium.launch({ executablePath: browserPath, headless: true, args: ['--no-sandbox', '--no-proxy-server'] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
@@ -210,6 +210,7 @@ try {
   await page.waitForURL('**/studio/creative?from=guided');
   await page.getByText('پیشنهاد استودیوی هدایت‌شده برای ویرایش وارد شد.').waitFor();
   await page.locator('.composition-note').first().waitFor();
+  await page.locator('#studio-panel-0[data-note-status="ready"]').waitFor();
   const actualTransfer = await page.locator('.composition-note').evaluateAll(items => items.map(item => ({
     id: item.getAttribute('data-selected-note-id'),
     layer: item.querySelector('select')?.value,

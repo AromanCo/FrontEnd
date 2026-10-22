@@ -4,7 +4,8 @@ import { assertNoBrowserErrors, checkLayout, openBrowser, openLoadedStudio, watc
 
 const widths = [320, 390, 768, 1440];
 const browser = await openBrowser();
-await mkdir('artifacts/guided-studio/m1c2c/responsive', { recursive: true });
+const screenshotDir = process.env.QA_RESPONSIVE_SCREENSHOT_DIR || 'artifacts/guided-studio/m1c2c/responsive';
+await mkdir(screenshotDir, { recursive: true });
 
 try {
   for (const width of widths) {
@@ -32,7 +33,7 @@ try {
         const tabs = page.getByRole('tablist', { name: 'گام‌های استودیو' });
         assert.equal(await tabs.evaluate(element => getComputedStyle(element).position), 'relative');
         assert.equal(await tabs.getByRole('tab', { name: /نت‌ها/ }).isVisible(), true);
-        if (width <= 768) await page.screenshot({ path: `artifacts/guided-studio/m1c2c/responsive/studio-notes-${width}.png`, fullPage: true });
+        if (width <= 768) await page.screenshot({ path: `${screenshotDir}/studio-notes-${width}.png`, fullPage: true });
 
         await firstCard.click();
         await page.getByRole('status', { name: '1 از ۶ نت انتخاب شده' }).waitFor();
@@ -47,7 +48,7 @@ try {
         const [lastRect, continueRect] = await Promise.all([lastNote.boundingBox(), continueButton.boundingBox()]);
         assert.ok(lastRect && continueRect && continueRect.y >= lastRect.y + lastRect.height, `Composition action must follow the final note in flow at ${width}px`);
         await continueButton.scrollIntoViewIfNeeded();
-        await page.screenshot({ path: `artifacts/guided-studio/m1c2c/responsive/studio-continue-${width}.png` });
+        await page.screenshot({ path: `${screenshotDir}/studio-continue-${width}.png` });
         await continueButton.click();
         assert.equal(await page.locator('#studio-panel-1').getAttribute('data-active'), 'true');
         await tabs.getByRole('tab', { name: /نت‌ها/ }).focus();
