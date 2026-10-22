@@ -322,3 +322,11 @@ a,button,input,select{outline-offset:4px}
   .guided-affinity-selected button{display:grid;flex:none;width:2.75rem;height:2.75rem;place-items:center;font-size:1rem}
   .guided-live-feedback{font-size:.72rem}
 }
+
+/* Reserve a discrete 44px removal target at every breakpoint; the chip surface and × stay compact. */
+.guided-affinity-selected>div{gap:.4rem .45rem}
+.guided-affinity-selected>div>span{position:relative;isolation:isolate;min-height:2.75rem;box-sizing:border-box;gap:.3rem;padding-block:.2rem;background:transparent}
+.guided-affinity-selected>div>span::before{position:absolute;z-index:-1;inset-block:.5rem;inset-inline:0;border-radius:999px;background:#f1eaf1;content:""}
+.guided-affinity-selected button{position:relative;z-index:1;display:grid;flex:none;width:2.75rem;height:2.75rem;place-items:center;border:0;border-radius:.65rem;background:transparent;color:#795f78;font-size:0;line-height:1}
+.guided-affinity-selected button::before{display:grid;width:1.2rem;height:1.2rem;place-items:center;border-radius:50%;background:#fff;content:"×";font-size:1rem}
+.guided-affinity-selected button:focus-visible{outline:3px solid var(--focus);outline-offset:1px}

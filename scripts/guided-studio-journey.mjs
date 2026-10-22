@@ -107,7 +107,7 @@ try {
     const firstAction = await firstNoteRow.getByRole('button', { name: 'دوست دارم' }).boundingBox();
     assert.ok(firstAction && firstAction.height >= 44, `Note action is below 44px at ${width}px: ${JSON.stringify(firstAction)}`);
     const removeBox = await hiddenNoteRemoval.boundingBox();
-    if (width <= 390) assert.ok(removeBox && removeBox.width >= 44 && removeBox.height >= 44, `Selected-note removal target is below 44×44px at ${width}px: ${JSON.stringify(removeBox)}`);
+    assert.ok(removeBox && removeBox.width >= 44 && removeBox.height >= 44, `Selected-note removal target is below 44×44px at ${width}px: ${JSON.stringify(removeBox)}`);
     if (width <= 390) {
       assert.equal(await page.locator('.guided-note-item:visible').count(), 10, `Expected 10 collapsed notes at ${width}px`);
       const moreButton = page.getByRole('button', { name: 'نمایش نت‌های بیشتر' });
@@ -136,8 +136,45 @@ try {
     console.log(`${width}px Step 5: like ${firstAction.height.toFixed(0)}×${firstAction.width.toFixed(0)}px; remove ${removeBox.height.toFixed(0)}×${removeBox.width.toFixed(0)}px; page ${dimensions.scrollHeight}px; list ${dimensions.listHeight?.toFixed(0)}px; notes ${await page.locator('.guided-note-item:visible').count()}/${apiNotes.length} visible`);
     await screenshot(`step-05-note-affinity-selected-${width}`);
   }
-  await hiddenNoteRemoval.click();
-  assert.equal(await hiddenNoteRemoval.count(), 0, 'Selected note outside the initial ten could not be removed from its summary');
+  const initiallyHiddenAvoidedName = await page.locator('.guided-note-item').nth(11).locator('strong').textContent();
+  if (initiallyHiddenAvoidedName) {
+    await search.fill(initiallyHiddenAvoidedName);
+    const hiddenAvoidedRow = page.locator('.guided-note-item').filter({ hasText: initiallyHiddenAvoidedName });
+    await hiddenAvoidedRow.getByRole('button', { name: 'کنار بگذار' }).click();
+    await search.fill('');
+    const hiddenAvoidedRemoval = page.getByRole('button', { name: `حذف ${initiallyHiddenAvoidedName} از فهرست کنارگذاشته‌ها` });
+    assert.equal(await hiddenAvoidedRemoval.count(), 1, 'A selected avoided note beyond the initial ten must remain identifiable in the summary');
+    for (const width of [320, 390, 768, 1440]) {
+      await page.setViewportSize({ width, height: 850 });
+      const box = await hiddenAvoidedRemoval.boundingBox();
+      assert.ok(box && box.width >= 44 && box.height >= 44, `Avoided-note removal target is below 44×44px at ${width}px: ${JSON.stringify(box)}`);
+    }
+    await page.setViewportSize({ width: 768, height: 850 });
+    const likedRemove = page.getByRole('button', { name: `حذف ${initiallyHiddenNoteName} از دوست دارم` });
+    await likedRemove.scrollIntoViewIfNeeded();
+    const likedBox = await likedRemove.boundingBox();
+    const avoidedBox = await hiddenAvoidedRemoval.boundingBox();
+    assert.ok(likedBox && avoidedBox);
+    const overlap = likedBox.x < avoidedBox.x + avoidedBox.width && likedBox.x + likedBox.width > avoidedBox.x && likedBox.y < avoidedBox.y + avoidedBox.height && likedBox.y + likedBox.height > avoidedBox.y;
+    assert.equal(overlap, false, 'Adjacent selected-note removal targets overlap at 768px');
+    const likedClientRect = await likedRemove.evaluate(element => { const { x, y, height } = element.getBoundingClientRect(); return { x, y, height }; });
+    await page.mouse.click(likedClientRect.x + 2, likedClientRect.y + likedClientRect.height / 2);
+    assert.equal(await page.getByRole('button', { name: `حذف ${initiallyHiddenNoteName} از دوست دارم` }).count(), 0, 'Pointer activation at the target edge did not remove the intended liked note');
+    assert.equal(await hiddenAvoidedRemoval.count(), 1, 'Edge activation also changed the neighboring avoided note');
+    const lastNoteAction = page.locator('.guided-note-item').last().getByRole('button', { name: 'کنار بگذار' });
+    const firstLikedName = await firstNoteRow.locator('strong').textContent();
+    const firstLikedRemoval = page.getByRole('button', { name: `حذف ${firstLikedName} از دوست دارم` });
+    await lastNoteAction.focus();
+    await page.keyboard.press('Tab');
+    assert.equal(await firstLikedRemoval.evaluate(element => element === document.activeElement), true, 'Tab did not reach the selected-note remove button after the catalog controls');
+    assert.equal(await firstLikedRemoval.evaluate(element => getComputedStyle(element).outlineWidth), '3px', 'Keyboard focus outline is not visible on the removal target');
+    await firstLikedRemoval.press('Enter');
+    assert.equal(await firstLikedRemoval.count(), 0, 'Enter did not remove the selected liked note');
+    await hiddenAvoidedRemoval.focus();
+    await hiddenAvoidedRemoval.press('Space');
+    assert.equal(await hiddenAvoidedRemoval.count(), 0, 'Space did not remove the selected avoided note');
+    assert.equal((await page.locator('.guided-affinity-counts').textContent()).includes('۰ از ۳'), true, 'Removing liked/avoided notes did not update selection counts');
+  }
   await page.setViewportSize({ width: 1440, height: 1000 });
   await firstNoteRow.getByRole('button', { name: 'کنار بگذار' }).click();
   assert.equal(await firstNoteRow.getByRole('button', { name: 'کنار بگذار' }).getAttribute('aria-pressed'), 'true');
