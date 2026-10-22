@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ApiError, catalog, concepts, type Concept, type Family, type Note } from '@/lib/api/client';
 import { addNote, layers, moveNote, payload, reorder, type SelectedNote } from '@/lib/studio/composition';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -9,12 +10,15 @@ import { Dialog } from '@/components/ui/Dialog';
 import { NoteLibrary } from '@/components/studio/NoteLibrary';
 import { CompositionWorkspace } from '@/components/studio/CompositionWorkspace';
 import { ConceptPreview } from '@/components/studio/ConceptPreview';
+import { resolveStudioDraft, useStudioDraft, type DraftResolution } from '@/lib/studio/draft-transfer';
 
 const tabs = ['نت‌ها', 'ترکیب', 'نتیجه'] as const;
 const tabNumbers = ['۰۱', '۰۲', '۰۳'];
 
-export function CreativeStudio({ conceptId }: { conceptId?: string }) {
+export function CreativeStudio({ conceptId, fromGuided = false }: { conceptId?: string; fromGuided?: boolean }) {
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { pending: guidedDraft, navigationIntentId, isCurrent: isCurrentGuidedDraft, consume: consumeGuidedDraft } = useStudioDraft();
   const [name, setName] = useState('رایحه من');
   const [selected, setSelected] = useState<SelectedNote[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -32,9 +36,27 @@ export function CreativeStudio({ conceptId }: { conceptId?: string }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [loginOpen, setLoginOpen] = useState(false);
-  const [savedId, setSavedId] = useState(conceptId || '');
+  const [guidedImportState, setGuidedImportState] = useState<'idle' | 'loading' | 'error' | 'expired' | 'invalid'>('idle');
+  const [guidedImportError, setGuidedImportError] = useState('');
+  const [guidedCandidate, setGuidedCandidate] = useState<{ id: string; resolution: DraftResolution; routeIntent: string } | null>(null);
+  const [confirmGuidedReplace, setConfirmGuidedReplace] = useState(false);
+  const [replaceConfirmationRoute, setReplaceConfirmationRoute] = useState('');
+  const [confirmPartialGuided, setConfirmPartialGuided] = useState(false);
+  const [partialConfirmationRoute, setPartialConfirmationRoute] = useState('');
+  const [loadedConceptId, setLoadedConceptId] = useState<string | null>(null);
+  const [failedConceptId, setFailedConceptId] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState('');
   const noteRequest = useRef(0);
   const savingRef = useRef(false);
+  const importRequest = useRef(0);
+  const routeIntent = `${router.bfcacheId}|${conceptId ?? ''}|${fromGuided ? 'guided' : 'ordinary'}`;
+  const routeIntentRef = useRef(routeIntent);
+  routeIntentRef.current = routeIntent;
+  const initializedTransferIds = useRef(new Set<string>());
+  const importedInThisMount = useRef(false);
+  const savedConceptLoaded = !conceptId || loadedConceptId === conceptId;
+  const savedConceptLoadFailed = Boolean(conceptId && failedConceptId === conceptId);
+  const guidedDraftExpired = Boolean(fromGuided && !conceptId && !importedInThisMount.current && (!guidedDraft || navigationIntentId !== guidedDraft.transferId));
   const selectedIds = new Set(selected.map(item => item.note.id));
 
   const loadNotes = useCallback(async (currentOffset = 0) => {
@@ -73,6 +95,7 @@ export function CreativeStudio({ conceptId }: { conceptId?: string }) {
 
   useEffect(() => {
     if (!conceptId || authLoading || !user) return;
+    const savedRouteIntent = routeIntentRef.current;
     let cancelled = false;
     void (async () => {
       try {
@@ -81,11 +104,12 @@ export function CreativeStudio({ conceptId }: { conceptId?: string }) {
         let page = 0;
         for (;;) {
           const chunk = await catalog.notes({ limit: 100, offset: page });
+          if (cancelled || routeIntentRef.current !== savedRouteIntent) return;
           all = [...all, ...chunk];
           if (chunk.length < 100) break;
           page += 100;
         }
-        if (cancelled) return;
+        if (cancelled || routeIntentRef.current !== savedRouteIntent) return;
         setName(concept.name);
         setSelected([...concept.notes]
           .sort((a, b) => layers.indexOf(a.layer) - layers.indexOf(b.layer) || a.position - b.position)
@@ -94,12 +118,102 @@ export function CreativeStudio({ conceptId }: { conceptId?: string }) {
             return note ? [{ note, layer: item.layer }] : [];
           }));
         setSavedId(concept.id);
+        setLoadedConceptId(conceptId);
+        setFailedConceptId(null);
       } catch (cause) {
-        if (!cancelled) setError(cause instanceof ApiError ? cause.message : 'بارگذاری مفهوم انجام نشد.');
+        if (!cancelled && routeIntentRef.current === savedRouteIntent) {
+          setError(cause instanceof ApiError ? cause.message : 'بارگذاری مفهوم انجام نشد.');
+          setFailedConceptId(conceptId);
+        }
       }
     })();
     return () => { cancelled = true; };
   }, [conceptId, authLoading, user]);
+
+  const commitGuidedDraft = (transferId: string, resolution: Extract<DraftResolution, { status: 'ready' | 'missing' }>) => {
+    if (!isCurrentGuidedDraft(transferId) || initializedTransferIds.current.has(transferId) || conceptId) return;
+    if (!resolution.selected.length) {
+      setGuidedImportError('هیچ‌کدام از نت‌های این پیشنهاد در کاتالوگ فعلی نیستند. پیش‌نویس حفظ شده است؛ به استودیوی هدایت‌شده برگردید.');
+      setGuidedImportState('invalid');
+      return;
+    }
+    setName(resolution.name);
+    setSelected([...resolution.selected]);
+    setSavedId('');
+    setTab(1);
+    setError('');
+    setNotice(resolution.status === 'missing'
+      ? `${resolution.selected.length} نت موجود وارد شد؛ ${resolution.missingIds.length} نت دیگر در کاتالوگ نیست و وارد نشد.`
+      : 'پیشنهاد استودیوی هدایت‌شده برای ویرایش وارد شد.');
+    initializedTransferIds.current.add(transferId);
+    importedInThisMount.current = true;
+    consumeGuidedDraft(transferId);
+    setGuidedCandidate(null);
+    setGuidedImportState('idle');
+    setGuidedImportError('');
+  };
+
+  const inspectGuidedDraft = async (explicit = false) => {
+    if (!guidedDraft) {
+      setGuidedImportState('expired');
+      setGuidedImportError('پیش‌نویس در حافظهٔ این برگه پیدا نشد. احتمالاً صفحه تازه‌سازی شده است.');
+      return;
+    }
+    if (conceptId && (savedConceptLoadFailed || !savedConceptLoaded)) return;
+    if (initializedTransferIds.current.has(guidedDraft.transferId)) return;
+    const requestRouteIntent = routeIntentRef.current;
+    const requestId = ++importRequest.current;
+    setGuidedImportState('loading');
+    setGuidedImportError('');
+    try {
+      const all: Note[] = [];
+      let offset = 0;
+      for (;;) {
+        const page = await catalog.notes({ limit: 100, offset });
+        if (requestId !== importRequest.current || routeIntentRef.current !== requestRouteIntent) return;
+        all.push(...page);
+        if (page.length < 100) break;
+        offset += page.length;
+      }
+      const resolution = resolveStudioDraft(guidedDraft, all);
+      if (requestId !== importRequest.current || routeIntentRef.current !== requestRouteIntent || !isCurrentGuidedDraft(guidedDraft.transferId)) return;
+      if (resolution.status === 'invalid') {
+        setGuidedImportState('invalid');
+        setGuidedImportError(`${resolution.reason} پیش‌نویس حفظ شده است.`);
+        return;
+      }
+      setGuidedCandidate({ id: guidedDraft.transferId, resolution, routeIntent: requestRouteIntent });
+      if (resolution.status === 'missing') {
+        setGuidedImportState('idle');
+        setPartialConfirmationRoute(requestRouteIntent);
+        setConfirmPartialGuided(true);
+      } else if (explicit && (selected.length > 0 || Boolean(savedId))) {
+        setGuidedImportState('idle');
+        setReplaceConfirmationRoute(requestRouteIntent);
+        setConfirmGuidedReplace(true);
+      } else {
+        commitGuidedDraft(guidedDraft.transferId, resolution);
+      }
+    } catch (cause) {
+      if (requestId !== importRequest.current || routeIntentRef.current !== requestRouteIntent) return;
+      setGuidedImportState('error');
+      setGuidedImportError(cause instanceof ApiError ? cause.message : 'دریافت کاتالوگ برای انتقال انجام نشد. پیش‌نویس حفظ شده است.');
+    }
+  };
+
+  useEffect(() => {
+    importRequest.current += 1;
+  }, [routeIntent]);
+
+  useEffect(() => {
+    if (conceptId || !fromGuided) return;
+    if (importedInThisMount.current) return;
+    if (!guidedDraft || navigationIntentId !== guidedDraft.transferId) return;
+    const timer = window.setTimeout(() => { void inspectGuidedDraft(false); }, 0);
+    return () => { window.clearTimeout(timer); importRequest.current += 1; };
+    // The route marker is only an intent hint; transfer data is read from the provider.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conceptId, fromGuided, guidedDraft?.transferId, navigationIntentId]);
 
   const select = (note: Note) => {
     if (selected.length >= 6 && !selectedIds.has(note.id)) {
@@ -119,6 +233,10 @@ export function CreativeStudio({ conceptId }: { conceptId?: string }) {
       setNotice('ترکیب شما روی صفحه حفظ شده است. پس از ورود، ذخیره را کامل کنید.');
       return;
     }
+    if (conceptId && !savedConceptLoaded) {
+      setError(savedConceptLoadFailed ? 'مفهوم ذخیره‌شده بارگذاری نشد؛ برای جلوگیری از تغییر اشتباه دوباره بارگذاری کنید.' : 'مفهوم ذخیره‌شده هنوز در حال بارگذاری است.');
+      return;
+    }
     savingRef.current = true;
     setBusy(true);
     setError('');
@@ -134,6 +252,29 @@ export function CreativeStudio({ conceptId }: { conceptId?: string }) {
       savingRef.current = false;
       setBusy(false);
     }
+  };
+
+  const confirmReplaceWithGuidedDraft = () => {
+    if (!guidedCandidate || guidedCandidate.routeIntent !== routeIntentRef.current || !isCurrentGuidedDraft(guidedCandidate.id)) return;
+    if (!conceptId) {
+      const resolution = guidedCandidate.resolution;
+      if (resolution.status === 'ready' || resolution.status === 'missing') commitGuidedDraft(guidedCandidate.id, resolution);
+      setConfirmGuidedReplace(false);
+      return;
+    }
+    if (!savedConceptLoaded || savedConceptLoadFailed) return;
+    // The root provider survives route changes; the pending draft is the recovery source
+    // if this page component is remounted while the saved-concept query is removed.
+    importRequest.current += 1;
+    setGuidedImportState('idle');
+    setConfirmGuidedReplace(false);
+    setConfirmPartialGuided(false);
+    setSavedId('');
+    setLoadedConceptId(null);
+    setName('رایحه من');
+    setSelected([]);
+    setNotice('پیش‌نویس در حال انتقال به فضای ویرایش مستقل است.');
+    router.replace('/studio/creative?from=guided');
   };
 
   const updateQuery = (value: string) => {
@@ -160,6 +301,16 @@ export function CreativeStudio({ conceptId }: { conceptId?: string }) {
     </header>
 
     <div className="container studio-workspace">
+      {(guidedImportError || guidedImportState === 'loading' || guidedDraftExpired) && <div className={guidedImportState === 'loading' ? 'studio-global-notice' : 'studio-global-error'} role={guidedImportState === 'loading' ? 'status' : 'alert'}>
+        <p>{guidedImportState === 'loading' ? 'پیش‌نویس در حال بررسی با کاتالوگ فعلی است…' : guidedDraftExpired ? 'پیش‌نویس انتقال در حافظه پیدا نشد؛ احتمالاً صفحه تازه‌سازی شده است. پیشنهاد را دوباره بسازید.' : guidedImportError}</p>
+        {guidedImportState === 'error' && guidedDraft && <button type="button" onClick={() => void inspectGuidedDraft(fromGuided)}>تلاش دوباره برای دریافت نت‌ها</button>}
+        {(guidedImportState === 'expired' || guidedDraftExpired) && <Link href="/studio/guided">بازگشت به استودیوی هدایت‌شده</Link>}
+      </div>}
+      {guidedDraft && (!fromGuided || Boolean(conceptId)) && !savedConceptLoadFailed && (!conceptId || savedConceptLoaded) && <div className="studio-global-notice" role="status">
+        <p>یک پیش‌نویس ذخیره‌نشده از استودیوی هدایت‌شده در همین برگه آماده است.</p>
+        <button type="button" onClick={() => void inspectGuidedDraft(true)} disabled={guidedImportState === 'loading'}>{guidedImportState === 'loading' ? 'در حال بررسی…' : 'بارگذاری پیش‌نویس هدایت‌شده'}</button>
+      </div>}
+      {conceptId && savedConceptLoadFailed && guidedDraft && <p className="studio-global-notice" role="status">پیش‌نویس هدایت‌شده حفظ شده است؛ ابتدا مفهوم ذخیره‌شده را دوباره بارگذاری کنید.</p>}
       <nav className="studio-mobile-tabs" role="tablist" aria-label="گام‌های استودیو">
         {tabs.map((label, index) => <button type="button" role="tab" aria-selected={tab === index} aria-controls={`studio-panel-${index}`} id={`studio-tab-${index}`} tabIndex={tab === index ? 0 : -1} key={label}
           onKeyDown={event => {
@@ -183,6 +334,12 @@ export function CreativeStudio({ conceptId }: { conceptId?: string }) {
     </div>
 
     {loginOpen && <Dialog title="ورود برای ذخیره" onClose={() => setLoginOpen(false)}><LoginForm onSuccess={() => { setLoginOpen(false); setNotice('وارد شدید. برای تکمیل ذخیره، دکمه ذخیره مفهوم را بزنید.'); }} /></Dialog>}
+    {guidedCandidate && guidedCandidate.routeIntent === routeIntent && confirmPartialGuided && partialConfirmationRoute === routeIntent && guidedCandidate.resolution.status === 'missing' && <Dialog title="بخشی از نت‌ها در دسترس نیست" onClose={() => setConfirmPartialGuided(false)}>
+      <div className="space-y-4"><h2 className="text-xl font-semibold">پیشنهاد کامل وارد نمی‌شود</h2><p>{guidedCandidate.resolution.missingIds.length} نت در کاتالوگ فعلی پیدا نشد. فقط با تأیید شما نت‌های موجود وارد خواهند شد.</p><ul className="list-disc space-y-1 ps-6">{guidedCandidate.resolution.missingIds.map(id => <li key={id} dir="ltr">…{id.slice(-8)}</li>)}</ul><div className="flex flex-wrap gap-3"><button type="button" className="guided-button-secondary" onClick={() => setConfirmPartialGuided(false)}>حفظ پیش‌نویس</button><Link className="guided-button-secondary" href="/studio/guided">بازگشت برای بازبینی</Link><button type="button" className="guided-button-primary" disabled={!guidedCandidate.resolution.selected.length} onClick={() => { setConfirmPartialGuided(false); if (selected.length || savedId) { setReplaceConfirmationRoute(routeIntent); setConfirmGuidedReplace(true); } else commitGuidedDraft(guidedCandidate.id, guidedCandidate.resolution as Extract<DraftResolution, { status: 'missing' }>); }}>ادامه با نت‌های موجود</button></div></div>
+    </Dialog>}
+    {guidedCandidate && guidedCandidate.routeIntent === routeIntent && confirmGuidedReplace && replaceConfirmationRoute === routeIntent && <Dialog title="جایگزینی ترکیب فعلی" onClose={() => setConfirmGuidedReplace(false)}>
+      <div className="space-y-4"><h2 className="text-xl font-semibold">ترکیب فعلی جایگزین شود؟</h2><p>با تأیید، مفهوم ذخیره‌شده از نشانی ویرایش جدا می‌شود و پیشنهاد هدایت‌شده در یک پیش‌نویس تازه بارگذاری خواهد شد. مفهوم قبلی بدون تغییر می‌ماند.</p><div className="flex flex-wrap gap-3"><button type="button" className="guided-button-secondary" onClick={() => setConfirmGuidedReplace(false)}>بازگشت</button><button type="button" className="guided-button-primary" onClick={confirmReplaceWithGuidedDraft}>جایگزینی و بارگذاری</button></div></div>
+    </Dialog>}
     {savedId && <div className="studio-saved-link"><Link href="/account">مفاهیم ذخیره‌شده</Link></div>}
   </div>;
 }
