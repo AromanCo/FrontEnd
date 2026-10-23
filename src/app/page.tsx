@@ -71,8 +71,8 @@ export default async function Home() {
 
     <section className="guided-invitation section">
       <div className="container guided-invitation-inner">
-        <div><p className="eyebrow">۰۴ / استودیو راهنما</p><h2 className="heading">برای آغاز، یک همراه</h2><p>مسیر راهنمای کشف رایحه در مرحله‌ی بعد تکمیل می‌شود. فعلاً می‌توانید با استودیو خلاق، آزادانه تجربه کنید.</p><Link className="text-link" href="/studio/guided">آشنایی با استودیو راهنما <span aria-hidden="true">←</span></Link></div>
-        <div className="guided-note"><span aria-hidden="true">✳</span><p>یک حس را دنبال کنید؛<br />روایت خودش پیدا می‌شود.</p><small>به‌زودی در آرومان</small></div>
+        <div><p className="eyebrow">۰۴ / استودیو راهنما</p><h2 className="heading">با چند پرسش، مسیر رایحه‌تان را پیدا کنید</h2><p>به چند پرسش دربارهٔ حس‌وحال و سلیقه‌تان پاسخ دهید تا یک پیشنهاد مفهومی رایحه دریافت کنید.</p><Link className="text-link" href="/studio/guided">شروع استودیو راهنما <span aria-hidden="true">←</span></Link></div>
+        <div className="guided-note"><span aria-hidden="true">✳</span><p>از یک حس آغاز کنید؛<br />پیشنهاد مفهومی خود را ببینید.</p><small>شش گام برای کشف رایحه</small></div>
       </div>
     </section>
 
