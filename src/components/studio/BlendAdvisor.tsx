@@ -11,15 +11,17 @@ type Props = Readonly<{
   canUndo: boolean;
   busy: boolean;
   applyBlockedMessage: string | null;
+  forkBlockedMessage: string | null;
   requestBlockedMessage: string | null;
   onRequest: () => void;
   onApply: () => void;
+  onFork: () => void;
   onReject: () => void;
   onUndo: () => void;
 }>;
 
 function LayerComposition({ selected, label }: { selected: readonly SelectedNote[]; label: string }) {
-  return <section className="blend-advisor-version" aria-label={label}>
+  return <section className="blend-advisor-version" data-version={label === 'ترکیب فعلی' ? 'original' : 'proposed'} aria-label={label}>
     <h4>{label}</h4>
     <dl>
       {layers.map(layer => {
@@ -34,8 +36,8 @@ function LayerComposition({ selected, label }: { selected: readonly SelectedNote
 }
 
 export function BlendAdvisor({
-  result, loading, accepted, canUndo, busy, applyBlockedMessage, requestBlockedMessage,
-  onRequest, onApply, onReject, onUndo,
+  result, loading, accepted, canUndo, busy, applyBlockedMessage, forkBlockedMessage, requestBlockedMessage,
+  onRequest, onApply, onFork, onReject, onUndo,
 }: Props) {
   const [open, setOpen] = useState(false);
   const summaryRef = useRef<HTMLElement>(null);
@@ -92,7 +94,7 @@ export function BlendAdvisor({
             : 'اطلاعات کاتالوگ برای بررسی این پیشنهاد یکدست نیست. ترکیب شما محفوظ است.'}</p>}
         {result?.status === 'invalid' && <p className="blend-advisor-message" role="alert">ترکیب یا پیشنهاد نیاز به بازبینی دارد؛ هیچ تغییری اعمال نشد.</p>}
         {suggestion && !accepted && <div className="blend-advisor-preview">
-          <div className="blend-advisor-heading"><span className="blend-advisor-kicker">{suggestion.provenance.labelFa} · نسخهٔ {suggestion.provenance.version}</span><h3>پیشنهاد برای کاوش</h3></div>
+          <div className="blend-advisor-heading"><h3>پیشنهاد برای کاوش</h3><p className="blend-advisor-kicker">{suggestion.provenance.labelFa} · نسخهٔ {suggestion.provenance.version}</p></div>
           <p className="blend-advisor-rationale">{suggestion.rationaleFa}</p>
           <p className="blend-advisor-changes"><strong>نت‌های جابه‌جاشده:</strong> {changedNames.join('، ')}</p>
           <div className="blend-advisor-comparison">
@@ -101,8 +103,11 @@ export function BlendAdvisor({
           </div>
           <p className="blend-advisor-limit">{suggestion.limitationsFa.join(' ')}</p>
           {applyBlockedMessage && <p className="blend-advisor-message" role="status">{applyBlockedMessage}</p>}
+          {forkBlockedMessage && applyBlockedMessage && <p className="blend-advisor-message" role="status">{forkBlockedMessage}</p>}
           <div className="blend-advisor-actions">
-            <button type="button" className="blend-advisor-button blend-advisor-primary" onClick={apply} disabled={busy || Boolean(applyBlockedMessage)}>ساخت نسخهٔ پیشنهادی</button>
+            {applyBlockedMessage
+              ? <button type="button" className="blend-advisor-button blend-advisor-primary" onClick={onFork} disabled={busy || Boolean(forkBlockedMessage)}>ساخت نسخهٔ مستقل</button>
+              : <button type="button" className="blend-advisor-button blend-advisor-primary" onClick={apply} disabled={busy}>ساخت نسخهٔ پیشنهادی</button>}
             <button type="button" className="blend-advisor-button blend-advisor-secondary" onClick={reject} disabled={busy}>ترکیب فعلی را نگه می‌دارم</button>
           </div>
         </div>}

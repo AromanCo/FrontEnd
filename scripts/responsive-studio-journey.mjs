@@ -41,12 +41,14 @@ try {
         assert.match(await noteCount.textContent(), /۱\/۶/);
 
         const lastNote = page.locator(`[data-note-id="${notes.at(-1).id}"]`);
+        const showMore = page.getByRole('button', { name: /نمایش .* نت دیگر/ });
+        if (await showMore.isVisible()) await showMore.click();
         await lastNote.scrollIntoViewIfNeeded();
         assert.equal(await lastNote.isVisible(), true, `${width}px final note must remain reachable`);
         const continueButton = page.getByRole('button', { name: /رفتن به ترکیب/ });
-        assert.equal(await continueButton.isVisible(), true, `In-flow composition action is missing at ${width}px`);
-        const [lastRect, continueRect] = await Promise.all([lastNote.boundingBox(), continueButton.boundingBox()]);
-        assert.ok(lastRect && continueRect && continueRect.y >= lastRect.y + lastRect.height, `Composition action must follow the final note in flow at ${width}px`);
+        assert.equal(await continueButton.isVisible(), true, `Composition action is missing at ${width}px`);
+        const [firstRect, continueRect] = await Promise.all([firstCard.boundingBox(), continueButton.boundingBox()]);
+        assert.ok(firstRect && continueRect && continueRect.y < firstRect.y, `Composition action remains convenient before the note list at ${width}px`);
         await continueButton.scrollIntoViewIfNeeded();
         await page.screenshot({ path: `${screenshotDir}/studio-continue-${width}.png` });
         await continueButton.click();
@@ -58,7 +60,7 @@ try {
         await assertNoBrowserErrors(report, `Studio ${width}px`);
       }
       assertNoBrowserErrors(report, `Studio ${width}px`);
-      console.log(`${width}px: ${columns} columns, ${nameSize}px note labels, real 24-note API, no overflow${width <= 900 ? ', in-flow continue action and keyboard path verified' : ''}`);
+      console.log(`${width}px: ${columns} columns, ${nameSize}px note labels, real 24-note API, no overflow${width <= 900 ? ', convenient continue action and keyboard path verified' : ''}`);
     } finally {
       await page.close();
     }

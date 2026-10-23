@@ -24,7 +24,7 @@ const noteB = { id: '00000000-0000-4000-8000-000000000002', slug: 'synthetic-b',
 const noteC = { id: '00000000-0000-4000-8000-000000000003', slug: 'synthetic-c', name: 'نت آزمایشی پ', description: null, is_demo: true, family_id: '10000000-0000-4000-8000-000000000001' };
 const fixtures = [noteA, noteB, noteC];
 
-function renderStudio(props: { conceptId?: string; fromGuided?: boolean } = {}) {
+function renderStudio(props: { conceptId?: string; fromGuided?: boolean; fromAdvisor?: boolean } = {}) {
   return render(<StudioDraftProvider><CreativeStudio {...props} /></StudioDraftProvider>);
 }
 
@@ -249,22 +249,105 @@ describe('BlendAdvisor Creative Studio integration', () => {
     expect(screen.queryByRole('button', { name: 'ساخت نسخهٔ پیشنهادی' })).not.toBeInTheDocument();
   });
 
-  it('disables Apply for a loaded saved concept and for an unresolved saved-concept route', async () => {
+  it('offers an independent version for a loaded saved concept and blocks unresolved saved routes', async () => {
     mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
     const view = renderStudio({ conceptId: 'saved-1' });
     await screen.findByDisplayValue('مفهوم ذخیره‌شده');
     fireEvent.click(screen.getByRole('tab', { name: /ترکیب/ }));
     fireEvent.click(screen.getByText('پیشنهاد خلاق آرومان'));
     await requestSuggestion();
-    expect(screen.getByRole('button', { name: 'ساخت نسخهٔ پیشنهادی' })).toBeDisabled();
-    expect(screen.getByText(/برای حفظ مفهوم ذخیره‌شده/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'ساخت نسخهٔ پیشنهادی' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ساخت نسخهٔ مستقل' })).toBeEnabled();
+    expect(screen.getByText(/این مفهوم ذخیره‌شده فقط با ذخیرهٔ تغییرات/)).toBeInTheDocument();
     view.unmount();
 
     renderStudio({ conceptId: 'still-loading' });
     fireEvent.click(screen.getByRole('tab', { name: /ترکیب/ }));
     fireEvent.click(screen.getByText('پیشنهاد خلاق آرومان'));
-    expect(screen.getByRole('button', { name: 'یک پیشنهاد برای ترکیبم' })).toBeDisabled();
+    expect(document.querySelector('.studio-grid')).toHaveAttribute('inert');
     expect(screen.getByText(/پس از بارگذاری کامل مفهوم ذخیره‌شده/)).toBeInTheDocument();
+  });
+
+  it('fails closed when any saved-concept note is absent from the complete catalog', async () => {
+    mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
+    mocks.conceptGet.mockResolvedValue({ id: 'saved-missing', name: 'مفهوم با نت قدیمی', notes: [
+      { note_id: noteA.id, layer: 'heart', position: 0 },
+      { note_id: '00000000-0000-4000-8000-000000000099', layer: 'base', position: 0 },
+    ] });
+    renderStudio({ conceptId: 'saved-missing' });
+    expect(await screen.findByRole('alert')).toHaveTextContent(/مفهوم ذخیره‌شده کامل بارگذاری نشد؛ برخی نت‌های آن/);
+    expect(screen.getByRole('button', { name: 'تلاش دوباره برای بارگذاری مفهوم' })).toBeEnabled();
+    expect(document.querySelector('.studio-grid')).toHaveAttribute('inert');
+    expect(screen.getByRole('button', { name: 'ذخیره مفهوم' })).toBeDisabled();
+    expect(screen.queryByLabelText(`لایه ${noteA.name}`)).not.toBeInTheDocument();
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+  });
+
+  it('can safely retry an incomplete saved-concept load without changing the server record', async () => {
+    mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
+    mocks.conceptGet.mockResolvedValueOnce({ id: 'saved-retry', name: 'نسخهٔ کامل', notes: [
+      { note_id: noteA.id, layer: 'base', position: 0 },
+      { note_id: '00000000-0000-4000-8000-000000000099', layer: 'heart', position: 0 },
+    ] }).mockResolvedValueOnce({ id: 'saved-retry', name: 'نسخهٔ کامل', notes: [
+      { note_id: noteA.id, layer: 'base', position: 0 },
+    ] });
+    const view = renderStudio({ conceptId: 'saved-retry' });
+    await screen.findByRole('button', { name: 'تلاش دوباره برای بارگذاری مفهوم' });
+    mocks.notes.mockImplementation((filters?: { limit?: number }) => Promise.resolve(filters?.limit === 100 ? fixtures : fixtures));
+    fireEvent.click(screen.getByRole('button', { name: 'تلاش دوباره برای بارگذاری مفهوم' }));
+    expect(await screen.findByDisplayValue('نسخهٔ کامل')).toBeInTheDocument();
+    expect(screen.getByLabelText(`لایه ${noteA.name}`)).toHaveValue('base');
+    expect(screen.getAllByRole('button', { name: 'ذخیره تغییرات' })[0]).toBeEnabled();
+    expect(mocks.conceptGet).toHaveBeenCalledTimes(2);
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
+  it('rejects duplicate catalog identities while loading a saved concept', async () => {
+    mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
+    mocks.notes.mockImplementation((filters?: { limit?: number }) => Promise.resolve(filters?.limit === 100 ? [noteA, { ...noteA, name: 'نت متعارض' }] : fixtures));
+    renderStudio({ conceptId: 'saved-conflict' });
+    expect(await screen.findByRole('alert')).toHaveTextContent(/اطلاعات کاتالوگ تکراری یا ناسازگار است/);
+    expect(screen.getByRole('button', { name: 'ذخیره مفهوم' })).toBeDisabled();
+    expect(document.querySelector('.studio-grid')).toHaveAttribute('inert');
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+  });
+
+  it('locks an expired advisor route and offers an explicit safe fresh-session exit', async () => {
+    const view = renderStudio({ fromAdvisor: true });
+    expect(await screen.findByRole('alert')).toHaveTextContent(/انتقال نسخهٔ مستقل در حافظهٔ این برگه پیدا نشد/);
+    expect(document.querySelector('.studio-grid')).toHaveAttribute('inert');
+    expect(screen.getAllByRole('button', { name: 'ذخیره مفهوم' }).every(button => (button as HTMLButtonElement).disabled)).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'ترک انتقال و شروع استودیوی تازه' }));
+    expect(mocks.routerReplace).toHaveBeenCalledWith('/studio/creative');
+    view.rerender(<StudioDraftProvider><CreativeStudio /></StudioDraftProvider>);
+    await waitFor(() => expect(document.querySelector('.studio-grid')).not.toHaveAttribute('inert'));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('tab', { name: /نت‌ها/ })));
+    expect(screen.getByText(/یک ترکیب تازه آغاز شد/)).toBeInTheDocument();
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+  });
+
+  it('does not consume a newer mismatched transfer when exiting an expired advisor route', async () => {
+    function MismatchedTransferHarness() {
+      const { createAdvisorFork, createDraft, pending } = useStudioDraft();
+      React.useEffect(() => {
+        createAdvisorFork('نسخهٔ مستقل', [{ noteId: noteA.id, layer: 'top', position: 0 }], { compositionIdentity: 'saved-context', conceptId: 'saved-1' });
+        createDraft('پیش‌نویس هدایت‌شدهٔ تازه', [{ noteId: noteB.id, layer: 'base', position: 0 }]);
+      }, [createAdvisorFork, createDraft]);
+      return <><CreativeStudio fromAdvisor /><output data-testid="pending-transfer">{pending?.origin}:{pending?.transferId}</output></>;
+    }
+    render(<StudioDraftProvider><MismatchedTransferHarness /></StudioDraftProvider>);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/با این نشانی هم‌خوان نیست/);
+    const pendingBefore = screen.getByTestId('pending-transfer').textContent;
+    fireEvent.click(screen.getByRole('button', { name: 'ترک انتقال و شروع استودیوی تازه' }));
+    expect(screen.getByTestId('pending-transfer')).toHaveTextContent(pendingBefore ?? '');
+    expect(mocks.routerReplace).toHaveBeenCalledWith('/studio/creative');
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
   });
 
   it('clears previews when Save starts and keeps Apply blocked after a successful Save establishes savedId', async () => {
@@ -281,7 +364,339 @@ describe('BlendAdvisor Creative Studio integration', () => {
     await screen.findByText('مفهوم رایحه با موفقیت ذخیره شد.');
     fireEvent.click(screen.getByRole('button', { name: 'یک پیشنهاد برای ترکیبم' }));
     await screen.findByRole('heading', { name: 'پیشنهاد برای کاوش', level: 3 });
-    expect(screen.getByRole('button', { name: 'ساخت نسخهٔ پیشنهادی' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'ساخت نسخهٔ پیشنهادی' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ساخت نسخهٔ مستقل' })).toBeEnabled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+  });
+
+  it('requires confirmation and leaves the original saved composition untouched when canceled', async () => {
+    mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
+    renderStudio({ conceptId: 'saved-1' });
+    await screen.findByDisplayValue('مفهوم ذخیره‌شده');
+    fireEvent.click(screen.getByRole('tab', { name: /ترکیب/ }));
+    fireEvent.click(screen.getByText('پیشنهاد خلاق آرومان'));
+    await requestSuggestion();
+    fireEvent.click(screen.getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    const dialog = screen.getByRole('dialog', { name: 'ساخت نسخهٔ مستقل' });
+    expect(within(dialog).getByText(/مفهوم ذخیره‌شدهٔ فعلی بدون تغییر می‌ماند/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'انصراف' }));
+    expect(screen.getByDisplayValue('مفهوم ذخیره‌شده')).toBeInTheDocument();
+    expect(screen.getByLabelText(`لایه ${noteA.name}`)).toHaveValue('heart');
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+  });
+
+  it('forks the validated proposal through the root transfer and the next Save creates a new concept', async () => {
+    mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
+    function StudioRoute({ fromAdvisor }: { fromAdvisor: boolean }) {
+      return <CreativeStudio key={String(fromAdvisor)} conceptId={fromAdvisor ? undefined : 'saved-1'} fromAdvisor={fromAdvisor} />;
+    }
+    const view = render(<StudioDraftProvider><StudioRoute fromAdvisor={false} /></StudioDraftProvider>);
+    await screen.findByDisplayValue('مفهوم ذخیره‌شده');
+    fireEvent.click(screen.getByRole('tab', { name: /ترکیب/ }));
+    fireEvent.click(screen.getByText('پیشنهاد خلاق آرومان'));
+    await requestSuggestion();
+    fireEvent.click(screen.getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    const dialog = screen.getByRole('dialog', { name: 'ساخت نسخهٔ مستقل' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    expect(mocks.routerReplace).toHaveBeenCalledWith('/studio/creative?from=advisor');
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+
+    view.rerender(<StudioDraftProvider><StudioRoute fromAdvisor /></StudioDraftProvider>);
+    await screen.findByText(/نسخهٔ مستقل برای ویرایش آماده است/);
+    expect(screen.getByDisplayValue('مفهوم ذخیره‌شده')).toBeInTheDocument();
+    expect(screen.getByLabelText(`لایه ${noteA.name}`)).toHaveValue('top');
+    expect(screen.getByRole('button', { name: 'یک پیشنهاد برای ترکیبم' })).toBeEnabled();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('نام مفهوم')));
+    fireEvent.click(screen.getAllByRole('button', { name: 'ذخیره مفهوم' })[0]);
+    await waitFor(() => expect(mocks.conceptCreate).toHaveBeenCalledTimes(1));
+    expect(mocks.conceptCreate).toHaveBeenCalledWith({ name: 'مفهوم ذخیره‌شده', notes: [{ note_id: noteA.id, layer: 'top', position: 0 }] });
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+  });
+
+  it('blocks advisor forks while a Guided transfer occupies the one pending slot', async () => {
+    mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
+    function GuidedPendingHarness() {
+      const { createDraft } = useStudioDraft();
+      React.useEffect(() => { createDraft('پیش‌نویس هدایت‌شده', [{ noteId: noteB.id, layer: 'top', position: 0 }]); }, [createDraft]);
+      return <CreativeStudio conceptId="saved-1" />;
+    }
+    render(<StudioDraftProvider><GuidedPendingHarness /></StudioDraftProvider>);
+    await screen.findByDisplayValue('مفهوم ذخیره‌شده');
+    fireEvent.click(screen.getByRole('tab', { name: /ترکیب/ }));
+    fireEvent.click(screen.getByText('پیشنهاد خلاق آرومان'));
+    await requestSuggestion();
+    expect(screen.getByRole('button', { name: 'ساخت نسخهٔ مستقل' })).toBeDisabled();
+    expect(screen.getByText(/پیش‌نویس انتقال دیگر در انتظار است/)).toBeInTheDocument();
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+  });
+
+  it('keeps a pending advisor transfer dormant while a saved-concept URL has precedence', async () => {
+    mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
+    function PendingForkHarness() {
+      const { createAdvisorFork } = useStudioDraft();
+      React.useEffect(() => {
+        createAdvisorFork('نسخهٔ مستقل', [{ noteId: noteB.id, layer: 'top', position: 0 }], { compositionIdentity: 'source-identity', conceptId: 'saved-1' });
+      }, [createAdvisorFork]);
+      return <CreativeStudio conceptId="saved-1" />;
+    }
+    render(<StudioDraftProvider><PendingForkHarness /></StudioDraftProvider>);
+    await screen.findByDisplayValue('مفهوم ذخیره‌شده');
+    expect(screen.getByLabelText(`لایه ${noteA.name}`)).toHaveValue('heart');
+    expect(screen.queryByLabelText(`لایه ${noteB.name}`)).not.toBeInTheDocument();
+    expect(screen.getByText(/مفهوم ذخیره‌شدهٔ این نشانی اولویت دارد/)).toBeInTheDocument();
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+  });
+
+  it('retains an advisor transfer and source composition when catalog resolution misses a note, then retries fully', async () => {
+    mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
+    let completePages = 0;
+    mocks.notes.mockImplementation((filters?: { limit?: number }) => {
+      if (filters?.limit === 100) {
+        completePages += 1;
+        return Promise.resolve(completePages === 3 ? [noteB, noteC] : fixtures);
+      }
+      return Promise.resolve(fixtures);
+    });
+    function StudioRoute({ fromAdvisor }: { fromAdvisor: boolean }) {
+      return <CreativeStudio key={String(fromAdvisor)} conceptId={fromAdvisor ? undefined : 'saved-1'} fromAdvisor={fromAdvisor} />;
+    }
+    const view = render(<StudioDraftProvider><StudioRoute fromAdvisor={false} /></StudioDraftProvider>);
+    await screen.findByDisplayValue('مفهوم ذخیره‌شده');
+    fireEvent.click(screen.getByRole('tab', { name: /ترکیب/ }));
+    fireEvent.click(screen.getByText('پیشنهاد خلاق آرومان'));
+    await requestSuggestion();
+    fireEvent.click(screen.getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    const dialog = screen.getByRole('dialog', { name: 'ساخت نسخهٔ مستقل' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    view.rerender(<StudioDraftProvider><StudioRoute fromAdvisor /></StudioDraftProvider>);
+    expect(await screen.findByRole('alert')).toHaveTextContent('همهٔ نت‌های نسخهٔ پیشنهادی');
+    expect(screen.getByDisplayValue('رایحه من')).toBeInTheDocument();
+    expect(screen.queryByLabelText(`لایه ${noteA.name}`)).not.toBeInTheDocument();
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'تلاش دوباره برای دریافت نت‌ها' }));
+    await screen.findByText(/نسخهٔ مستقل برای ویرایش آماده است/);
+    expect(screen.getByLabelText(`لایه ${noteA.name}`)).toHaveValue('top');
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+  });
+
+  it('keeps a valid advisor fork locked after catalog failure and imports it on retry', async () => {
+    mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
+    let completeCatalogCalls = 0;
+    mocks.notes.mockImplementation((filters?: { limit?: number }) => {
+      if (filters?.limit === 100) {
+        completeCatalogCalls += 1;
+        if (completeCatalogCalls === 3) return Promise.reject(new Error('synthetic catalog outage'));
+      }
+      return Promise.resolve(fixtures);
+    });
+    function StudioRoute({ fromAdvisor }: { fromAdvisor: boolean }) {
+      return <CreativeStudio key={String(fromAdvisor)} conceptId={fromAdvisor ? undefined : 'saved-1'} fromAdvisor={fromAdvisor} />;
+    }
+    const view = render(<StudioDraftProvider><StudioRoute fromAdvisor={false} /></StudioDraftProvider>);
+    await screen.findByDisplayValue('مفهوم ذخیره‌شده');
+    fireEvent.click(screen.getByRole('tab', { name: /ترکیب/ }));
+    fireEvent.click(screen.getByText('پیشنهاد خلاق آرومان'));
+    await requestSuggestion();
+    fireEvent.click(screen.getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'ساخت نسخهٔ مستقل' })).getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    view.rerender(<StudioDraftProvider><StudioRoute fromAdvisor /></StudioDraftProvider>);
+    expect(await screen.findByRole('alert')).toHaveTextContent('دریافت کاتالوگ برای انتقال انجام نشد');
+    expect(document.querySelector('.studio-grid')).toHaveAttribute('inert');
+    expect(screen.getByRole('button', { name: 'ذخیره مفهوم' })).toBeDisabled();
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'تلاش دوباره برای دریافت نت‌ها' }));
+    expect(await screen.findByText(/نسخهٔ مستقل برای ویرایش آماده است/)).toBeInTheDocument();
+    expect(document.querySelector('.studio-grid')).not.toHaveAttribute('inert');
+    expect(screen.getByLabelText(`لایه ${noteA.name}`)).toHaveValue('top');
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+  });
+
+  it('exits a failed saved fork in the same component instance, clears busy state, and locks a later advisor re-entry', async () => {
+    mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
+    let failNextAdvisorCatalog = false;
+    mocks.notes.mockImplementation((filters?: { limit?: number }) => {
+      if (filters?.limit === 100 && failNextAdvisorCatalog) {
+        failNextAdvisorCatalog = false;
+        return Promise.reject(new Error('synthetic catalog outage'));
+      }
+      return Promise.resolve(fixtures);
+    });
+
+    function SameInstanceRoutes() {
+      const [route, setRoute] = React.useState({ fromAdvisor: false, conceptId: 'saved-1' as string | undefined });
+      const { pending } = useStudioDraft();
+      return <>
+        <button type="button" onClick={() => setRoute({ fromAdvisor: true, conceptId: undefined })}>نمایش مسیر انتقال مستقل</button>
+        <button type="button" onClick={() => setRoute({ fromAdvisor: false, conceptId: undefined })}>نمایش استودیوی عادی</button>
+        <output data-testid="pending-transfer">{pending ? `${pending.origin ?? 'guided'}:${pending.transferId}` : ''}</output>
+        <CreativeStudio conceptId={route.conceptId} fromAdvisor={route.fromAdvisor} />
+      </>;
+    }
+
+    render(<StudioDraftProvider><SameInstanceRoutes /></StudioDraftProvider>);
+    await screen.findByDisplayValue('مفهوم ذخیره‌شده');
+    fireEvent.click(screen.getByRole('tab', { name: /ترکیب/ }));
+    fireEvent.click(screen.getByText('پیشنهاد خلاق آرومان'));
+    await requestSuggestion();
+    fireEvent.click(screen.getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'ساخت نسخهٔ مستقل' })).getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    failNextAdvisorCatalog = true;
+    fireEvent.click(screen.getByRole('button', { name: 'نمایش مسیر انتقال مستقل' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('دریافت کاتالوگ برای انتقال انجام نشد');
+    expect(document.querySelector('.studio-grid')).toHaveAttribute('inert');
+    expect(screen.getByTestId('pending-transfer')).toHaveTextContent('advisor-fork:');
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ترک انتقال و شروع استودیوی تازه' }));
+    expect(mocks.routerReplace).toHaveBeenCalledWith('/studio/creative');
+    expect(screen.getByTestId('pending-transfer')).toBeEmptyDOMElement();
+    fireEvent.click(screen.getByRole('button', { name: 'نمایش استودیوی عادی' }));
+    await waitFor(() => expect(document.querySelector('.studio-grid')).not.toHaveAttribute('inert'));
+    fireEvent.click(screen.getByRole('tab', { name: /نت‌ها/ }));
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(noteA.name) }));
+    fireEvent.click(screen.getByRole('tab', { name: /ترکیب/ }));
+    fireEvent.click(screen.getByText('پیشنهاد خلاق آرومان'));
+    await requestSuggestion();
+    expect(screen.getByRole('button', { name: 'ساخت نسخهٔ پیشنهادی' })).toBeEnabled();
+    expect(screen.getAllByRole('button', { name: 'ذخیره مفهوم' }).every(button => (button as HTMLButtonElement).disabled)).toBe(false);
+    expect(screen.queryByRole('button', { name: 'ذخیره تغییرات' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'نمایش مسیر انتقال مستقل' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/انتقال نسخهٔ مستقل در حافظهٔ این برگه پیدا نشد/);
+    expect(document.querySelector('.studio-grid')).toHaveAttribute('inert');
+    expect(screen.getAllByRole('button', { name: 'ذخیره مفهوم' }).every(button => (button as HTMLButtonElement).disabled)).toBe(true);
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+  });
+
+  it('rejects duplicate advisor catalog IDs across pages and retries without losing the saved source', async () => {
+    mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
+    let catalogMode: 'normal' | 'duplicate' | 'valid' = 'normal';
+    let pageIndex = 0;
+    const fullPage = Array.from({ length: 100 }, (_, index) => index === 0 ? noteA : {
+      ...noteA,
+      id: `00000000-0000-4000-8000-${String(index + 10).padStart(12, '0')}`,
+      slug: `synthetic-page-${index}`,
+      name: `نت صفحه ${index}`,
+    });
+    mocks.notes.mockImplementation((filters?: { limit?: number }) => {
+      if (filters?.limit === 100 && catalogMode === 'duplicate') {
+        return Promise.resolve(pageIndex++ === 0 ? fullPage : [noteA]);
+      }
+      return Promise.resolve(fixtures);
+    });
+
+    function SameInstanceRoutes() {
+      const [fromAdvisor, setFromAdvisor] = React.useState(false);
+      const { pending } = useStudioDraft();
+      return <>
+        <button type="button" onClick={() => setFromAdvisor(true)}>ورود به انتقال مستقل</button>
+        <output data-testid="pending-transfer">{pending ? `${pending.origin ?? 'guided'}:${pending.transferId}` : ''}</output>
+        <CreativeStudio conceptId={fromAdvisor ? undefined : 'saved-1'} fromAdvisor={fromAdvisor} />
+      </>;
+    }
+
+    render(<StudioDraftProvider><SameInstanceRoutes /></StudioDraftProvider>);
+    await screen.findByDisplayValue('مفهوم ذخیره‌شده');
+    fireEvent.click(screen.getByRole('tab', { name: /ترکیب/ }));
+    fireEvent.click(screen.getByText('پیشنهاد خلاق آرومان'));
+    await requestSuggestion();
+    fireEvent.click(screen.getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'ساخت نسخهٔ مستقل' })).getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    catalogMode = 'duplicate';
+    fireEvent.click(screen.getByRole('button', { name: 'ورود به انتقال مستقل' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/کاتالوگ نت‌های تکراری یا متناقض دارد/);
+    expect(document.querySelector('.studio-grid')).toHaveAttribute('inert');
+    const pendingTransfer = screen.getByTestId('pending-transfer').textContent;
+    expect(pendingTransfer).toContain('advisor-fork:');
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+
+    catalogMode = 'valid';
+    fireEvent.click(screen.getByRole('button', { name: 'تلاش دوباره برای دریافت نت‌ها' }));
+    expect(await screen.findByText(/نسخهٔ مستقل برای ویرایش آماده است/)).toBeInTheDocument();
+    expect(screen.getByTestId('pending-transfer')).toBeEmptyDOMElement();
+    expect(document.querySelector('.studio-grid')).not.toHaveAttribute('inert');
+    expect(screen.getByLabelText(`لایه ${noteA.name}`)).toHaveValue('top');
+    expect(screen.getAllByRole('button', { name: 'ذخیره مفهوم' }).every(button => (button as HTMLButtonElement).disabled)).toBe(false);
+    expect(screen.queryByRole('button', { name: 'ذخیره تغییرات' })).not.toBeInTheDocument();
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+  });
+
+  it('locks a previously imported advisor draft if the same editor leaves and later re-enters without a new transfer', async () => {
+    mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
+    function SameInstanceRoutes() {
+      const [route, setRoute] = React.useState({ fromAdvisor: false, conceptId: 'saved-1' as string | undefined });
+      return <>
+        <button type="button" onClick={() => setRoute({ fromAdvisor: true, conceptId: undefined })}>ورود به انتقال مستقل</button>
+        <button type="button" onClick={() => setRoute({ fromAdvisor: false, conceptId: undefined })}>ترک مسیر انتقال</button>
+        <CreativeStudio conceptId={route.conceptId} fromAdvisor={route.fromAdvisor} />
+      </>;
+    }
+    render(<StudioDraftProvider><SameInstanceRoutes /></StudioDraftProvider>);
+    await screen.findByDisplayValue('مفهوم ذخیره‌شده');
+    fireEvent.click(screen.getByRole('tab', { name: /ترکیب/ }));
+    fireEvent.click(screen.getByText('پیشنهاد خلاق آرومان'));
+    await requestSuggestion();
+    fireEvent.click(screen.getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'ساخت نسخهٔ مستقل' })).getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ورود به انتقال مستقل' }));
+    expect(await screen.findByText(/نسخهٔ مستقل برای ویرایش آماده است/)).toBeInTheDocument();
+    expect(screen.getByLabelText(`لایه ${noteA.name}`)).toHaveValue('top');
+    expect(screen.getAllByRole('button', { name: 'ذخیره مفهوم' }).every(button => (button as HTMLButtonElement).disabled)).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'ترک مسیر انتقال' }));
+    await waitFor(() => expect(document.querySelector('.studio-grid')).not.toHaveAttribute('inert'));
+    fireEvent.click(screen.getByRole('button', { name: 'ورود به انتقال مستقل' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/انتقال نسخهٔ مستقل در حافظهٔ این برگه پیدا نشد/);
+    expect(document.querySelector('.studio-grid')).toHaveAttribute('inert');
+    expect(screen.getAllByRole('button', { name: 'ذخیره مفهوم' }).every(button => (button as HTMLButtonElement).disabled)).toBe(true);
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed advisor pagination pages and allows retry with a complete page', async () => {
+    mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
+    let malformedNext = false;
+    mocks.notes.mockImplementation((filters?: { limit?: number }) => {
+      if (filters?.limit === 100 && malformedNext) {
+        malformedNext = false;
+        return Promise.resolve({ results: fixtures } as never);
+      }
+      return Promise.resolve(fixtures);
+    });
+    function SameInstanceRoutes() {
+      const [fromAdvisor, setFromAdvisor] = React.useState(false);
+      return <><button type="button" onClick={() => setFromAdvisor(true)}>ورود به انتقال مستقل</button><CreativeStudio conceptId={fromAdvisor ? undefined : 'saved-1'} fromAdvisor={fromAdvisor} /></>;
+    }
+    render(<StudioDraftProvider><SameInstanceRoutes /></StudioDraftProvider>);
+    await screen.findByDisplayValue('مفهوم ذخیره‌شده');
+    fireEvent.click(screen.getByRole('tab', { name: /ترکیب/ }));
+    fireEvent.click(screen.getByText('پیشنهاد خلاق آرومان'));
+    await requestSuggestion();
+    fireEvent.click(screen.getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'ساخت نسخهٔ مستقل' })).getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    malformedNext = true;
+    fireEvent.click(screen.getByRole('button', { name: 'ورود به انتقال مستقل' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/ساختار صفحه‌های کاتالوگ معتبر نبود/);
+    expect(document.querySelector('.studio-grid')).toHaveAttribute('inert');
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'تلاش دوباره برای دریافت نت‌ها' }));
+    expect(await screen.findByText(/نسخهٔ مستقل برای ویرایش آماده است/)).toBeInTheDocument();
+    expect(document.querySelector('.studio-grid')).not.toHaveAttribute('inert');
     expect(mocks.conceptUpdate).not.toHaveBeenCalled();
   });
 
