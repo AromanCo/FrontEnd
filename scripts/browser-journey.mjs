@@ -101,6 +101,8 @@ try {
   await page.getByRole('combobox', { name: 'خانواده رایحه' }).selectOption('');
   await resetResponse;
   await page.locator('#studio-panel-0[data-note-count="24"]').waitFor({ timeout: 10000 });
+  const showAllNotes = notesPanel.getByRole('button', { name: /نمایش .* نت دیگر/ });
+  if (await showAllNotes.isVisible()) await showAllNotes.click();
   const lastNote = page.locator(`[data-note-id="${notes.at(-1).id}"]`);
   await lastNote.scrollIntoViewIfNeeded();
   assert.equal(await lastNote.isVisible(), true);

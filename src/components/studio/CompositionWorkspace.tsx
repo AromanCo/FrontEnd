@@ -1,12 +1,14 @@
 'use client';
 import type { Layer } from '@/lib/api/client';
+import type { ReactNode } from 'react';
 import type { SelectedNote } from '@/lib/studio/composition';
 import { layerLabels, layers } from '@/lib/studio/composition';
 
 export function CompositionWorkspace({
-  selected, name, active, onName, onLayer, onRemove, onReorder,
+  selected, name, active, advisor, onName, onLayer, onRemove, onReorder,
 }: {
   selected: SelectedNote[]; name: string; active: boolean; onName: (value: string) => void;
+  advisor?: ReactNode;
   onLayer: (id: string, layer: Layer) => void; onRemove: (id: string) => void; onReorder: (id: string, direction: -1 | 1) => void;
 }) {
   return (
@@ -46,6 +48,7 @@ export function CompositionWorkspace({
         })}
       </div>
       <p className="composition-note-disclaimer">این چیدمان، روایت مفهومی شماست و فرمول ساخت عطر نیست.</p>
+      {advisor}
     </section>
   );
 }

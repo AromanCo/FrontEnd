@@ -5,11 +5,12 @@ import { StudioDraftProvider, resolveStudioDraft, useStudioDraft } from '@/lib/s
 import type { Note } from '@/lib/api/client';
 
 function Controls() {
-  const { pending, navigationIntentId, createDraft, consume } = useStudioDraft();
+  const { pending, navigationIntentId, createDraft, createAdvisorFork, consume } = useStudioDraft();
   return <div>
     <output data-testid="pending">{JSON.stringify(pending)}</output>
     <output data-testid="intent">{navigationIntentId}</output>
     <button onClick={() => createDraft('رایحهٔ من', [{ noteId: '00000000-0000-4000-8000-000000000001', layer: 'top', position: 0 }])}>create</button>
+    <button onClick={() => createAdvisorFork('نسخهٔ مستقل', [{ noteId: '00000000-0000-4000-8000-000000000001', layer: 'heart', position: 0 }], { compositionIdentity: 'composition-1', conceptId: 'saved-1' })}>create fork</button>
     <button onClick={() => consume('stale-transfer')}>consume stale</button>
     <button onClick={() => pending && consume(pending.transferId)}>consume current</button>
   </div>;
@@ -21,12 +22,34 @@ describe('in-memory Studio draft transfer', () => {
     fireEvent.click(getByText('create'));
     const first = JSON.parse(screen.getByTestId('pending').textContent ?? 'null');
     expect(first).toMatchObject({ name: 'رایحهٔ من', notes: [{ noteId: '00000000-0000-4000-8000-000000000001', layer: 'top', position: 0 }] });
-    expect(Object.keys(first).sort()).toEqual(['name', 'notes', 'transferId']);
+    expect(Object.keys(first).sort()).toEqual(['name', 'notes', 'origin', 'transferId']);
+    expect(first.origin).toBe('guided');
     expect(screen.getByTestId('intent')).toHaveTextContent(first.transferId);
     fireEvent.click(getByText('create'));
     const second = JSON.parse(screen.getByTestId('pending').textContent ?? 'null');
     expect(second.transferId).not.toBe(first.transferId);
     expect(screen.getByTestId('intent')).toHaveTextContent(second.transferId);
+  });
+
+  it('creates an isolated advisor fork, preserves a 120-character name and blocks transfer collisions', () => {
+    render(<StudioDraftProvider><Controls /></StudioDraftProvider>);
+    fireEvent.click(screen.getByText('create'));
+    const guided = JSON.parse(screen.getByTestId('pending').textContent ?? 'null');
+    fireEvent.click(screen.getByText('create fork'));
+    expect(JSON.parse(screen.getByTestId('pending').textContent ?? 'null').transferId).toBe(guided.transferId);
+    fireEvent.click(screen.getByText('consume current'));
+    fireEvent.click(screen.getByText('create fork'));
+    const fork = JSON.parse(screen.getByTestId('pending').textContent ?? 'null');
+    expect(fork).toMatchObject({
+      origin: 'advisor-fork', sourceCompositionIdentity: 'composition-1', sourceConceptId: 'saved-1',
+      notes: [{ noteId: '00000000-0000-4000-8000-000000000001', layer: 'heart', position: 0 }],
+    });
+    // The transfer name limit is shared with Creative Studio and never truncates.
+    const longName = 'ر'.repeat(120);
+    const validLong = resolveStudioDraft({ ...fork, name: longName }, [catalogNote(fork.notes[0].noteId, 'synthetic')]);
+    expect(validLong).toMatchObject({ status: 'ready', name: longName });
+    expect(resolveStudioDraft({ ...fork, name: `${longName}ر` }, []).status).toBe('invalid');
+    expect(resolveStudioDraft({ ...fork, name: '   ' }, []).status).toBe('invalid');
   });
 
   it('does not let a stale consumption request clear a newer draft and consumes a matching ID once', () => {
@@ -75,5 +98,22 @@ describe('Guided draft catalog resolution', () => {
     expect(resolveStudioDraft({ ...base, notes: [{ noteId: 'x', layer: 'middle' as never, position: 0 }] }, []).status).toBe('invalid');
     expect(resolveStudioDraft({ ...base, notes: Array.from({ length: 7 }, (_, index) => ({ noteId: `n${index}`, layer: 'top' as const, position: index })) }, []).status).toBe('invalid');
     expect(resolveStudioDraft({ ...base, notes: [{ noteId: 'x', layer: 'top', position: 1 }] }, []).status).toBe('invalid');
+  });
+
+  it('fails closed for duplicate advisor catalog IDs, including conflicting records', () => {
+    const advisorDraft = {
+      ...base,
+      origin: 'advisor-fork' as const,
+      sourceCompositionIdentity: 'source-1',
+      sourceConceptId: 'saved-1',
+      notes: [{ noteId: '00000000-0000-4000-8000-000000000001', layer: 'top' as const, position: 0 }],
+    };
+    const first = catalogNote(advisorDraft.notes[0]!.noteId, 'authoritative');
+    const conflicting = { ...first, name: 'conflicting metadata' };
+    expect(resolveStudioDraft(advisorDraft, [first, conflicting])).toMatchObject({
+      status: 'invalid',
+      reason: 'شناسهٔ تکراری یا متناقض در کاتالوگ، انتقال نسخهٔ مستقل را متوقف کرد.',
+    });
+    expect(resolveStudioDraft(advisorDraft, [first]).status).toBe('ready');
   });
 });

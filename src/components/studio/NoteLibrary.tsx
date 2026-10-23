@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import type { Family, Note } from '@/lib/api/client';
 import { FacetedNoteCard } from '@/components/studio/FacetedNoteCard';
 import { familyMood } from '@/lib/studio/presentation';
@@ -13,6 +14,8 @@ export function NoteLibrary({
   onRetry: () => void; onRetryFamilies: () => void; onMore: () => void; onContinue: () => void;
 }) {
   const atLimit = count >= 6;
+  const [showAllMobileNotes, setShowAllMobileNotes] = useState(false);
+
   return (
     <section className="studio-panel studio-library" data-active={active} data-note-status={loading ? 'loading' : noteError ? 'error' : 'ready'} data-note-count={notes.length} aria-label="کتابخانه نت‌ها" role="tabpanel" id="studio-panel-0" aria-labelledby="studio-tab-0">
       <header className="studio-panel-heading">
@@ -23,11 +26,11 @@ export function NoteLibrary({
       <div className="studio-filters">
         <label className="studio-search">
           <span className="sr-only">جستجوی نت</span><span aria-hidden="true">⌕</span>
-          <input value={query} maxLength={100} onChange={event => onQuery(event.target.value)} placeholder="جستجو میان نت‌ها…" />
+          <input value={query} maxLength={100} onChange={event => { setShowAllMobileNotes(false); onQuery(event.target.value); }} placeholder="جستجو میان نت‌ها…" />
         </label>
         <label className="studio-family-filter">
           <span className="sr-only">خانواده رایحه</span>
-          <select aria-label="خانواده رایحه" value={familyId} onChange={event => onFamily(event.target.value)}>
+          <select aria-label="خانواده رایحه" value={familyId} onChange={event => { setShowAllMobileNotes(false); onFamily(event.target.value); }}>
             <option value="">همه خانواده‌ها</option>{families.map(family => <option key={family.id} value={family.id}>{family.name}</option>)}
           </select>
           <span aria-hidden="true">⌄</span>
@@ -39,12 +42,13 @@ export function NoteLibrary({
       {loading && <p className="studio-state" role="status" aria-live="polite"><span className="studio-loader-mark" aria-hidden="true">✳</span> در حال دریافت نت‌های آرومان…</p>}
       {noteError && <div role="alert" className="studio-error-card"><span aria-hidden="true">!</span><div><strong>کتابخانه نت‌ها در دسترس نیست</strong><p>{noteError} ترکیب شما حفظ شده است.</p><button type="button" onClick={onRetry}>تلاش دوباره</button></div></div>}
       {!loading && !noteError && notes.length === 0 && <div className="studio-empty"><span aria-hidden="true">⌕</span><strong>نتی پیدا نشد</strong><p>نام دیگری را جستجو کنید یا خانواده رایحه را تغییر دهید.</p></div>}
+      {count > 0 && !loading && !noteError && <button className="studio-library-continue" type="button" onClick={onContinue} aria-label={`رفتن به ترکیب، ${count} از ۶ نت انتخاب شده`}><span>ادامه با نت‌های انتخاب‌شده</span><strong>{count.toLocaleString('fa-IR')} از ۶</strong><span aria-hidden="true">←</span></button>}
 
-      {!loading && !noteError && notes.length > 0 && <div className="faceted-note-grid" aria-label="نت‌های موجود">
+      {!loading && !noteError && notes.length > 0 && <div id="studio-note-results" className="faceted-note-grid" data-mobile-collapsed={!showAllMobileNotes} aria-label="نت‌های موجود">
         {notes.map(note => <FacetedNoteCard key={note.id} note={note} family={families.find(item => item.id === note.family_id)} selected={selectedIds.has(note.id)} atLimit={atLimit} onSelect={() => onSelect(note)} />)}
       </div>}
-      {hasMore && !loading && !noteError && <button className="studio-more-button" type="button" onClick={onMore}>نمایش نت‌های بیشتر</button>}
-      {count > 0 && !loading && !noteError && <button className="studio-library-continue" type="button" onClick={onContinue} aria-label={`رفتن به ترکیب، ${count} از ۶ نت انتخاب شده`}><span>ادامه با نت‌های انتخاب‌شده</span><strong>{count.toLocaleString('fa-IR')} از ۶</strong><span aria-hidden="true">←</span></button>}
+      {!loading && !noteError && notes.length > 10 && <button className="studio-mobile-more-button" type="button" aria-controls="studio-note-results" aria-expanded={showAllMobileNotes} onClick={() => setShowAllMobileNotes(value => !value)}>{showAllMobileNotes ? 'نمایش نت‌های کمتر' : `نمایش ${(notes.length - 10).toLocaleString('fa-IR')} نت دیگر`}</button>}
+      {hasMore && !loading && !noteError && <button className="studio-more-button" type="button" onClick={onMore}>دریافت نت‌های بیشتر از کاتالوگ</button>}
       <div className="studio-family-key" aria-hidden="true">{families.slice(0, 4).map(family => <span key={family.id} data-mood={familyMood(family.name)}>{family.name}</span>)}</div>
     </section>
   );
