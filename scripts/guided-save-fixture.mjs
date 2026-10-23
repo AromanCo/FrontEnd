@@ -85,13 +85,15 @@ export function statusAllowsWatcher(status, url) {
   return status === 401 && new URL(url).pathname === '/api/v1/auth/session';
 }
 
-export async function installGuidedSaveFixture(context) {
+export async function installGuidedSaveFixture(context, { failFirstSave = false } = {}) {
   const fixtureSession = randomBytes(32).toString('hex');
   let sessionActive = false;
   let currentCsrf = '';
   let challengeRequests = 0;
   let verificationRequests = 0;
   let conceptCreates = 0;
+  let successfulConceptCreates = 0;
+  let injectedSaveFailures = 0;
   let conceptReads = 0;
   let conceptUpdates = 0;
   let conceptDeletes = 0;
@@ -202,11 +204,17 @@ export async function installGuidedSaveFixture(context) {
         await route.fulfill(jsonResponse(request, 422, { detail: 'Invalid concept payload' }));
         return;
       }
-      if (savedConcept || conceptCreates !== 1) {
+      if (savedConcept || successfulConceptCreates > 0) {
         await route.fulfill(jsonResponse(request, 409, { detail: 'Concept create already accepted' }));
         return;
       }
+      if (failFirstSave && injectedSaveFailures === 0) {
+        injectedSaveFailures += 1;
+        await route.fulfill(jsonResponse(request, 503, { detail: 'Synthetic temporary Save failure' }));
+        return;
+      }
       savedConcept = { id: fixtureConceptId, name: body.name, notes: body.notes.map(item => ({ ...item })) };
+      successfulConceptCreates += 1;
       await route.fulfill(jsonResponse(request, 201, savedConcept));
       return;
     }
@@ -241,6 +249,8 @@ export async function installGuidedSaveFixture(context) {
     get challengeRequests() { return challengeRequests; },
     get verificationRequests() { return verificationRequests; },
     get conceptCreates() { return conceptCreates; },
+    get successfulConceptCreates() { return successfulConceptCreates; },
+    get injectedSaveFailures() { return injectedSaveFailures; },
     get conceptReads() { return conceptReads; },
     get conceptUpdates() { return conceptUpdates; },
     get conceptDeletes() { return conceptDeletes; },
