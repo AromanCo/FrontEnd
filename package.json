@@ -21,7 +21,8 @@
     "test:browser:guided-creative-save": "node scripts/guided-creative-save-journey.mjs",
     "test:browser:save-retry": "node scripts/guided-creative-save-journey.mjs --fail-first-save",
     "test:browser:save-session-expiry": "node scripts/guided-creative-save-journey.mjs --expire-first-save",
-    "test:browser:save-pending": "node scripts/guided-creative-save-journey.mjs --defer-first-save"
+    "test:browser:save-pending": "node scripts/guided-creative-save-journey.mjs --defer-first-save",
+    "test:browser:mobile-rtl": "node scripts/mobile-rtl-journey.mjs"
   },
   "dependencies": {
     "next": "^16.4.2",
