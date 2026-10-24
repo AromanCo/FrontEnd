@@ -99,3 +99,4 @@ jobs:
           npm run test:browser:save-retry
           npm run test:browser:save-session-expiry
           npm run test:browser:save-pending
+          npm run test:browser:mobile-rtl
