@@ -39,6 +39,11 @@ export function watchPage(page, allowedHttp = () => false) {
 
 export function assertNoBrowserErrors(report, label) {
   if (report.errors.length) throw new Error(`${label}: ${report.errors.join('; ')}`);
+  const statusCounts = report.apiResponses.reduce((counts, response) => {
+    counts[response.status] = (counts[response.status] || 0) + 1;
+    return counts;
+  }, {});
+  console.log(`${label}: ${report.apiResponses.length} API responses; HTTP status counts ${JSON.stringify(statusCounts)}`);
 }
 
 export async function checkLayout(page, label) {

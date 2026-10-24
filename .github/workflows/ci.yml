@@ -50,7 +50,7 @@ jobs:
           echo "CHROME_BIN=$chrome_bin" >> "$GITHUB_ENV"
           echo "Using system Chrome at $chrome_bin"
 
-      - name: Run isolated browser authentication journey
+      - name: Run isolated browser journeys
         run: |
           set -Eeuo pipefail
           server_log="$(mktemp)"
@@ -94,3 +94,8 @@ jobs:
           fi
 
           npm run test:browser:auth
+          npm run test:browser:guided-save
+          npm run test:browser:guided-creative-save
+          npm run test:browser:save-retry
+          npm run test:browser:save-session-expiry
+          npm run test:browser:save-pending

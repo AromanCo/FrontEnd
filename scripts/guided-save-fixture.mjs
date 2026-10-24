@@ -85,7 +85,12 @@ export function statusAllowsWatcher(status, url) {
   return status === 401 && new URL(url).pathname === '/api/v1/auth/session';
 }
 
-export async function installGuidedSaveFixture(context, { failFirstSave = false } = {}) {
+export async function installGuidedSaveFixture(context, {
+  failFirstSave = false, expireFirstSave = false, deferFirstSave = false,
+} = {}) {
+  if ([failFirstSave, expireFirstSave, deferFirstSave].filter(Boolean).length > 1) {
+    throw new Error('Select only one synthetic Save failure/deferred mode per journey');
+  }
   const fixtureSession = randomBytes(32).toString('hex');
   let sessionActive = false;
   let currentCsrf = '';
@@ -94,6 +99,14 @@ export async function installGuidedSaveFixture(context, { failFirstSave = false 
   let conceptCreates = 0;
   let successfulConceptCreates = 0;
   let injectedSaveFailures = 0;
+  let injectedSessionExpiries = 0;
+  let pendingSave = false;
+  let notifyFirstSavePending;
+  let releaseFirstSave;
+  // The browser journey releases this gate after it has exercised repeated clicks.
+  // No clock-based delay determines when the API responds.
+  const firstSavePending = new Promise(resolve => { notifyFirstSavePending = resolve; });
+  const firstSaveReleased = new Promise(resolve => { releaseFirstSave = resolve; });
   let conceptReads = 0;
   let conceptUpdates = 0;
   let conceptDeletes = 0;
@@ -213,6 +226,24 @@ export async function installGuidedSaveFixture(context, { failFirstSave = false 
         await route.fulfill(jsonResponse(request, 503, { detail: 'Synthetic temporary Save failure' }));
         return;
       }
+      if (expireFirstSave && injectedSessionExpiries === 0) {
+        injectedSessionExpiries += 1;
+        sessionActive = false;
+        currentCsrf = '';
+        await route.fulfill(jsonResponse(request, 401, { detail: 'Synthetic expired session during Save' }));
+        return;
+      }
+      if (deferFirstSave && conceptCreates === 1) {
+        pendingSave = true;
+        notifyFirstSavePending();
+        await firstSaveReleased;
+        pendingSave = false;
+        // Recheck after the gate: a duplicate request must never overwrite a record.
+        if (savedConcept || successfulConceptCreates > 0) {
+          await route.fulfill(jsonResponse(request, 409, { detail: 'Concept create already accepted' }));
+          return;
+        }
+      }
       savedConcept = { id: fixtureConceptId, name: body.name, notes: body.notes.map(item => ({ ...item })) };
       successfulConceptCreates += 1;
       await route.fulfill(jsonResponse(request, 201, savedConcept));
@@ -251,6 +282,10 @@ export async function installGuidedSaveFixture(context, { failFirstSave = false 
     get conceptCreates() { return conceptCreates; },
     get successfulConceptCreates() { return successfulConceptCreates; },
     get injectedSaveFailures() { return injectedSaveFailures; },
+    get injectedSessionExpiries() { return injectedSessionExpiries; },
+    get pendingSave() { return pendingSave; },
+    firstSavePending,
+    releaseFirstSave,
     get conceptReads() { return conceptReads; },
     get conceptUpdates() { return conceptUpdates; },
     get conceptDeletes() { return conceptDeletes; },

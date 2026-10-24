@@ -19,7 +19,13 @@ import {
 } from './guided-save-fixture.mjs';
 
 const failFirstSave = process.argv.includes('--fail-first-save');
+const expireFirstSave = process.argv.includes('--expire-first-save');
+const deferFirstSave = process.argv.includes('--defer-first-save');
+assert.ok([failFirstSave, expireFirstSave, deferFirstSave].filter(Boolean).length <= 1, 'Save modes must run separately');
+const expectedPostAttempts = failFirstSave || expireFirstSave ? 2 : 1;
+const mode = failFirstSave ? '503 retry' : expireFirstSave ? '401 reauthentication' : deferFirstSave ? 'pending duplicate prevention' : 'happy path';
 let allowedSave503Responses = 0;
+let allowedSave401Responses = 0;
 const browser = await openBrowser();
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
 const page = await context.newPage();
@@ -29,7 +35,17 @@ const browserReport = watchPage(page, (status, url) => {
     allowedSave503Responses += 1;
     return true;
   }
+  if (expireFirstSave && status === 401 && new URL(url).pathname === '/api/v1/fragrance-concepts' && allowedSave401Responses === 0) {
+    allowedSave401Responses += 1;
+    return true;
+  }
   return false;
+});
+const conceptPostRequests = [];
+page.on('request', request => {
+  if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/v1/fragrance-concepts') {
+    conceptPostRequests.push(request);
+  }
 });
 
 async function readComposition() {
@@ -62,7 +78,7 @@ function assertValidSnapshot(snapshot, message) {
 }
 
 try {
-  const fixture = await installGuidedSaveFixture(context, { failFirstSave });
+  const fixture = await installGuidedSaveFixture(context, { failFirstSave, expireFirstSave, deferFirstSave });
   const initialSession = page.waitForResponse(response =>
     new URL(response.url()).pathname === '/api/v1/auth/session' && response.status() === 401,
   );
@@ -149,24 +165,30 @@ try {
   assert.equal(fixture.conceptCreates, 0, 'Anonymous Save must not write a concept');
   assert.deepEqual(await readComposition(), editedSnapshot, 'Opening login must preserve the edited composition');
 
-  await loginDialog.getByLabel('شماره موبایل').fill(fixtureMobile);
-  const challengePromise = page.waitForResponse(response =>
-    new URL(response.url()).pathname === '/api/v1/auth/challenges' && response.request().method() === 'POST',
-  );
-  await loginDialog.getByRole('button', { name: 'دریافت کد' }).click();
-  const challenge = await challengePromise;
-  assert.equal(challenge.status(), 202);
-  assert.equal(fixture.conceptCreates, 0);
-  await loginDialog.getByLabel('کد شش رقمی').fill(fixtureOtp);
-  const verifyPromise = page.waitForResponse(response =>
-    new URL(response.url()).pathname === '/api/v1/auth/verify' && response.request().method() === 'POST',
-  );
-  await loginDialog.getByRole('button', { name: 'تأیید و ورود' }).click();
-  assert.equal((await verifyPromise).status(), 200);
-  await loginDialog.waitFor({ state: 'detached' });
-  await page.getByText('وارد شدید. برای تکمیل ذخیره، دکمه ذخیره مفهوم را بزنید.', { exact: true }).waitFor();
-  assert.deepEqual(await readComposition(), editedSnapshot, 'Login must preserve edits and require a second explicit Save');
-  assert.equal(fixture.conceptCreates, 0, 'Login must not automatically create a concept');
+  const completeLogin = async expectedPosts => {
+    const previousCsrf = fixture.csrfValues.at(-1);
+    await loginDialog.getByLabel('شماره موبایل').fill(fixtureMobile);
+    const challengePromise = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/api/v1/auth/challenges' && response.request().method() === 'POST',
+    );
+    await loginDialog.getByRole('button', { name: 'دریافت کد' }).click();
+    const challenge = await challengePromise;
+    assert.equal(challenge.status(), 202);
+    assert.equal(fixture.conceptCreates, expectedPosts, 'Requesting an OTP must not save');
+    await loginDialog.getByLabel('کد شش رقمی').fill(fixtureOtp);
+    const verifyPromise = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/api/v1/auth/verify' && response.request().method() === 'POST',
+    );
+    await loginDialog.getByRole('button', { name: 'تأیید و ورود' }).click();
+    assert.equal((await verifyPromise).status(), 200);
+    await loginDialog.waitFor({ state: 'detached' });
+    await page.getByText('وارد شدید. برای تکمیل ذخیره، دکمه ذخیره مفهوم را بزنید.', { exact: true }).waitFor();
+    assert.deepEqual(await readComposition(), editedSnapshot, 'Login must preserve edits and require a second explicit Save');
+    assert.equal(fixture.conceptCreates, expectedPosts, 'Login must not automatically create a concept');
+    assert.equal(conceptPostRequests.length, expectedPosts, 'No automatic POST may follow authentication');
+    assert.notEqual(fixture.csrfValues.at(-1), previousCsrf, 'Authentication must obtain a fresh CSRF token');
+  };
+  await completeLogin(0);
 
   const postPayloads = [];
   const submitSave = async () => {
@@ -178,18 +200,32 @@ try {
     return responsePromise;
   };
 
-  if (failFirstSave) {
+  if (failFirstSave || expireFirstSave) {
+    const failureStatus = expireFirstSave ? 401 : 503;
     const failedSaveResponse = await submitSave();
-    assert.equal(failedSaveResponse.status(), 503, 'The first valid Save must receive the injected HTTP 503');
+    assert.equal(failedSaveResponse.status(), failureStatus, `The first valid Save must receive the injected HTTP ${failureStatus}`);
     const failedPayload = failedSaveResponse.request().postDataJSON();
     postPayloads.push(failedPayload);
     assert.equal(conceptCreateIsValid(failedPayload, editedSnapshot.name, editedSnapshot.selections), true, 'Failed POST payload must exactly match the edited UI snapshot');
     assert.deepEqual(normalizedSelections(failedPayload.notes), normalizedSelections(editedSnapshot.selections));
     assert.equal(fixture.conceptCreates, 1, 'First failure should count as one POST attempt');
-    assert.equal(fixture.successfulConceptCreates, 0, 'HTTP 503 must not create a concept');
-    assert.equal(fixture.injectedSaveFailures, 1, 'Exactly one synthetic failure must be injected');
+    assert.equal(fixture.successfulConceptCreates, 0, `HTTP ${failureStatus} must not create a concept`);
+    assert.equal(fixture.injectedSaveFailures, failFirstSave ? 1 : 0, 'Synthetic 503 count must match the mode');
+    assert.equal(fixture.injectedSessionExpiries, expireFirstSave ? 1 : 0, 'Synthetic 401 count must match the mode');
     assert.equal(fixture.savedConcept, null, 'Failed Save must leave the concept store empty');
     assert.equal(Object.hasOwn(await failedSaveResponse.json(), 'id'), false, 'Failed response must not contain a concept ID');
+
+    if (expireFirstSave) {
+      await loginDialog.waitFor();
+      await page.getByRole('alert').getByText('برای ادامه وارد حساب شوید.', { exact: true }).waitFor();
+      assert.deepEqual(await readComposition(), editedSnapshot, 'Session expiry must preserve name, note IDs, layers, and order behind reauthentication');
+      assert.equal(await page.getByText('مفهوم رایحه با موفقیت ذخیره شد.', { exact: true }).count(), 0, 'Expired Save must not display success');
+      assert.equal(fixture.conceptCreates, 1, 'Opening reauthentication must not retry Save');
+      assert.equal(allowedSave401Responses, 1, 'Exactly the injected Save 401 is allowed');
+      await completeLogin(1);
+      assert.equal(fixture.savedConcept, null, 'Reauthentication must leave the concept store empty');
+      assert.equal(fixture.successfulConceptCreates, 0, 'Reauthentication requires an explicit Save retry');
+    }
 
     const emptyListResponsePromise = page.waitForResponse(response =>
       new URL(response.url()).pathname === '/api/v1/fragrance-concepts' && response.request().method() === 'GET',
@@ -204,33 +240,78 @@ try {
     assert.deepEqual(emptyList.body, [], 'Saved-concept list should remain empty after the failed Save');
     assert.equal(fixture.savedConcept, null, 'The isolated API fixture must still contain no concept');
 
-    await page.getByText('این سرویس در حال حاضر در دسترس نیست.', { exact: true }).waitFor();
+    if (failFirstSave) await page.getByText('این سرویس در حال حاضر در دسترس نیست.', { exact: true }).waitFor();
     await page.waitForFunction(() => {
       const button = document.querySelector('.studio-save-top');
       return button instanceof HTMLButtonElement && !button.disabled;
     });
-    assert.deepEqual(await readComposition(), editedSnapshot, 'The complete edit must survive the HTTP 503');
+    assert.deepEqual(await readComposition(), editedSnapshot, `The complete edit must survive the HTTP ${failureStatus}`);
     assert.equal(await page.getByText('مفهوم رایحه با موفقیت ذخیره شد.', { exact: true }).count(), 0, 'Failure must not display successful-save messaging');
     assert.equal(fixture.conceptCreates, 1, 'The UI must not automatically retry after the failed request settles');
-    assert.equal(allowedSave503Responses, 1, 'Exactly one expected 503 may be ignored by browser error monitoring');
+    assert.equal(allowedSave503Responses, failFirstSave ? 1 : 0, 'Only the expected 503 may be ignored by browser error monitoring');
   }
 
-  const createResponse = await submitSave();
-  assert.equal(createResponse.status(), 201, failFirstSave ? 'Second explicit Save should create the edited concept' : 'Explicit Save should create the edited concept');
+  let createResponse;
+  if (deferFirstSave) {
+    const saveButton = page.locator('.studio-save-top');
+    const firstPost = page.waitForRequest(request =>
+      new URL(request.url()).pathname === '/api/v1/fragrance-concepts' && request.method() === 'POST',
+      { timeout: 15000 },
+    );
+    const responsePromise = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/api/v1/fragrance-concepts' && response.request().method() === 'POST',
+      { timeout: 15000 },
+    );
+    // Fail promptly if validation responds instead of reaching the deferred gate.
+    const pendingPromise = Promise.race([
+      fixture.firstSavePending,
+      responsePromise.then(response => { throw new Error(`Save responded with HTTP ${response.status()} before the pending gate`); }),
+    ]);
+    await saveButton.click();
+    await firstPost;
+    await pendingPromise;
+    try {
+      await page.waitForFunction(() => document.querySelector('.studio-save-top')?.disabled === true);
+      assert.equal(fixture.pendingSave, true, 'The first response must still be held by the fixture');
+      assert.equal(fixture.savedConcept, null, 'A pending request must not create a record');
+      assert.equal(fixture.successfulConceptCreates, 0);
+      const box = await saveButton.boundingBox();
+      assert.ok(box, 'Save must remain visible while pending');
+      // Real pointer clicks intentionally bypass Playwright's wait-for-enabled behavior.
+      // The API response remains deferred until all repeated clicks have completed.
+      for (let click = 0; click < 5; click += 1) {
+        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      }
+      assert.equal(await saveButton.isDisabled(), true, 'Save must stay disabled while the first request is pending');
+      assert.deepEqual(await readComposition(), editedSnapshot, 'Repeated pending clicks must preserve the complete edited composition');
+      assert.equal(conceptPostRequests.length, 1, 'Repeated clicks must send only one browser POST');
+      assert.equal(fixture.conceptCreates, 1, 'The fixture must receive only one POST while pending');
+      assert.equal(fixture.savedConcept, null, 'Repeated clicks must not create a record before release');
+      assert.equal(fixture.pendingSave, true, 'The response must remain deferred throughout repeated clicks');
+      fixture.releaseFirstSave();
+      createResponse = await responsePromise;
+      assert.equal(fixture.pendingSave, false, 'The deterministic response gate must be released');
+    } finally {
+      fixture.releaseFirstSave();
+    }
+  } else {
+    createResponse = await submitSave();
+  }
+  assert.equal(createResponse.status(), 201, expectedPostAttempts === 2 ? 'Second explicit Save should create the edited concept' : 'Explicit Save should create the edited concept');
   const savedPayload = createResponse.request().postDataJSON();
   postPayloads.push(savedPayload);
   assert.equal(conceptCreateIsValid(savedPayload, editedSnapshot.name, editedSnapshot.selections), true, 'POST must contain the UI-edited name and exact note IDs, layers, and contiguous positions');
   assert.deepEqual(normalizedSelections(savedPayload.notes), normalizedSelections(editedSnapshot.selections), 'Create payload should match the post-edit UI snapshot');
-  assert.equal(fixture.conceptCreates, failFirstSave ? 2 : 1, 'POST attempt count should match the selected mode');
+  assert.equal(fixture.conceptCreates, expectedPostAttempts, 'POST attempt count should match the selected mode');
   assert.equal(fixture.successfulConceptCreates, 1, 'Exactly one concept creation should succeed');
   assert.equal(fixture.injectedSaveFailures, failFirstSave ? 1 : 0, 'Injected failure count should match the selected mode');
-  if (failFirstSave) {
+  if (failFirstSave || expireFirstSave) {
     assert.deepEqual(normalizedSelections(postPayloads[0].notes), normalizedSelections(postPayloads[1].notes), 'Both Save attempts should carry the same note data');
     assert.equal(postPayloads[0].name, postPayloads[1].name, 'Both Save attempts should carry the same edited name');
   }
   await page.getByText('مفهوم رایحه با موفقیت ذخیره شد.').waitFor();
   await page.locator('.studio-save-top').getByText('ذخیره تغییرات', { exact: true }).waitFor();
-  assert.equal(fixture.conceptCreates, failFirstSave ? 2 : 1, 'Successful save state must not duplicate the record');
+  assert.equal(fixture.conceptCreates, expectedPostAttempts, 'Successful save state must not duplicate the record');
 
   const accountListResponsePromise = page.waitForResponse(response =>
     new URL(response.url()).pathname === '/api/v1/fragrance-concepts' && response.request().method() === 'GET',
@@ -284,17 +365,22 @@ try {
   assert.deepEqual(normalizedSelections(reopenedUI.selections), normalizedSelections(editedSnapshot.selections), 'Creative Studio should reopen exact saved IDs, layers, and within-layer order');
 
   const writes = fixture.apiRequests.filter(call => call.path === '/api/v1/fragrance-concepts' && call.method === 'POST');
-  assert.equal(writes.length, failFirstSave ? 2 : 1, 'Concept POST attempts should match the selected mode');
+  assert.equal(writes.length, expectedPostAttempts, 'Concept POST attempts should match the selected mode');
+  assert.equal(conceptPostRequests.length, expectedPostAttempts, 'Browser POST counts must agree with the fixture after reopening');
   assert.equal(fixture.successfulConceptCreates, 1, 'Exactly one successful concept creation should exist');
   assert.equal(fixture.injectedSaveFailures, failFirstSave ? 1 : 0, 'Synthetic 503 failure count should match the selected mode');
   assert.equal(allowedSave503Responses, failFirstSave ? 1 : 0, 'Only the expected first-save 503 is allowed');
+  assert.equal(fixture.injectedSessionExpiries, expireFirstSave ? 1 : 0, 'Synthetic session expiry count should match the mode');
+  assert.equal(allowedSave401Responses, expireFirstSave ? 1 : 0, 'Only the expected first-save 401 is allowed');
+  assert.equal(fixture.challengeRequests, expireFirstSave ? 2 : 1, 'Challenge count must include reauthentication only in expiry mode');
+  assert.equal(fixture.verificationRequests, expireFirstSave ? 2 : 1, 'Verification count must include reauthentication only in expiry mode');
   assert.equal(fixture.conceptUpdates, 0, 'No concept update should be issued');
   assert.equal(fixture.conceptDeletes, 0, 'No concept delete should be issued');
   assert.equal(fixture.unexpectedApiCalls.length, 0, 'Every API request must be handled by the isolated fixture');
   assertNoBrowserErrors(browserReport, 'Guided-to-Creative edit/save/reopen journey');
 
   console.log(
-    `Guided→Creative edit/save/reopen ${failFirstSave ? '503 retry' : 'happy path'} PASS (${syntheticFixtureLabel}) — API requests: ${fixture.apiRequests.length} total; families: ${fixture.apiRequests.filter(call => call.path === '/api/v1/fragrance-families').length}, notes: ${fixture.apiRequests.filter(call => call.path === '/api/v1/fragrance-notes').length}, challenges: ${fixture.challengeRequests}, verifications: ${fixture.verificationRequests}, concept POST attempts: ${writes.length}, successful creates: ${fixture.successfulConceptCreates}, injected 503 failures: ${fixture.injectedSaveFailures}, PUT: ${fixture.conceptUpdates}, DELETE: ${fixture.conceptDeletes}, concept reads: ${fixture.conceptReads}, unexpected API calls: ${fixture.unexpectedApiCalls.length}.`,
+    `Guided→Creative edit/save/reopen ${mode} PASS (${syntheticFixtureLabel}) — API requests: ${fixture.apiRequests.length} total; families: ${fixture.apiRequests.filter(call => call.path === '/api/v1/fragrance-families').length}, notes: ${fixture.apiRequests.filter(call => call.path === '/api/v1/fragrance-notes').length}, challenges: ${fixture.challengeRequests}, verifications: ${fixture.verificationRequests}, concept POST attempts: ${writes.length}, successful creates: ${fixture.successfulConceptCreates}, injected 503 failures: ${fixture.injectedSaveFailures}, injected 401 failures: ${fixture.injectedSessionExpiries}, PUT: ${fixture.conceptUpdates}, DELETE: ${fixture.conceptDeletes}, concept reads: ${fixture.conceptReads}, unexpected API calls: ${fixture.unexpectedApiCalls.length}.`,
   );
 } finally {
   await browser.close();
