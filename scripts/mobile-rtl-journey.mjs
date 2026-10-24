@@ -5,7 +5,6 @@ import { installGuidedSaveFixture, notes, statusAllowsWatcher } from './guided-s
 // Complements responsive-studio-journey: no pixel/grid snapshots, Backend, or Save persistence tests.
 const widths = [320, 390, 768, 1440];
 const strictAccessibility = process.argv.includes('--strict-a11y');
-const findings = [];
 const failures = [];
 const browser = await openBrowser();
 
@@ -44,7 +43,7 @@ async function runViewport(width) {
     assert.ok(rect && rect.width > 0 && rect.height > 0 && rect.x >= -1 && rect.x + rect.width <= width + 1,
       stage(`control extends outside the viewport: ${JSON.stringify(rect)}`));
   };
-  const keyboardFocus = async (locator, label, knownIssue = '') => {
+  const keyboardFocus = async (locator, label) => {
     const state = await locator.evaluate(element => {
       const focused = document.activeElement === element;
       let indicator = false;
@@ -59,10 +58,7 @@ async function runViewport(width) {
       return { focused, indicator };
     });
     assert.equal(state.focused, true, stage(`${label}: keyboard focus order`));
-    if (!state.indicator && knownIssue) {
-      // Explicit, narrowly scoped advisory; all other missing focus indicators fail the journey.
-      findings.push({ issue: knownIssue, width, control: label });
-    } else assert.equal(state.indicator, true, stage(`${label}: visible keyboard focus`));
+    assert.equal(state.indicator, true, stage(`${label}: visible keyboard focus`));
   };
   const pointerChoice = async (role, name) => {
     const input = page.getByRole(role, { name });
@@ -211,10 +207,10 @@ async function runViewport(width) {
       await page.keyboard.press('Tab');
     }
     const search = page.getByRole('textbox', { name: 'جستجوی نت', exact: true });
-    await keyboardFocus(search, 'Creative note search', 'M4-A1-001');
+    await keyboardFocus(search, 'Creative note search');
     await page.keyboard.press('Tab');
     const family = page.getByRole('combobox', { name: 'خانواده رایحه', exact: true });
-    await keyboardFocus(family, 'Creative family filter', 'M4-A1-001');
+    await keyboardFocus(family, 'Creative family filter');
     const currentIds = await panel(1).locator('.composition-note').evaluateAll(rows => rows.map(row => row.dataset.selectedNoteId));
     const extraNote = notes.find(note => !currentIds.includes(note.id));
     assert.ok(extraNote, 'The synthetic catalog must have an unselected note');
@@ -291,10 +287,8 @@ try {
       console.error(failures.at(-1));
     }
   }
-  for (const finding of findings) console.warn(`KNOWN ACCESSIBILITY ISSUE ${JSON.stringify(finding)}; see docs/M4_A1_BROWSER_QUALITY.md`);
   assert.equal(failures.length, 0, `Mobile RTL functional regression failures (all widths attempted):\n${failures.join('\n')}`);
-  if (strictAccessibility) assert.equal(findings.length, 0, 'Accessibility smoke findings remain; see the explicitly reported advisories');
-  console.log(`Mobile RTL browser journey PASS at ${widths.join(', ')}px; ${findings.length} explicitly reported focus advisories. Accessibility smoke only; not a WCAG compliance audit.`);
+  console.log(`Mobile RTL browser journey${strictAccessibility ? ' (--strict-a11y)' : ''} PASS at ${widths.join(', ')}px; all keyboard-focus checks required and passed. Accessibility smoke only; not a WCAG compliance audit.`);
 } finally {
   await browser.close();
 }

@@ -2,6 +2,8 @@
 
 Baseline: `develop` at `fff65a0d2f2d5e503c09e25440dc41431068b0b3` (merged PR #19).
 
+M4-A2 focus-fix baseline: `develop` at `fa6fc534ff05fa560fb8b20cebc61817d93202b1`.
+
 Run `npm run test:browser:mobile-rtl` with the frontend running and system Chrome available. Set `CHROME_BIN=/usr/bin/chromium` when using the cloud image's Chromium. The CI step runs this command after the six existing isolated journeys, reusing their production Next.js server and system Chrome. No new dependency or Backend service is needed.
 
 ## Coverage and boundaries
@@ -20,22 +22,20 @@ At **320, 390, 768, and 1440 pixels**, with an 844px viewport height, it exercis
 - Actionability and in-viewport bounds for primary actions after normal scrolling. A local empty-name Save error is exposed as an alert; the normal Save action opens the named login dialog without a concept POST or OTP request.
 - Form labels, sequential dialog Tab navigation, forward/reverse focus containment, Escape dismissal, and focus restoration to Save.
 
-All unexpected browser errors, API errors, focus-order failures, missing focus indicators outside the explicitly documented issue below, and functional failures are fatal. Every viewport is attempted so a failure at one size does not conceal failures at other sizes. Readiness comes from UI state and response events, without arbitrary sleeps or screenshots.
+All unexpected browser errors, API errors, focus-order failures, missing focus indicators, and functional failures are fatal, including both Creative filter controls. Every viewport is attempted so a failure at one size does not conceal failures at other sizes. Readiness comes from UI state and response events, without arbitrary sleeps or screenshots.
 
-## M4-A1-001 — Creative filters lack visible keyboard focus
+## M4-A1-001 — Resolved in M4-A2
 
-**Confirmed at all four widths on the baseline.** The Creative note search and family select receive keyboard focus, but neither the control nor its visible wrapper displays a focus indicator. Other essential controls exercised by the journey have a rendered outline on the control or its custom label/frame.
+Before the fix, the existing normal journey reproduced two missing-focus advisories per viewport at all four widths; `--strict-a11y` failed on those eight findings. Both controls received keyboard focus without a visible indicator.
 
-Reproduction:
+Regression verification:
 
 1. Open Creative Studio with catalog data loaded. At 320/390/768px, select the Notes tab; at 1440px the library is already visible.
 2. Focus the active Notes tab (or the top Save action at desktop width), then press Tab to reach the note search.
 3. Press Tab again to reach the family filter.
-4. Observe that keyboard input reaches the correct fields, but no visible focus ring is displayed on either field or wrapper.
+4. Confirm that the focused control's rounded wrapper displays a 3px outline using `--focus`, offset by 4px, and that the ring moves from search to the family filter with keyboard focus. Before M4-A2 neither wrapper displayed this ring.
 
-Cause: `src/app/globals.css` applies `outline:none` to `.studio-search input,.studio-family-filter select`, overriding the global `:focus-visible` outline. Neither wrapper has a focus rule.
-
-Proposed narrow UI fix, **not applied in this test milestone**:
+The original cause was `outline:none` on `.studio-search input,.studio-family-filter select`, overriding the global `:focus-visible` outline without a wrapper focus rule. The narrow correction in `src/app/globals.css` adds keyboard-focus outlines to the two existing wrappers:
 
 ```css
 .studio-search:has(input:focus-visible),
@@ -45,18 +45,18 @@ Proposed narrow UI fix, **not applied in this test milestone**:
 }
 ```
 
-The default CI journey reports this known issue as two explicit accessibility advisories per viewport, rather than representing the accessibility smoke as entirely green. The exception is restricted to those two named Creative filter checks; all other focus checks assert visible focus. Once the UI fix is reviewed, remove the two issue arguments from the journey so the checks become mandatory.
+The advisory mechanism and both issue exceptions have been removed. The normal CI journey now asserts visible keyboard focus on both controls and fails if either indicator is missing. The outlines are tied to `:focus-visible` on the contained input/select; unfocused wrapper styling is unchanged.
 
-For an independent diagnostic that also makes these known findings fatal, run:
+Both the normal command and the retained `--strict-a11y` invocation enforce the same mandatory focus assertions:
 
 ```bash
 CHROME_BIN=/usr/bin/chromium npm run test:browser:mobile-rtl -- --strict-a11y
 ```
 
-On the unchanged baseline UI this strict diagnostic is expected to fail with eight reported focus findings. The normal regression command remains usable in CI while this separately documented production issue awaits a UI fix.
+Both invocations pass at 320, 390, 768, and 1440px after the fix, with no accessibility advisories. The browser checks verify the rendered wrapper outline during real sequential keyboard navigation, alongside the existing mobile RTL interactions and overflow checks.
 
 ## Accessibility scope
 
 This is an accessibility smoke test, **not a full WCAG audit or compliance claim**. It checks actual keyboard focus and React interactions, accessible names through role/label queries, rendered outlines, and DOM live-region/error semantics. It does not measure color contrast, validate actual screen-reader announcements, cover every possible composition, or replace assistive-technology testing. Touch emulation in Chromium is not physical-device, Safari, or Firefox validation.
 
-No production application file is changed by this milestone. No real SMS, account, payment, or manufacturing workflow is exercised.
+M4-A1 added test coverage only. M4-A2 changes only the narrow Creative filter focus rule in production CSS, strengthens the existing browser assertions, and updates this resolution record. No real SMS, account, payment, or manufacturing workflow is exercised.
