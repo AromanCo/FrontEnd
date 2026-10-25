@@ -20,6 +20,7 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'mobile' | 'code'>('mobile');
   const [busy, setBusy] = useState(false);
+  const [verified, setVerified] = useState(false);
   const [error, setError] = useState('');
   const [remaining, setRemaining] = useState(0);
   const busyRef = useRef(false);
@@ -48,22 +49,48 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
     }
   };
 
-  const verify = async () => {
+  const finishLogin = async () => {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     setError('');
     try {
-      await auth.verify(normalizeDigits(mobile), normalizeDigits(code));
       await refresh();
       if (onSuccess) onSuccess();
       else router.push('/account');
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : 'ورود انجام نشد.');
+      if (cause instanceof ApiError && cause.status === 401) {
+        setVerified(false);
+        setStep('mobile');
+        setCode('');
+        setError('نشست ورود برقرار نشد. کد تازه‌ای درخواست کنید.');
+      } else {
+        const detail = cause instanceof ApiError ? cause.message : 'دوباره تلاش کنید.';
+        setError(`کد تأیید شد، اما بارگذاری حساب انجام نشد. ${detail}`);
+      }
     } finally {
       busyRef.current = false;
       setBusy(false);
     }
+  };
+
+  const verify = async () => {
+    if (busyRef.current || verified) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      await auth.verify(normalizeDigits(mobile), normalizeDigits(code));
+      setVerified(true);
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : 'ورود انجام نشد.');
+      busyRef.current = false;
+      setBusy(false);
+      return;
+    }
+    busyRef.current = false;
+    setBusy(false);
+    await finishLogin();
   };
 
   return (
@@ -72,6 +99,7 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
       onSubmit={(event) => {
         event.preventDefault();
         if (step === 'mobile') void challenge();
+        else if (verified) void finishLogin();
         else void verify();
       }}
     >
@@ -107,6 +135,7 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
             dir="ltr"
             value={code}
             onChange={(event) => setCode(event.target.value)}
+          disabled={verified}
           />
         </label>
       )}
@@ -116,9 +145,9 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
         </p>
       )}
       <Button className="w-full" disabled={busy}>
-        {busy ? 'در حال انجام…' : step === 'mobile' ? 'دریافت کد' : 'تأیید و ورود'}
+        {busy ? 'در حال انجام…' : step === 'mobile' ? 'دریافت کد' : verified ? 'تلاش دوباره برای ورود' : 'تأیید و ورود'}
       </Button>
-      {step === 'code' && (
+      {step === 'code' && !verified && (
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" className="underline" onClick={() => setStep('mobile')}>
             ویرایش شماره

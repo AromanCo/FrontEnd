@@ -167,3 +167,46 @@ it('refreshes authentication and navigates to the account after successful verif
   expect(mocks.verify).toHaveBeenCalledWith('09121234567', '123456');
   expect(mocks.refresh).toHaveBeenCalledOnce();
 });
+
+it('retries only profile refresh after a verified OTP and prevents duplicate retries', async () => {
+  mocks.challenge.mockResolvedValue({ message: 'accepted' });
+  mocks.verify.mockResolvedValue({ user_id: 'user-1' });
+  mocks.refresh.mockRejectedValueOnce(new ApiError(503, 'این سرویس در حال حاضر در دسترس نیست.'));
+  let resolveRefresh!: () => void;
+  mocks.refresh.mockReturnValueOnce(new Promise<void>(resolve => { resolveRefresh = resolve; }));
+  render(<LoginForm />);
+  enterMobileAndSubmit();
+  const codeInput = await screen.findByLabelText('کد شش رقمی');
+  fireEvent.change(codeInput, { target: { value: '123456' } });
+  fireEvent.submit(codeInput.closest('form')!);
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('کد تأیید شد، اما بارگذاری حساب انجام نشد.');
+  expect(codeInput).toBeDisabled();
+  expect(mocks.verify).toHaveBeenCalledOnce();
+  expect(mocks.push).not.toHaveBeenCalled();
+  const retry = screen.getByRole('button', { name: 'تلاش دوباره برای ورود' });
+  fireEvent.click(retry);
+  fireEvent.submit(retry.closest('form')!);
+  expect(mocks.refresh).toHaveBeenCalledTimes(2);
+  expect(mocks.verify).toHaveBeenCalledOnce();
+  expect(screen.getByRole('button', { name: 'در حال انجام…' })).toBeDisabled();
+  await act(async () => resolveRefresh());
+  await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/account'));
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('requests a fresh code if the session is rejected after OTP verification', async () => {
+  mocks.challenge.mockResolvedValue({ message: 'accepted' });
+  mocks.verify.mockResolvedValue({ user_id: 'user-1' });
+  mocks.refresh.mockRejectedValueOnce(new ApiError(401, 'برای ادامه وارد حساب شوید.'));
+  render(<LoginForm />);
+  enterMobileAndSubmit();
+  const codeInput = await screen.findByLabelText('کد شش رقمی');
+  fireEvent.change(codeInput, { target: { value: '123456' } });
+  fireEvent.submit(codeInput.closest('form')!);
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('کد تازه‌ای درخواست کنید.');
+  expect(screen.getByRole('button', { name: 'دریافت کد' })).toBeEnabled();
+  expect(mocks.verify).toHaveBeenCalledOnce();
+  expect(mocks.push).not.toHaveBeenCalled();
+});

@@ -10,7 +10,8 @@ const links = [['/shop', 'فروشگاه'], ['/studio/creative', 'استودیو
 
 export function Header() {
   const [open, setOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, loading, error } = useAuth();
+  const accountPending = Boolean(user || loading || error);
   return <>
     <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:p-3">رفتن به محتوا</a>
     <header className="site-header">
@@ -19,7 +20,7 @@ export function Header() {
         <nav aria-label="ناوبری اصلی" className="site-nav">{links.map(([href, label]) => <Link key={href} href={href}>{label}</Link>)}</nav>
         <div className="header-actions">
           <Link className="header-action" href="/shop" aria-label="جستجوی محصولات"><span className="hidden lg:inline">جستجو</span><span className="lg:hidden" aria-hidden="true">⌕</span></Link>
-          <Link className="header-action" href={user ? '/account' : '/login'} aria-label={user ? 'حساب من' : 'ورود'}><span className="hidden lg:inline">{user ? 'حساب من' : 'ورود'}</span><span className="lg:hidden" aria-hidden="true"><PersonIcon /></span></Link>
+          <Link className="header-action" href={accountPending ? '/account' : '/login'} aria-label={accountPending ? 'حساب من' : 'ورود'}><span className="hidden lg:inline">{accountPending ? 'حساب من' : 'ورود'}</span><span className="lg:hidden" aria-hidden="true"><PersonIcon /></span></Link>
           <Link className="header-action" href="/cart" aria-label="سبد خرید"><span className="hidden lg:inline">سبد خرید</span><span className="lg:hidden" aria-hidden="true"><BagIcon /></span></Link>
           <button className="header-menu" type="button" aria-label={open ? 'بستن فهرست' : 'باز کردن فهرست'} aria-expanded={open} onClick={() => setOpen(!open)}><MenuIcon /></button>
         </div>
