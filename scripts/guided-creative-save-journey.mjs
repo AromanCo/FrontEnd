@@ -304,6 +304,10 @@ try {
   assert.deepEqual(normalizedSelections(savedPayload.notes), normalizedSelections(editedSnapshot.selections), 'Create payload should match the post-edit UI snapshot');
   assert.equal(fixture.conceptCreates, expectedPostAttempts, 'POST attempt count should match the selected mode');
   assert.equal(fixture.successfulConceptCreates, 1, 'Exactly one concept creation should succeed');
+  if (deferFirstSave) {
+    assert.equal(conceptPostRequests.length, 1, 'Five repeated pending clicks must still produce one browser POST');
+    assert.equal(fixture.savedConcepts.length, 1, 'Five repeated pending clicks must leave one saved concept');
+  }
   assert.equal(fixture.injectedSaveFailures, failFirstSave ? 1 : 0, 'Injected failure count should match the selected mode');
   if (failFirstSave || expireFirstSave) {
     assert.deepEqual(normalizedSelections(postPayloads[0].notes), normalizedSelections(postPayloads[1].notes), 'Both Save attempts should carry the same note data');
