@@ -1,14 +1,20 @@
-import { chromium } from 'playwright';
+import { chromium, firefox, webkit } from 'playwright';
 
 export const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
 export const apiBase = process.env.AROMAN_BROWSER_API_BASE_URL || 'http://localhost:8000/api/v1';
+export const browserEngine = process.env.BROWSER_ENGINE || 'chromium';
 
 export function openBrowser() {
-  return chromium.launch({
-    executablePath: process.env.CHROME_BIN || '/usr/bin/google-chrome',
-    headless: true,
-    args: ['--no-sandbox', '--no-proxy-server'],
-  });
+  if (browserEngine === 'chromium') {
+    return chromium.launch({
+      executablePath: process.env.CHROME_BIN || '/usr/bin/google-chrome',
+      headless: true,
+      args: ['--no-sandbox', '--no-proxy-server'],
+    });
+  }
+  if (browserEngine === 'firefox') return firefox.launch({ headless: true });
+  if (browserEngine === 'webkit') return webkit.launch({ headless: true });
+  throw new Error(`Unsupported BROWSER_ENGINE "${browserEngine}"; expected chromium, firefox, or webkit`);
 }
 
 export function watchPage(page, allowedHttp = () => false) {

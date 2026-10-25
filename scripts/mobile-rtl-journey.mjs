@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { assertNoBrowserErrors, checkLayout, frontendOrigin, openBrowser, watchPage } from './browser-utils.mjs';
+import { assertNoBrowserErrors, browserEngine, checkLayout, frontendOrigin, openBrowser, watchPage } from './browser-utils.mjs';
 import { installGuidedSaveFixture, notes, statusAllowsWatcher } from './guided-save-fixture.mjs';
 
 // Complements responsive-studio-journey: no pixel/grid snapshots, Backend, or Save persistence tests.
@@ -26,7 +26,7 @@ async function runViewport(width) {
     }
   });
   const fixture = await installGuidedSaveFixture(context);
-  const stage = label => `${width}px ${label}`;
+  const stage = label => `${browserEngine} ${width}px ${label}`;
   const activate = async locator => {
     await reachable(locator);
     if (mobile) await locator.tap();
@@ -273,7 +273,7 @@ async function runViewport(width) {
     assert.deepEqual(fixture.unexpectedApiCalls, []);
     assert.deepEqual(externalRequests, []);
     assertNoBrowserErrors(report, stage('mobile RTL regression'));
-    console.log(`${width}px PASS: Persian RTL; no page overflow; accessible navigation, Guided controls, transfer, selection/layers, pointer/keyboard tabs, primary actions, labels, live regions, dialog focus; ${fixture.apiRequests.length} synthetic API requests.`);
+    console.log(`${browserEngine} ${width}px PASS: Persian RTL; no page overflow; accessible navigation, Guided controls, transfer, selection/layers, pointer/keyboard tabs, primary actions, labels, live regions, dialog focus; ${fixture.apiRequests.length} synthetic API requests.`);
   } finally {
     await context.close();
   }
@@ -288,7 +288,7 @@ try {
     }
   }
   assert.equal(failures.length, 0, `Mobile RTL functional regression failures (all widths attempted):\n${failures.join('\n')}`);
-  console.log(`Mobile RTL browser journey${strictAccessibility ? ' (--strict-a11y)' : ''} PASS at ${widths.join(', ')}px; all keyboard-focus checks required and passed. Accessibility smoke only; not a WCAG compliance audit.`);
+  console.log(`${browserEngine} mobile RTL browser journey${strictAccessibility ? ' (--strict-a11y)' : ''} PASS at ${widths.join(', ')}px; all keyboard-focus checks required and passed. Accessibility smoke only; not a WCAG compliance audit.`);
 } finally {
   await browser.close();
 }
