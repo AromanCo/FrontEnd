@@ -110,7 +110,7 @@ export async function installGuidedSaveFixture(context, {
   let conceptReads = 0;
   let conceptUpdates = 0;
   let conceptDeletes = 0;
-  let savedConcept = null;
+  const savedConcepts = [];
   const unexpectedApiCalls = [];
   const apiRequests = [];
   const csrfValues = [];
@@ -217,10 +217,6 @@ export async function installGuidedSaveFixture(context, {
         await route.fulfill(jsonResponse(request, 422, { detail: 'Invalid concept payload' }));
         return;
       }
-      if (savedConcept || successfulConceptCreates > 0) {
-        await route.fulfill(jsonResponse(request, 409, { detail: 'Concept create already accepted' }));
-        return;
-      }
       if (failFirstSave && injectedSaveFailures === 0) {
         injectedSaveFailures += 1;
         await route.fulfill(jsonResponse(request, 503, { detail: 'Synthetic temporary Save failure' }));
@@ -238,13 +234,14 @@ export async function installGuidedSaveFixture(context, {
         notifyFirstSavePending();
         await firstSaveReleased;
         pendingSave = false;
-        // Recheck after the gate: a duplicate request must never overwrite a record.
-        if (savedConcept || successfulConceptCreates > 0) {
-          await route.fulfill(jsonResponse(request, 409, { detail: 'Concept create already accepted' }));
-          return;
-        }
       }
-      savedConcept = { id: fixtureConceptId, name: body.name, notes: body.notes.map(item => ({ ...item })) };
+      // Each accepted POST creates a record. This fixture offers no idempotency guarantee.
+      const savedConcept = {
+        id: uuid(901 + successfulConceptCreates),
+        name: body.name,
+        notes: body.notes.map(item => ({ ...item })),
+      };
+      savedConcepts.push(savedConcept);
       successfulConceptCreates += 1;
       await route.fulfill(jsonResponse(request, 201, savedConcept));
       return;
@@ -255,7 +252,7 @@ export async function installGuidedSaveFixture(context, {
         return;
       }
       conceptReads += 1;
-      await route.fulfill(jsonResponse(request, 200, savedConcept ? [savedConcept] : []));
+      await route.fulfill(jsonResponse(request, 200, [...savedConcepts].reverse()));
       return;
     }
     const conceptPath = path.match(/^\/api\/v1\/fragrance-concepts\/([^/]+)$/);
@@ -265,7 +262,8 @@ export async function installGuidedSaveFixture(context, {
         return;
       }
       conceptReads += 1;
-      await route.fulfill(savedConcept && decodeURIComponent(conceptPath[1]) === savedConcept.id
+      const savedConcept = savedConcepts.find(concept => concept.id === decodeURIComponent(conceptPath[1]));
+      await route.fulfill(savedConcept
         ? jsonResponse(request, 200, savedConcept)
         : jsonResponse(request, 404, { detail: 'Concept not found' }));
       return;
@@ -289,7 +287,8 @@ export async function installGuidedSaveFixture(context, {
     get conceptReads() { return conceptReads; },
     get conceptUpdates() { return conceptUpdates; },
     get conceptDeletes() { return conceptDeletes; },
-    get savedConcept() { return savedConcept; },
+    get savedConcept() { return savedConcepts.at(-1) || null; },
+    get savedConcepts() { return [...savedConcepts]; },
     get unexpectedApiCalls() { return unexpectedApiCalls; },
     get apiRequests() { return apiRequests; },
     get csrfValues() { return csrfValues; },

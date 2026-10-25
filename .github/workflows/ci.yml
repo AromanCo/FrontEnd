@@ -39,6 +39,9 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: Guided Save fixture contract
+        run: npm run test:fixture:guided-save
+
       - name: Production build
         run: npm run build
 
