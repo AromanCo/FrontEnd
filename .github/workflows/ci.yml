@@ -40,6 +40,14 @@ jobs:
           npx playwright install --with-deps chromium
           echo "CHROME_BIN=$(node -e 'process.stdout.write(require("playwright").chromium.executablePath())')" >> "$GITHUB_ENV"
 
+      - name: Check pinned Backend OpenAPI contract and drift detection
+        env:
+          AROMAN_TEST_BACKEND_DIR: ${{ github.workspace }}/backend-pinned
+          AROMAN_TEST_PYTHON: python
+        run: |
+          npm run types:api:check
+          npm run test:api-contract
+
       - name: Run real FastAPI and Next.js Chromium journey
         env:
           AROMAN_TEST_BACKEND_DIR: ${{ github.workspace }}/backend-pinned

@@ -5,13 +5,13 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
+import { backendSha } from './backend-pin.mjs';
 
 const frontend = resolve(import.meta.dirname, '..');
 const backend = resolve(process.env.AROMAN_TEST_BACKEND_DIR || join(frontend, '..', 'Backend'));
-const expectedSha = 'a59a97728b2f9c0bc34c03b8c356dd0bd6e0bfb9';
 const revision = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: backend, encoding: 'utf8' });
 assert.equal(revision.status, 0, `Backend checkout unavailable: ${revision.stderr}`);
-assert.equal(revision.stdout.trim(), expectedSha, 'Backend checkout must be at the pinned SHA');
+assert.equal(revision.stdout.trim(), backendSha, 'Backend checkout must be at the pinned SHA');
 
 const tsconfigPath = join(frontend, 'tsconfig.json');
 const originalTsconfig = await readFile(tsconfigPath, 'utf8');
