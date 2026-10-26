@@ -45,20 +45,42 @@ policy. The separate real-stack browser gate tests authenticated workflows.
 
 # Real FrontEnd–Backend browser gate
 
-The real-stack Chromium gate runs Next.js against the pinned public Backend commit
-`a59a97728b2f9c0bc34c03b8c356dd0bd6e0bfb9`. It creates a temporary SQLite
-database, migrates and seeds it, and starts both servers on loopback. The fake OTP
-is read from the FastAPI process through a private Unix socket. The runner removes
-the database, socket, and child processes after the test.
+The real-stack Chromium gates run Next.js against the pinned public Backend commit
+`a59a97728b2f9c0bc34c03b8c356dd0bd6e0bfb9`. Both migrate and seed a fresh
+test database, then start FastAPI and Next.js on loopback. The fake OTP is read
+from the FastAPI process through a private Unix socket. The SQLite gate uses a
+temporary database file. The PostgreSQL gate creates its own PostgreSQL 17 Docker
+container with random test credentials, a Docker-selected port bound only to
+`127.0.0.1`, and a memory-backed data directory. It neither accepts an external
+database URL nor attaches a persistent volume. The runner stops only its own
+container and removes temporary files and child processes on success, failure,
+and SIGINT/SIGTERM; it reports cleanup failures.
 
 With Node.js 22, Python 3.12, Chromium (`CHROME_BIN` if needed), `npm ci`, and the
-Backend runtime dependencies from its `pyproject.toml` installed, run:
+Backend runtime dependencies from its `pyproject.toml` installed, run the SQLite
+gate:
 
 ```sh
 AROMAN_TEST_BACKEND_DIR=../Backend npm run test:browser:real-stack
 ```
 
+For PostgreSQL, also install Docker with a running daemon and the Backend's
+`psycopg[binary]>=3.2,<4` dependency. Run:
+
+```sh
+AROMAN_TEST_BACKEND_DIR=../Backend npm run test:browser:real-stack:postgres
+```
+
+Set `AROMAN_TEST_PYTHON` to a Python interpreter with those dependencies if needed.
+An unavailable container fails the PostgreSQL gate explicitly; it never falls back
+to SQLite. Both gates check the actual database dialect, migration revision, and
+seed counts before the browser journey.
+
 The Backend checkout must be at the exact pinned commit. To update it deliberately,
 review the new Backend contract and migrations, then update the SHA in
 `scripts/backend-pin.mjs`, `.github/workflows/ci.yml`, and this document
-together. CI runs this gate separately from the existing synthetic browser suites.
+together. CI runs independent SQLite and PostgreSQL real-stack jobs alongside the
+synthetic Chromium, Firefox, and WebKit verification. These journeys cover the
+specified single-user browser workflow. PostgreSQL integration testing does not
+establish production role permissions, backups, deployment configuration, or
+concurrent transaction correctness.
