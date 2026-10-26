@@ -208,7 +208,7 @@ export async function installGuidedSaveFixture(context, {
         return;
       }
       if (request.headers()['x-csrf-token'] !== currentCsrf) {
-        await route.fulfill(jsonResponse(request, 403, { detail: 'CSRF token required' }));
+        await route.fulfill(jsonResponse(request, 403, { code: 'csrf_invalid', detail: 'CSRF token required' }));
         return;
       }
       let body;

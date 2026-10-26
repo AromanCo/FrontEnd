@@ -150,7 +150,7 @@ try {
         return;
       }
       if (!csrf || csrf !== currentCsrf) {
-        await route.fulfill(jsonResponse(request, 403, { detail: 'CSRF token required' }));
+        await route.fulfill(jsonResponse(request, 403, { code: 'csrf_invalid', detail: 'CSRF token required' }));
         return;
       }
       acceptedLogouts += 1;
