@@ -244,7 +244,7 @@ async function runIsolatedAccountJourney(browser, realNote) {
     }
     if (method === 'POST' && pathname.endsWith('/duplicate')) {
       duplicateRequests += 1;
-      if (duplicateRequests === 1) return route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ detail: 'isolated stale CSRF fixture' }) });
+      if (duplicateRequests === 1) return route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ code: 'csrf_invalid', detail: 'isolated stale CSRF fixture' }) });
       const duplicate = makeConcept(999, 'مفهوم کپی‌شده');
       concepts.unshift(duplicate);
       return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(duplicate) });
