@@ -36,7 +36,7 @@ jobs:
       - name: Install FrontEnd and Backend runtime dependencies
         run: |
           npm ci
-          python -m pip install 'fastapi>=0.115,<1' 'uvicorn>=0.34,<1' 'pydantic-settings>=2.7,<3' 'sqlalchemy>=2.0,<3' 'alembic>=1.14,<2' 'psycopg[binary]>=3.2,<4'
+          python -m pip install 'fastapi>=0.115,<1' 'uvicorn>=0.34,<1' 'pydantic-settings>=2.7,<3' 'sqlalchemy>=2.0,<3' 'alembic>=1.14,<2' 'psycopg[binary]>=3.2,<4' 'httpx>=0.27,<1'
           npx playwright install --with-deps chromium
           echo "CHROME_BIN=$(node -e 'process.stdout.write(require("playwright").chromium.executablePath())')" >> "$GITHUB_ENV"
 
@@ -45,6 +45,12 @@ jobs:
           AROMAN_TEST_BACKEND_DIR: ${{ github.workspace }}/backend-pinned
           AROMAN_TEST_PYTHON: python
         run: npm run test:browser:real-stack:postgres
+
+      - name: Run PostgreSQL transaction and concurrency invariants
+        env:
+          AROMAN_TEST_BACKEND_DIR: ${{ github.workspace }}/backend-pinned
+          AROMAN_TEST_PYTHON: python
+        run: npm run test:postgres:transactions
 
   real-stack-browser:
     runs-on: ubuntu-24.04

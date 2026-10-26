@@ -27,7 +27,7 @@ def main():
                 raise SystemExit(f"Isolated {mode} database connection unavailable: {error.orig}") from None
             time.sleep(0.25)
     with connection:
-        if mode == "postgres":
+        if mode in {"postgres", "transactions"}:
             assert engine.dialect.name == "postgresql", "PostgreSQL mode used another dialect"
             assert url.scheme == "postgresql+psycopg" and url.hostname == "127.0.0.1"
             assert url.username == os.environ["AROMAN_TEST_DB_USER"]

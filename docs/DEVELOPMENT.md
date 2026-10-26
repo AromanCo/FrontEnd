@@ -65,10 +65,11 @@ AROMAN_TEST_BACKEND_DIR=../Backend npm run test:browser:real-stack
 ```
 
 For PostgreSQL, also install Docker with a running daemon and the Backend's
-`psycopg[binary]>=3.2,<4` dependency. Run:
+`psycopg[binary]>=3.2,<4` and `httpx>=0.27,<1` dependencies. Run:
 
 ```sh
 AROMAN_TEST_BACKEND_DIR=../Backend npm run test:browser:real-stack:postgres
+AROMAN_TEST_BACKEND_DIR=../Backend npm run test:postgres:transactions
 ```
 
 Set `AROMAN_TEST_PYTHON` to a Python interpreter with those dependencies if needed.
@@ -81,6 +82,20 @@ review the new Backend contract and migrations, then update the SHA in
 `scripts/backend-pin.mjs`, `.github/workflows/ci.yml`, and this document
 together. CI runs independent SQLite and PostgreSQL real-stack jobs alongside the
 synthetic Chromium, Firefox, and WebKit verification. These journeys cover the
-specified single-user browser workflow. PostgreSQL integration testing does not
-establish production role permissions, backups, deployment configuration, or
-concurrent transaction correctness.
+specified single-user browser workflow. The separate transaction command starts
+another disposable PostgreSQL 17 database, verifies its identity before migration
+and before using test-only accounts, then exercises the pinned FastAPI routes with
+independent request contexts and database sessions. It checks that overlapping
+full-replacement updates block on the concept row and end in one complete state;
+that invalid input and a database insert failure roll back note changes; that a
+duplicate/update race copies a complete state; and that simultaneous foreign-user
+reads and writes return 404. It also checks distinct IDs for repeated accepted
+creates and verifies concept-note relationships and uniqueness in PostgreSQL.
+The test-only insert-failure trigger exists only in the generated database and is
+removed after the assertion. Transaction data cannot affect the browser journey,
+which uses its own container. CI runs this command as a required step in the
+PostgreSQL job and does not use SQLite as a fallback.
+
+These tests cover the specified transaction invariants. They do not replace load
+testing or prove throughput or latency under production traffic. They also do not
+establish production role permissions, backups, or deployment configuration.
