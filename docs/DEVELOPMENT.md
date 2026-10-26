@@ -19,3 +19,23 @@ Run `npm run test:fixture:guided-save` to check the isolated create contract wit
 To verify Creative Save failure recovery, run `npm run test:browser:save-retry` with the local FrontEnd and system Chrome/Chromium available. It runs the same Guided-to-Creative UI journey but injects one synthetic HTTP 503 on the first valid Save request; the explicit retry then succeeds in the in-memory fixture. This proves the browser UI preserves edits and exposes a retry after the mocked error. It does not prove FastAPI persistence, real SMS delivery, or real service-failure behavior.
 
 To refresh API types after backend schema changes, export the schema as documented in Backend `docs/API_CONTRACT.md`, place it at `docs/openapi.m1a.json`, then run `npm run types:api`.
+
+# Real FrontEnd–Backend browser gate
+
+The real-stack Chromium gate runs Next.js against the pinned public Backend commit
+`a59a97728b2f9c0bc34c03b8c356dd0bd6e0bfb9`. It creates a temporary SQLite
+database, migrates and seeds it, and starts both servers on loopback. The fake OTP
+is read from the FastAPI process through a private Unix socket. The runner removes
+the database, socket, and child processes after the test.
+
+With Node.js 22, Python 3.12, Chromium (`CHROME_BIN` if needed), `npm ci`, and the
+Backend runtime dependencies from its `pyproject.toml` installed, run:
+
+```sh
+AROMAN_TEST_BACKEND_DIR=../Backend npm run test:browser:real-stack
+```
+
+The Backend checkout must be at the exact pinned commit. To update it deliberately,
+review the new Backend contract and migrations, then update the SHA in
+`scripts/real-stack-runner.mjs`, `.github/workflows/ci.yml`, and this document
+together. CI runs this gate separately from the existing synthetic browser suites.
