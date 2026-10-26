@@ -117,9 +117,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright Firefox and WebKit
-        run: npx playwright install --with-deps firefox webkit
-
       - name: Typecheck
         run: npm run typecheck
 
@@ -134,6 +131,20 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      - name: Install Firefox and WebKit system dependencies
+        timeout-minutes: 10
+        run: |
+          npx playwright --version
+          df -h /
+          npx playwright install-deps firefox webkit
+
+      - name: Download Playwright Firefox and WebKit
+        timeout-minutes: 10
+        env:
+          DEBUG: pw:install
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: '120000'
+        run: npx playwright install firefox webkit
 
       - name: Detect system Chrome
         run: |
