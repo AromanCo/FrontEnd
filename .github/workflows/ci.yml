@@ -8,6 +8,44 @@ permissions:
   contents: read
 
 jobs:
+  real-stack-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out FrontEnd
+        uses: actions/checkout@v4
+
+      - name: Check out pinned public Backend
+        uses: actions/checkout@v4
+        with:
+          repository: AromanCo/Backend
+          ref: a59a97728b2f9c0bc34c03b8c356dd0bd6e0bfb9
+          path: backend-pinned
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install FrontEnd and Backend runtime dependencies
+        run: |
+          npm ci
+          python -m pip install 'fastapi>=0.115,<1' 'uvicorn>=0.34,<1' 'pydantic-settings>=2.7,<3' 'sqlalchemy>=2.0,<3' 'alembic>=1.14,<2'
+          npx playwright install --with-deps chromium
+          echo "CHROME_BIN=$(node -e 'process.stdout.write(require("playwright").chromium.executablePath())')" >> "$GITHUB_ENV"
+
+      - name: Run real FastAPI and Next.js Chromium journey
+        env:
+          AROMAN_TEST_BACKEND_DIR: ${{ github.workspace }}/backend-pinned
+          AROMAN_TEST_PYTHON: python
+        run: npm run test:browser:real-stack
+
   verify:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
