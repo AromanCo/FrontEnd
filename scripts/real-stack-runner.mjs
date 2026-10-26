@@ -9,7 +9,7 @@ import { backendSha } from './backend-pin.mjs';
 
 const frontend = resolve(import.meta.dirname, '..');
 const mode = process.argv[2] || 'sqlite';
-assert.ok(['sqlite', 'postgres'].includes(mode) && process.argv.length <= 3, 'Usage: real-stack-runner.mjs [sqlite|postgres]');
+assert.ok(['sqlite', 'postgres', 'transactions'].includes(mode) && process.argv.length <= 3, 'Usage: real-stack-runner.mjs [sqlite|postgres|transactions]');
 const backend = resolve(process.env.AROMAN_TEST_BACKEND_DIR || join(frontend, '..', 'Backend'));
 const revision = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: backend, encoding: 'utf8' });
 assert.equal(revision.status, 0, `Backend checkout unavailable: ${revision.stderr}`);
@@ -61,7 +61,7 @@ function makeEnv(apiPort, frontendPort, databaseUrl, postgres = null) {
 function run(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, env, encoding: 'utf8', timeout: 120000 });
   if (result.error || result.status !== 0) throw new Error(`${command} ${args.join(' ')} failed:\n${result.error?.message || result.stderr || result.stdout}`);
-  if (args[0].endsWith('real-stack-db-check.py')) console.log(result.stdout.trim());
+  if (['real-stack-db-check.py', 'postgres-transactions.py'].some(name => args[0].endsWith(name))) console.log(result.stdout.trim());
 }
 function docker(args, allowFailure = false) {
   const result = spawnSync('docker', args, { cwd: frontend, encoding: 'utf8', timeout: args[0] === 'run' ? 120000 : 30000 });
@@ -179,18 +179,22 @@ for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {
 try {
   const apiPort = await reservePort();
   const frontendPort = await reservePort();
-  const postgres = mode === 'postgres' ? await isolatedPostgres() : null;
+  const postgres = mode !== 'sqlite' ? await isolatedPostgres() : null;
   env = makeEnv(apiPort, frontendPort, postgres?.url || `sqlite:///${join(temp, 'test.sqlite3')}`, postgres);
   run(python, [join(frontend, 'scripts', 'real-stack-db-check.py'), 'before'], backend);
   run(python, ['-m', 'alembic', 'upgrade', 'head'], backend);
   run(python, ['-m', 'aroman.seed'], backend);
   run(python, [join(frontend, 'scripts', 'real-stack-db-check.py'), 'after'], backend);
-  const api = start(python, [join(frontend, 'scripts', 'real-stack-api.py')], backend);
-  await ready(`http://127.0.0.1:${apiPort}/health/ready`, api);
-  const next = start(join(frontend, 'node_modules', '.bin', 'next'), ['dev', '--hostname', '127.0.0.1', '--port', String(frontendPort)], frontend);
-  await ready(`http://127.0.0.1:${frontendPort}/studio/guided`, next);
-  Object.assign(process.env, env);
-  await import('./real-stack-journey.mjs');
+  if (mode === 'transactions') {
+    run(python, [join(frontend, 'scripts', 'postgres-transactions.py')], backend);
+  } else {
+    const api = start(python, [join(frontend, 'scripts', 'real-stack-api.py')], backend);
+    await ready(`http://127.0.0.1:${apiPort}/health/ready`, api);
+    const next = start(join(frontend, 'node_modules', '.bin', 'next'), ['dev', '--hostname', '127.0.0.1', '--port', String(frontendPort)], frontend);
+    await ready(`http://127.0.0.1:${frontendPort}/studio/guided`, next);
+    Object.assign(process.env, env);
+    await import('./real-stack-journey.mjs');
+  }
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;
