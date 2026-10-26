@@ -54,12 +54,12 @@ def account(index):
         return user_id, token, csrf
 
 
-def request(identity, method, path, body=None):
+def request(identity, method, path, body=None, *, origin=None):
     _, token, csrf = identity
     # Each call owns an HTTP request context and the Backend provides a new DB session.
     with TestClient(app, raise_server_exceptions=False) as client:
         return client.request(method, path, json=body,
-                              headers={"X-CSRF-Token": csrf, "Origin": "http://localhost:3000",
+                              headers={"X-CSRF-Token": csrf, "Origin": origin or os.environ["FRONTEND_ORIGIN"],
                                        "Cookie": f"aroman_session={token}"})
 
 
@@ -211,11 +211,14 @@ def duplicate_update_race(owner, concept_id, ids):
 
 def main():
     check_isolation()
+    assert os.environ["FRONTEND_ORIGIN"] in get_settings().origins
     owner, outsider = account(1), account(2)
     with Session(engine) as db:
         ids = list(db.scalars(select(FragranceNote.id).order_by(FragranceNote.slug).limit(12)))
     assert len(ids) == 12
     initial = selection(ids, "initial")
+    denied = expect(request(owner, "POST", PATH, initial, origin="https://denied.invalid"), 403)
+    assert denied["code"] == "origin_denied", denied
     created = expect(request(owner, "POST", PATH, initial), 201)
     concept_id = created["id"]
     verify_record(owner, concept_id, initial)
