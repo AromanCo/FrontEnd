@@ -46,7 +46,7 @@ policy. The separate real-stack browser gate tests authenticated workflows.
 # Real FrontEnd–Backend browser gate
 
 The real-stack Chromium gates run Next.js against the pinned public Backend commit
-`a59a97728b2f9c0bc34c03b8c356dd0bd6e0bfb9`. Both migrate and seed a fresh
+`4c5d474c3422f3f4e32fcb159d2acf1f9dd06d74`. Both migrate and seed a fresh
 test database, then start FastAPI and Next.js on loopback. The fake OTP is read
 from the FastAPI process through a private Unix socket. The SQLite gate uses a
 temporary database file. The PostgreSQL gate creates its own PostgreSQL 17 Docker

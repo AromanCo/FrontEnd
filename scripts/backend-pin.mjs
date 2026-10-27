@@ -1,1 +1,1 @@
-export const backendSha = 'a59a97728b2f9c0bc34c03b8c356dd0bd6e0bfb9';
+export const backendSha = '4c5d474c3422f3f4e32fcb159d2acf1f9dd06d74';
