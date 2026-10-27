@@ -43,7 +43,7 @@ def main():
         if phase == "before":
             assert not tables, "Test database is not empty"
         else:
-            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "d9670763b00d"
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "a4b01"
             assert connection.scalar(text("SELECT count(*) FROM fragrance_families")) == 6
             assert connection.scalar(text("SELECT count(*) FROM fragrance_notes")) == 24
             assert connection.scalar(text("SELECT count(*) FROM fragrance_concepts")) == 0
