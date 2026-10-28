@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: AromanCo/Backend
-          ref: 4c5d474c3422f3f4e32fcb159d2acf1f9dd06d74
+          ref: df603654aaec03e4aeada20ab21d6e05803d8488
           path: backend-pinned
 
       - name: Set up Python 3.12
@@ -63,7 +63,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: AromanCo/Backend
-          ref: 4c5d474c3422f3f4e32fcb159d2acf1f9dd06d74
+          ref: df603654aaec03e4aeada20ab21d6e05803d8488
           path: backend-pinned
 
       - name: Set up Python 3.12
