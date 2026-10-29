@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: AromanCo/Backend
-          ref: df603654aaec03e4aeada20ab21d6e05803d8488
+          ref: 0be24c4597bd693e70348243c26e550a20a8ad0e
           path: backend-pinned
 
       - name: Set up Python 3.12
@@ -67,7 +67,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: AromanCo/Backend
-          ref: df603654aaec03e4aeada20ab21d6e05803d8488
+          ref: 0be24c4597bd693e70348243c26e550a20a8ad0e
           path: backend-pinned
 
       - name: Set up Python 3.12
@@ -254,3 +254,41 @@ jobs:
 
       - name: Run compiled Next.js exploration acceptance journey
         run: node scripts/exploration-release-journey.mjs
+
+  exploration-real-stack-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out FrontEnd
+        uses: actions/checkout@v4
+
+      - name: Check out pinned Backend
+        uses: actions/checkout@v4
+        with:
+          repository: AromanCo/Backend
+          ref: 0be24c4597bd693e70348243c26e550a20a8ad0e
+          path: backend-pinned
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install FrontEnd, Backend, and Chromium dependencies
+        run: |
+          npm ci
+          python -m pip install ./backend-pinned
+          npx playwright install --with-deps chromium
+          echo "CHROME_BIN=$(node -e 'process.stdout.write(require("playwright").chromium.executablePath())')" >> "$GITHUB_ENV"
+
+      - name: Run restricted exploration API and compiled Next.js acceptance
+        env:
+          AROMAN_TEST_BACKEND_DIR: ${{ github.workspace }}/backend-pinned
+          AROMAN_TEST_PYTHON: python
+        run: npm run test:browser:exploration-real-stack
