@@ -13,6 +13,7 @@ type Props = Readonly<{
   applyBlockedMessage: string | null;
   forkBlockedMessage: string | null;
   requestBlockedMessage: string | null;
+  allowFork?: boolean;
   onRequest: () => void;
   onApply: () => void;
   onFork: () => void;
@@ -36,7 +37,7 @@ function LayerComposition({ selected, label }: { selected: readonly SelectedNote
 }
 
 export function BlendAdvisor({
-  result, loading, accepted, canUndo, busy, applyBlockedMessage, forkBlockedMessage, requestBlockedMessage,
+  result, loading, accepted, canUndo, busy, applyBlockedMessage, forkBlockedMessage, requestBlockedMessage, allowFork = true,
   onRequest, onApply, onFork, onReject, onUndo,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -103,9 +104,9 @@ export function BlendAdvisor({
           </div>
           <p className="blend-advisor-limit">{suggestion.limitationsFa.join(' ')}</p>
           {applyBlockedMessage && <p className="blend-advisor-message" role="status">{applyBlockedMessage}</p>}
-          {forkBlockedMessage && applyBlockedMessage && <p className="blend-advisor-message" role="status">{forkBlockedMessage}</p>}
+          {allowFork && forkBlockedMessage && applyBlockedMessage && <p className="blend-advisor-message" role="status">{forkBlockedMessage}</p>}
           <div className="blend-advisor-actions">
-            {applyBlockedMessage
+            {applyBlockedMessage && allowFork
               ? <button type="button" className="blend-advisor-button blend-advisor-primary" onClick={onFork} disabled={busy || Boolean(forkBlockedMessage)}>ساخت نسخهٔ مستقل</button>
               : <button type="button" className="blend-advisor-button blend-advisor-primary" onClick={apply} disabled={busy}>ساخت نسخهٔ پیشنهادی</button>}
             <button type="button" className="blend-advisor-button blend-advisor-secondary" onClick={reject} disabled={busy}>ترکیب فعلی را نگه می‌دارم</button>

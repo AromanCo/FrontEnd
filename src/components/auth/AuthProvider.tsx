@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { ApiError, auth, setCsrf, renewCsrf, type User } from '@/lib/api/client';
 
 type AuthState = {
+  authEnabled: boolean;
   user: User | null;
   loading: boolean;
   error: string;
@@ -13,14 +14,16 @@ type AuthState = {
 
 const Context = createContext<AuthState | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children, scope }: { children: React.ReactNode; scope: 'exploration' | 'full' }) {
+  const authEnabled = scope === 'full';
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(authEnabled);
   const [error, setError] = useState('');
   const [retrying, setRetrying] = useState(false);
   const retryingRef = useRef(false);
 
   const refresh = useCallback(async () => {
+    if (!authEnabled) { setUser(null); setError(''); setLoading(false); return; }
     try {
       await auth.session();
       await renewCsrf();
@@ -38,12 +41,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(cause instanceof ApiError ? cause.message : 'بررسی نشست انجام نشد. دوباره تلاش کنید.');
       throw cause;
     }
-  }, []);
+  }, [authEnabled]);
 
   useEffect(() => {
+    if (!authEnabled) return;
     const timer = setTimeout(() => { void refresh().catch(() => {}); }, 0);
     return () => clearTimeout(timer);
-  }, [refresh]);
+  }, [refresh, authEnabled]);
 
   useEffect(() => {
     const expired = () => {
@@ -68,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    if (!authEnabled) return;
     try { await auth.logout(); }
     catch (cause) { if (!(cause instanceof ApiError && cause.status === 401)) throw cause; }
     setUser(null);
@@ -76,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   };
 
-  return <Context.Provider value={{ user, loading, error, refresh, logout }}>
+  return <Context.Provider value={{ authEnabled, user, loading, error, refresh, logout }}>
     {error && <div role="alert" className="container my-4 rounded-xl bg-blush p-4">
       <p>وضعیت نشست مشخص نشد. {error}</p>
       <button type="button" className="mt-2 underline disabled:opacity-50" disabled={retrying} onClick={() => void retry()}>

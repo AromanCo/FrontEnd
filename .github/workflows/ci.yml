@@ -11,6 +11,8 @@ jobs:
   postgres-real-stack-browser:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      AROMAN_RELEASE_SCOPE: full
     steps:
       - name: Check out FrontEnd
         uses: actions/checkout@v4
@@ -55,6 +57,8 @@ jobs:
   real-stack-browser:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    env:
+      AROMAN_RELEASE_SCOPE: full
     steps:
       - name: Check out FrontEnd
         uses: actions/checkout@v4
@@ -104,6 +108,7 @@ jobs:
     env:
       FRONTEND_ORIGIN: http://localhost:3000
       NEXT_PUBLIC_AROMAN_API_BASE_URL: http://localhost:8000/api/v1
+      AROMAN_RELEASE_SCOPE: full
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -212,3 +217,40 @@ jobs:
           npm run test:browser:mobile-rtl
           npm run test:browser:firefox -- --strict-a11y
           npm run test:browser:webkit -- --strict-a11y
+
+  exploration-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      AROMAN_RELEASE_SCOPE: exploration
+      NEXT_PUBLIC_AROMAN_API_BASE_URL: http://127.0.0.1:18761/api/v1
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Scope and authentication unit tests
+        run: npx vitest run tests/release-scope.test.ts src/tests/auth-provider.test.tsx
+
+      - name: Production build with full scope, then exercise exploration at runtime
+        env:
+          # Deliberately differ from the server runtime to catch accidental build-time scope freezing.
+          AROMAN_RELEASE_SCOPE: full
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run compiled Next.js exploration acceptance journey
+        run: node scripts/exploration-release-journey.mjs

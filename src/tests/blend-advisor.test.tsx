@@ -5,7 +5,7 @@ import '@testing-library/jest-dom/vitest';
 
 const mocks = vi.hoisted(() => ({
   notes: vi.fn(), families: vi.fn(), conceptGet: vi.fn(), conceptCreate: vi.fn(), conceptUpdate: vi.fn(),
-  routerReplace: vi.fn(), route: { bfcacheId: 'route-a' }, auth: { user: null as null | { id: string; mobile_e164: string; role: string }, loading: false },
+  routerReplace: vi.fn(), route: { bfcacheId: 'route-a' }, auth: { authEnabled: true, user: null as null | { id: string; mobile_e164: string; role: string }, loading: false },
 }));
 vi.mock('@/components/auth/AuthProvider', () => ({ useAuth: () => ({ ...mocks.auth, refresh: vi.fn(), logout: vi.fn() }) }));
 vi.mock('@/lib/api/client', () => ({
@@ -48,6 +48,7 @@ function deferred<T>() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.auth.authEnabled = true;
   mocks.auth.user = null;
   mocks.auth.loading = false;
   mocks.route.bfcacheId = 'route-a';
@@ -60,6 +61,21 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks());
 
 describe('BlendAdvisor Creative Studio integration', () => {
+  it('retains conceptual recommendation, apply, and undo in exploration mode without save or fork actions', async () => {
+    mocks.auth.authEnabled = false;
+    renderStudio({ conceptId: 'saved-1' });
+    await addNoteAndOpenAdvisor();
+    await requestSuggestion();
+    expect(screen.getByRole('button', { name: 'ساخت نسخهٔ پیشنهادی' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'ساخت نسخهٔ مستقل' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'ساخت نسخهٔ پیشنهادی' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'بازگشت به ترکیب قبلی' }));
+    expect(screen.queryByRole('button', { name: /ذخیره مفهوم|ذخیره تغییرات/ })).toBeNull();
+    expect(mocks.conceptGet).not.toHaveBeenCalled();
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+  });
+
   it('places the advisor within the existing Composition panel and previews without mutation', async () => {
     renderStudio();
     await addNoteAndOpenAdvisor();
