@@ -1,18 +1,18 @@
 # AROMAN Development Status
 
-**Status date:** 2026-10-28
-**Evidence baseline:** the commits listed below. This is a repository and milestone status report, not a deployment report.
+**Status date:** 2026-10-29
+**Evidence baseline:** Frontend `ffc9023d21cf7ea1417b9fde822cc4a2143bca49` (M6-A14 merged); Backend pin `0be24c4597bd693e70348243c26e550a20a8ad0e`. This is a repository and milestone status report, not a deployment report.
 
 ## Repository baselines
 
 | Repository | Baseline | Branch / milestone evidence |
 | --- | --- | --- |
-| Frontend | `9bea6ff38473d54fcc8b9900611aa5433ebd93f3` | M6-A8, PR #32, merged to `develop`. |
-| Backend | `df603654aaec03e4aeada20ab21d6e05803d8488` | M6-A7C, PR #23, merged to `develop`. |
+| Frontend | `ffc9023d21cf7ea1417b9fde822cc4a2143bca49` | M6-A14, PR #37, merged to `develop`. |
+| Backend | `0be24c4597bd693e70348243c26e550a20a8ad0e` | M6-A13, PR #24, merged to `develop`; pinned by Frontend. |
 
-The current Frontend Backend pin is `0be24c4597bd693e70348243c26e550a20a8ad0e`, recorded in `scripts/backend-pin.mjs` and Frontend CI. Earlier milestone rows below retain their original evidence baselines.
+Earlier milestone rows below retain their original evidence baselines. M6-A10 and `LAUNCH_READINESS.md` also contain older repository pins and should be read as historical assessments, not current evidence baselines.
 
-The commit histories show the merge commits for Frontend PR #32 and Backend PR #23. The milestone handoff reports CI passed for each. A successful CI run verifies configured checks at the revision and runner used; it does not prove a production deployment, live SMS delivery, or commercial operation.
+The commit histories show the M6-A14 and M6-A13 merge commits. The supplied M6-A15 handoff reports that all five current Frontend CI jobs passed; `.github/workflows/ci.yml` configures those jobs, but this status document does not independently verify a hosted run. CI verifies configured checks at the revision and runner used; it does not prove a private deployment, live SMS delivery, or commercial operation.
 
 ## Capability and status matrix
 
@@ -32,6 +32,9 @@ The commit histories show the merge commits for Frontend PR #32 and Backend PR #
 | PostgreSQL role isolation/hardening | Completed, M6-A7A/A7A-R1 | Disposable role/grant gates; production provisioning remains unverified. |
 | PostgreSQL backup/restore rehearsal | Completed, M6-A7B | Disposable PostgreSQL rehearsal; no production backup schedule, retention, RPO/RTO, or managed-service restore established. |
 | Transport-security configuration | Completed, M6-A7C | Configuration and in-process checks; no actual TLS proxy, DNS, firewall, or public-origin rehearsal. |
+| Restricted exploration API | Completed, M6-A13 | Separate `aroman.exploration_api:app` allowlists five catalog GET routes; local tests do not establish firewall or deployed routing. |
+| Private exploration integration | Completed, M6-A14 | Pinned Backend, disposable SQLite, compiled Next.js, Chromium catalog journey; synthetic data and loopback only, not deployment evidence. |
+| Private preproduction readiness package | Proposed, M6-A15 | Decision register, readiness assessment and future acceptance gates are documentation only; no infrastructure or owner decision is authorized. |
 | Signature Collection B | Proposed physical product line | Product direction is recorded; no verified finished product, manufacturer, SKU, price, or fulfillment capability. |
 | Controlled Personalization C | Proposed constrained physical product line | No approved production configuration library or verified production integration. |
 | Commerce | Not implemented as operational service | Cart, checkout, order, price, inventory, and payment are not demonstrated; routes are placeholders. |
@@ -68,6 +71,6 @@ These decisions should be recorded before dependent infrastructure or commerce w
 
 ## Proposed next milestone
 
-**M6-A10 — Preproduction Scope and Readiness Definition (proposed).** The project owner and technical architect should agree on launch scope, target environment/topology, operational owners, provider decision process, and measurable private-environment acceptance gates. This unblocks a properly scoped preproduction implementation. It does not authorize a provider, deployment, or commerce build by itself.
+**M6-A15 — Private Preproduction Readiness Gates (documentation proposal).** Review [the readiness assessment](M6_A15_PREPRODUCTION_READINESS.md), [owner decision register](M6_A15_OWNER_DECISION_REGISTER.md), and [acceptance gates](M6_A15_ACCEPTANCE_GATES.md). The owner and architect must resolve applicable M6-A10 decisions and approve a scoped implementation proposal before any environment work. This milestone does not authorize provisioning, provider selection, SMS, public exposure, or commerce.
 
 See [Project Master Plan](PROJECT_MASTER_PLAN.md) for dependencies and [Codex Workflow](CODEX_WORKFLOW.md) for milestone execution.
