@@ -3,7 +3,7 @@ import {expect,it,vi} from 'vitest';
 import {fireEvent,render,screen,waitFor,within} from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 const mocks=vi.hoisted(()=>({notes:vi.fn(),families:vi.fn(),conceptGet:vi.fn(),conceptCreate:vi.fn(),conceptUpdate:vi.fn(),routerReplace:vi.fn()}));
-const authState=vi.hoisted(()=>({user:null as {id:string;mobile_e164:string;role:string}|null,loading:false}));
+const authState=vi.hoisted(()=>({authEnabled:true,user:null as {id:string;mobile_e164:string;role:string}|null,loading:false}));
 vi.mock('@/components/auth/AuthProvider',()=>({useAuth:()=>({...authState,refresh:vi.fn(),logout:vi.fn()})}));
 vi.mock('@/lib/api/client',()=>({
   ApiError:class ApiError extends Error {constructor(public status:number,message:string){super(message)}},
@@ -36,6 +36,22 @@ it('shows a retry after failure, renders loaded notes, keeps selections, and dis
   await waitFor(()=>expect(panel.getAttribute('data-note-status')).toBe('ready'));
   expect(within(panel).getByText('نتی پیدا نشد')).toBeTruthy();
   expect(within(panel).queryByText('در حال دریافت نت‌های آرومان…')).toBeNull();
+});
+
+it('keeps Creative Studio usable in exploration mode and ignores saved-concept IDs',async()=>{
+  authState.authEnabled=false;
+  authState.user={id:'user-1',mobile_e164:'+989121234567',role:'customer'};
+  mocks.families.mockResolvedValue([]);
+  mocks.notes.mockResolvedValue([demoNote]);
+  render(<StudioDraftProvider><CreativeStudio conceptId="saved-1"/></StudioDraftProvider>);
+  await screen.findByRole('button',{name:/اسطوخودوس/});
+  expect(mocks.conceptGet).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button',{name:/ذخیره مفهوم|ذخیره تغییرات/})).toBeNull();
+  expect(screen.queryByRole('dialog',{name:/ورود/})).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:/اسطوخودوس/}));
+  expect(screen.getByRole('status',{name:'1 از ۶ نت انتخاب شده'})).toBeTruthy();
+  authState.authEnabled=true;
+  authState.user=null;
 });
 
 it('imports a Guided draft once with its name, real note and original layer',async()=>{

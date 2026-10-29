@@ -40,7 +40,7 @@ beforeEach(() => {
 
 it('confirms an initial 401 as guest and clears CSRF without a retry warning', async () => {
   mocks.session.mockRejectedValueOnce(new ApiError(401, 'برای ادامه وارد حساب شوید.'));
-  render(<AuthProvider><Probe /></AuthProvider>);
+  render(<AuthProvider scope="full"><Probe /></AuthProvider>);
   await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('guest'));
   expect(screen.queryByRole('alert')).toBeNull();
   expect(mocks.renewCsrf).not.toHaveBeenCalled();
@@ -53,7 +53,7 @@ it.each([
   new ApiError(0, 'پاسخ سرور بیش از حد طول کشید. دوباره تلاش کنید.'),
 ])('keeps initial authentication unresolved after a transient failure: %s', async (failure) => {
   mocks.session.mockRejectedValueOnce(failure);
-  render(<AuthProvider><Probe /></AuthProvider>);
+  render(<AuthProvider scope="full"><Probe /></AuthProvider>);
   expect(await screen.findByRole('alert')).toHaveTextContent(failure.message);
   expect(screen.getByTestId('auth-state')).toHaveTextContent('loading');
   expect(screen.getByTestId('user')).toHaveTextContent('none');
@@ -65,7 +65,7 @@ it('recovers on retry and ignores duplicate retry clicks while pending', async (
   mocks.session.mockRejectedValueOnce(new ApiError(503, 'این سرویس در حال حاضر در دسترس نیست.'));
   let resolveSession!: (value: { user_id: string; role: string }) => void;
   mocks.session.mockReturnValueOnce(new Promise(resolve => { resolveSession = resolve; }));
-  render(<AuthProvider><Probe /></AuthProvider>);
+  render(<AuthProvider scope="full"><Probe /></AuthProvider>);
   const retry = await screen.findByRole('button', { name: 'تلاش دوباره برای بررسی نشست' });
   fireEvent.click(retry);
   fireEvent.click(retry);
@@ -78,7 +78,7 @@ it('recovers on retry and ignores duplicate retry clicks while pending', async (
 });
 
 it('preserves a known user after a failed profile refresh, then recovers', async () => {
-  render(<AuthProvider><Probe /></AuthProvider>);
+  render(<AuthProvider scope="full"><Probe /></AuthProvider>);
   await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('signed-in'));
   mocks.me.mockRejectedValueOnce(new ApiError(503, 'این سرویس در حال حاضر در دسترس نیست.'));
   fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
@@ -92,7 +92,7 @@ it('preserves a known user after a failed profile refresh, then recovers', async
 });
 
 it('clears a known user when a refresh receives a genuine 401', async () => {
-  render(<AuthProvider><Probe /></AuthProvider>);
+  render(<AuthProvider scope="full"><Probe /></AuthProvider>);
   await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('signed-in'));
   mocks.session.mockRejectedValueOnce(new ApiError(401, 'برای ادامه وارد حساب شوید.'));
   fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
@@ -103,7 +103,7 @@ it('clears a known user when a refresh receives a genuine 401', async () => {
 });
 
 it('clears a known user on session expiry and logs out through the backend', async () => {
-  render(<AuthProvider><Probe /></AuthProvider>);
+  render(<AuthProvider scope="full"><Probe /></AuthProvider>);
   await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('signed-in'));
   act(() => window.dispatchEvent(new Event('aroman:session-expired')));
   expect(screen.getByTestId('auth-state')).toHaveTextContent('guest');
@@ -113,4 +113,13 @@ it('clears a known user on session expiry and logs out through the backend', asy
   fireEvent.click(screen.getByRole('button', { name: 'خروج' }));
   await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('guest'));
   expect(mocks.logout).toHaveBeenCalledOnce();
+});
+
+it('keeps a ready guest context and makes no authentication calls in exploration mode', async () => {
+  render(<AuthProvider scope="exploration"><Probe /></AuthProvider>);
+  await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('guest'));
+  expect(mocks.session).not.toHaveBeenCalled();
+  expect(mocks.renewCsrf).not.toHaveBeenCalled();
+  expect(mocks.me).not.toHaveBeenCalled();
+  expect(screen.queryByRole('alert')).toBeNull();
 });

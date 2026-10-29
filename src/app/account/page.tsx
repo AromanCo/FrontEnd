@@ -1,2 +1,4 @@
 import {AccountContent} from '@/components/auth/AccountContent';
-export default function AccountPage(){return <div className="container section"><AccountContent/></div>}
+import { notFound } from 'next/navigation';
+import { getReleaseScope } from '@/lib/release-scope';
+export default function AccountPage(){if(getReleaseScope()==='exploration')notFound();return <div className="container section"><AccountContent/></div>}

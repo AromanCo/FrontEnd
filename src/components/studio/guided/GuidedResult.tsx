@@ -26,6 +26,7 @@ export function GuidedResult({
   saveError,
   savedConceptId,
   transferBusy,
+  allowSaving,
 }: {
   result: RecommendationResult;
   answers: GuidedAnswersDraft;
@@ -43,6 +44,7 @@ export function GuidedResult({
   saveError: string;
   savedConceptId?: string;
   transferBusy: boolean;
+  allowSaving: boolean;
 }) {
   if (result.status === 'invalid') {
     const field = result.issues[0]?.field ?? 'answers';
@@ -137,18 +139,18 @@ export function GuidedResult({
       </div>
 
       <div className="guided-result-actions-panel">
-        <div><p className="guided-step-kicker">گام بعدی</p><h2>این تصویر را می‌توانید بعداً کامل‌تر کنید</h2><p>مفهوم را به حساب خود بسپارید یا برای ویرایش لایه‌ها به استودیوی خلاق ببرید.</p></div>
+        <div><p className="guided-step-kicker">گام بعدی</p><h2>این تصویر را می‌توانید بعداً کامل‌تر کنید</h2><p>{allowSaving ? 'مفهوم را به حساب خود بسپارید یا برای ویرایش لایه‌ها به استودیوی خلاق ببرید.' : 'این پیشنهاد فقط برای کاوش مفهومی است و در حافظهٔ صفحه می‌ماند؛ برای ویرایش لایه‌ها آن را به استودیوی خلاق ببرید.'}</p></div>
         <div className="guided-result-actions guided-result-actions-grid">
-          <button type="button" className="guided-button-primary" onClick={onSave} disabled={saveBusy || saved} aria-describedby="guided-save-description">{saveBusy ? 'در حال ذخیره…' : saved ? 'ذخیره شد' : 'ذخیرهٔ مفهوم'}</button>
+          {allowSaving && <button type="button" className="guided-button-primary" onClick={onSave} disabled={saveBusy || saved} aria-describedby="guided-save-description">{saveBusy ? 'در حال ذخیره…' : saved ? 'ذخیره شد' : 'ذخیرهٔ مفهوم'}</button>}
           <button type="button" className="guided-button-secondary" onClick={onContinueCreative} disabled={transferBusy}>{transferBusy ? 'در حال انتقال…' : 'رفتن به استودیوی خلاق'}</button>
           <button type="button" className="guided-button-secondary" onClick={onReview}>مرور پاسخ‌ها</button>
           <button type="button" className="guided-button-quiet" onClick={onRestart}>شروع دوباره</button>
         </div>
-        <div id="guided-save-description" aria-live="polite" aria-atomic="true">
+        {allowSaving && <div id="guided-save-description" aria-live="polite" aria-atomic="true">
           {saveMessage && <p role="status" className="guided-actions-pending">{saveMessage}{saved && savedConceptId && <> <Link href="/account">دیدن مفاهیم ذخیره‌شده</Link></>}</p>}
           {saveError && <p role="alert" className="guided-result-notice">{saveError}</p>}
           {transferBusy && <p role="status" className="guided-actions-pending">پیشنهاد در حال انتقال به استودیوی خلاق است.</p>}
-        </div>
+        </div>}
       </div>
     </section>
   );

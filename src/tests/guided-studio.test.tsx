@@ -6,7 +6,7 @@ import { StudioDraftProvider } from '@/lib/studio/draft-transfer';
 import { MAX_CONCEPT_NAME_LENGTH } from '@/lib/studio/guided/config';
 import { seedFamilies, seedNotes, uuid } from './guided-fixtures';
 
-const authMock = vi.hoisted(() => ({ user: null as { id: string; mobile_e164: string; role: string } | null, loading: false, autoLogin: false }));
+const authMock = vi.hoisted(() => ({ authEnabled: true, user: null as { id: string; mobile_e164: string; role: string } | null, loading: false, autoLogin: false }));
 const { families, notes, createConcept, challenge, verify } = vi.hoisted(() => ({ families: vi.fn(), notes: vi.fn(), createConcept: vi.fn(), challenge: vi.fn(), verify: vi.fn() }));
 vi.mock('@/lib/api/client', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/api/client')>();
@@ -71,12 +71,26 @@ async function changeFeelingAndRegenerate(label: RegExp, conceptName?: string) {
 describe('Guided Studio questionnaire and result', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authMock.authEnabled = true;
     authMock.user = null;
     authMock.autoLogin = false;
     challenge.mockResolvedValue(undefined);
     verify.mockResolvedValue(undefined);
     families.mockResolvedValue([...seedFamilies]);
     notes.mockResolvedValue([...seedNotes]);
+  });
+
+  it('keeps the conceptual result and in-memory transfer in exploration mode without Save or login UI', async () => {
+    authMock.authEnabled = false;
+    renderGuided();
+    await reachStep(5);
+    fireEvent.click(screen.getByRole('radio', { name: /کمی آشنا، کمی تازه/ }));
+    fireEvent.click(screen.getByRole('button', { name: /دیدن پیشنهاد من/ }));
+    await screen.findByRole('heading', { name: 'این تصویرِ رایحهٔ شماست' });
+    expect(screen.queryByRole('button', { name: 'ذخیرهٔ مفهوم' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'رفتن به استودیوی خلاق' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /ورود/ })).toBeNull();
+    expect(createConcept).not.toHaveBeenCalled();
   });
 
   it('loads real catalog pages and completes all six approved steps into a grounded result', async () => {

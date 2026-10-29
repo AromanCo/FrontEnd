@@ -34,7 +34,7 @@ const stepForField = (field: string): number => {
 
 export function GuidedStudio() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, authEnabled } = useAuth();
   const { pending: pendingTransfer, createDraft } = useStudioDraft();
   const [families, setFamilies] = useState<Family[]>([]);
   const [notes, setNotes] = useState<GuidedCatalogNote[]>([]);
@@ -89,6 +89,7 @@ export function GuidedStudio() {
   }, []);
 
   const saveResult = async () => {
+    if (!authEnabled) return;
     const submittedSnapshotKey = resultSnapshotKey;
     if (!readyRecommendation || !submittedSnapshotKey || inFlightSaveKeys.current.has(submittedSnapshotKey)) return;
     if (saveStatesRef.current[submittedSnapshotKey]?.status === 'saved') return;
@@ -489,6 +490,7 @@ export function GuidedStudio() {
           saveBusy={saveBusy} saved={isCurrentResultSaved} saveMessage={saveMessage} saveError={saveError}
           transferBusy={transferBusy}
           savedConceptId={isCurrentResultSaved ? currentSaveState?.id : undefined}
+          allowSaving={authEnabled}
           onInvalidStep={target => { setStep(target); setView('questionnaire'); }}
         />}
 

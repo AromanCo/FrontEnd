@@ -53,9 +53,11 @@ function resolveSavedConceptSelection(concept: Concept, catalogNotes: readonly N
     .map(item => ({ note: catalogById.get(item.note_id.toLowerCase())!, layer: item.layer }));
 }
 
-export function CreativeStudio({ conceptId, fromGuided = false, fromAdvisor = false }: { conceptId?: string; fromGuided?: boolean; fromAdvisor?: boolean }) {
+export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = false, fromAdvisor = false }: { conceptId?: string; fromGuided?: boolean; fromAdvisor?: boolean }) {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, authEnabled } = useAuth();
+  const explorationOnly = !authEnabled;
+  const conceptId = explorationOnly ? undefined : requestedConceptId;
   const { pending: guidedDraft, navigationIntentId, isCurrent: isCurrentStudioDraft, consume: consumeStudioDraft, createAdvisorFork } = useStudioDraft();
   const [name, setName] = useState('رایحه من');
   const [selected, setSelected] = useState<SelectedNote[]>([]);
@@ -275,6 +277,7 @@ export function CreativeStudio({ conceptId, fromGuided = false, fromAdvisor = fa
     setAdvisorAccepted(true);
   };
   const openAdvisorForkConfirmation = () => {
+    if (explorationOnly) return;
     if (editorLocked || advisorForkBlock || busy || savingRef.current || !savedIdRef.current || (conceptId && (!savedConceptLoaded || savedConceptLoadFailed))) return;
     const current = advisorResultRef.current;
     if (!current || current.status !== 'suggestion' || !advisorSuggestionIsCurrent(current.suggestion)) return;
@@ -282,6 +285,7 @@ export function CreativeStudio({ conceptId, fromGuided = false, fromAdvisor = fa
     setAdvisorForkOpen(true);
   };
   const confirmAdvisorFork = () => {
+    if (explorationOnly) return;
     if (editorLocked || advisorForkBusyRef.current || savingRef.current || busy) return;
     const current = advisorResultRef.current;
     if (!current || current.status !== 'suggestion' || !savedIdRef.current
@@ -396,7 +400,7 @@ export function CreativeStudio({ conceptId, fromGuided = false, fromAdvisor = fa
   }, [loadNotes]);
 
   useEffect(() => {
-    if (!conceptId || authLoading || !user) return;
+    if (explorationOnly || !conceptId || authLoading || !user) return;
     const savedRouteIntent = routeIntentRef.current;
     let cancelled = false;
     if (loadedConceptIdRef.current !== conceptId) {
@@ -451,7 +455,7 @@ export function CreativeStudio({ conceptId, fromGuided = false, fromAdvisor = fa
       }
     })();
     return () => { cancelled = true; };
-  }, [conceptId, authLoading, user, replaceComposition, changeSavedTarget, savedConceptAttempt]);
+  }, [conceptId, authLoading, user, explorationOnly, replaceComposition, changeSavedTarget, savedConceptAttempt]);
 
   const commitGuidedDraft = (transferId: string, resolution: Extract<DraftResolution, { status: 'ready' | 'missing' }>) => {
     if (!isCurrentStudioDraft(transferId) || initializedTransferIds.current.has(transferId) || conceptId) return;
@@ -642,6 +646,7 @@ export function CreativeStudio({ conceptId, fromGuided = false, fromAdvisor = fa
   };
 
   const save = async () => {
+    if (explorationOnly) return;
     if (savingRef.current) return;
     if (editorLocked) return;
     if (fromAdvisor && !conceptId && !importedInThisMount.current) {
@@ -780,8 +785,8 @@ export function CreativeStudio({ conceptId, fromGuided = false, fromAdvisor = fa
   return <div className="studio-page">
     <header className="studio-intro">
       <div className="container studio-intro-inner">
-        <div><p className="eyebrow">AROMAN · کارگاه ساخت رایحه</p><h1>روایت رایحه‌ی شما</h1><p>نت‌ها را برگزینید، در سه لایه بچینید و حال‌وهوای مفهوم خود را تماشا کنید.</p></div>
-        <div className="studio-intro-actions"><p className="studio-count-badge" role="status" aria-live="polite" aria-label={`${selected.length} از ۶ نت انتخاب شده`}><strong aria-hidden="true">{selected.length}</strong><span aria-hidden="true">از ۶ نت</span></p><button type="button" className="studio-save-top" onClick={() => void save()} disabled={busy || editorLocked}>{busy ? 'در حال ذخیره…' : savedId ? 'ذخیره تغییرات' : 'ذخیره مفهوم'}</button></div>
+        <div><p className="eyebrow">{explorationOnly ? 'AROMAN · کاوش مفهومی' : 'AROMAN · کارگاه ساخت رایحه'}</p><h1>روایت رایحه‌ی شما</h1><p>نت‌ها را برگزینید، در سه لایه بچینید و حال‌وهوای مفهوم خود را تماشا کنید.</p></div>
+        <div className="studio-intro-actions"><p className="studio-count-badge" role="status" aria-live="polite" aria-label={`${selected.length} از ۶ نت انتخاب شده`}><strong aria-hidden="true">{selected.length}</strong><span aria-hidden="true">از ۶ نت</span></p>{!explorationOnly && <button type="button" className="studio-save-top" onClick={() => void save()} disabled={busy || editorLocked}>{busy ? 'در حال ذخیره…' : savedId ? 'ذخیره تغییرات' : 'ذخیره مفهوم'}</button>}</div>
       </div>
     </header>
 
@@ -820,13 +825,13 @@ export function CreativeStudio({ conceptId, fromGuided = false, fromAdvisor = fa
           onReorder={(id, direction) => changeSelected(current => reorder(current, id, direction))}
           advisor={<BlendAdvisor result={advisorResult} loading={advisorLoading} accepted={advisorAccepted} canUndo={Boolean(advisorUndo)} busy={busy || advisorForkBusy}
             applyBlockedMessage={advisorApplyBlock} forkBlockedMessage={advisorForkBlock} requestBlockedMessage={advisorRequestBlock}
-            onRequest={() => void requestAdvisor()} onApply={applyAdvisorSuggestion} onFork={openAdvisorForkConfirmation} onReject={rejectAdvisorSuggestion} onUndo={undoAdvisorSuggestion} />} />
-        <ConceptPreview selected={selected} families={families} name={name} active={tab === 2} busy={busy || editorLocked} saved={Boolean(savedId)} onSave={() => void save()} />
+            allowFork={authEnabled} onRequest={() => void requestAdvisor()} onApply={applyAdvisorSuggestion} onFork={openAdvisorForkConfirmation} onReject={rejectAdvisorSuggestion} onUndo={undoAdvisorSuggestion} />} />
+        <ConceptPreview selected={selected} families={families} name={name} active={tab === 2} busy={busy || editorLocked} saved={Boolean(savedId)} onSave={() => void save()} allowSaving={authEnabled} />
       </div>
     </div>
 
-    {loginOpen && <Dialog title="ورود برای ذخیره" onClose={() => setLoginOpen(false)}><LoginForm onSuccess={() => { setLoginOpen(false); setNotice('وارد شدید. برای تکمیل ذخیره، دکمه ذخیره مفهوم را بزنید.'); }} /></Dialog>}
-    {advisorForkOpen && <Dialog title="ساخت نسخهٔ مستقل" onClose={() => { setAdvisorForkOpen(false); setAdvisorForkError(''); }}>
+    {authEnabled && loginOpen && <Dialog title="ورود برای ذخیره" onClose={() => setLoginOpen(false)}><LoginForm onSuccess={() => { setLoginOpen(false); setNotice('وارد شدید. برای تکمیل ذخیره، دکمه ذخیره مفهوم را بزنید.'); }} /></Dialog>}
+    {authEnabled && advisorForkOpen && <Dialog title="ساخت نسخهٔ مستقل" onClose={() => { setAdvisorForkOpen(false); setAdvisorForkError(''); }}>
       <div className="space-y-4">
         <h2 className="text-xl font-semibold">یک نسخهٔ جداگانه بسازیم؟</h2>
         <p>ترکیب پیشنهادی در یک پیش‌نویس مستقل باز می‌شود و مفهوم ذخیره‌شدهٔ فعلی بدون تغییر می‌ماند.</p>
@@ -844,6 +849,6 @@ export function CreativeStudio({ conceptId, fromGuided = false, fromAdvisor = fa
     {guidedCandidate && guidedCandidate.routeIntent === routeIntent && confirmGuidedReplace && replaceConfirmationRoute === routeIntent && <Dialog title="جایگزینی ترکیب فعلی" onClose={() => setConfirmGuidedReplace(false)}>
       <div className="space-y-4"><h2 className="text-xl font-semibold">ترکیب فعلی جایگزین شود؟</h2><p>با تأیید، مفهوم ذخیره‌شده از نشانی ویرایش جدا می‌شود و پیشنهاد هدایت‌شده در یک پیش‌نویس تازه بارگذاری خواهد شد. مفهوم قبلی بدون تغییر می‌ماند.</p><div className="flex flex-wrap gap-3"><button type="button" className="guided-button-secondary" onClick={() => setConfirmGuidedReplace(false)}>بازگشت</button><button type="button" className="guided-button-primary" onClick={confirmReplaceWithGuidedDraft} disabled={busy}>جایگزینی و بارگذاری</button></div></div>
     </Dialog>}
-    {savedId && <div className="studio-saved-link"><Link href="/account">مفاهیم ذخیره‌شده</Link></div>}
+    {authEnabled && savedId && <div className="studio-saved-link"><Link href="/account">مفاهیم ذخیره‌شده</Link></div>}
   </div>;
 }

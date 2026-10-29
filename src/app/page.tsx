@@ -23,8 +23,8 @@ export default async function Home() {
           <h1>رایحه‌ای که<br /><em>از شما آغاز می‌شود.</em></h1>
           <p className="atelier-hero-lede">راه خودتان را میان کشف عطرها و ساخت یک مفهوم شخصی پیدا کنید؛ هر انتخاب، بخشی از روایت شماست.</p>
           <div className="atelier-hero-actions">
-            <Link className="btn btn-primary" href="/shop">کشف عطرها <span aria-hidden="true">←</span></Link>
-            <Link className="btn btn-atelier-outline" href="/studio/creative">ساخت رایحه شخصی <span aria-hidden="true">✳</span></Link>
+            <Link className="btn btn-primary" href="/shop">کشف مجموعه رایحه‌ها <span aria-hidden="true">←</span></Link>
+            <Link className="btn btn-atelier-outline" href="/studio/creative">ساخت مفهوم رایحه <span aria-hidden="true">✳</span></Link>
           </div>
           <div className="hero-pathways" aria-label="دو مسیر آرومان">
             <span><i>۰۱</i> کشف مجموعه</span><span><i>۰۲</i> ساخت روایت</span>
@@ -39,7 +39,7 @@ export default async function Home() {
       <div className="container">
         <header className="section-editorial-heading">
           <div><p className="eyebrow">۰۱ / مجموعه‌ی آرومان</p><h2 className="heading">رایحه‌هایی برای کشف</h2><p>با مجموعه‌ی نمایشی کاتالوگ آشنا شوید.</p></div>
-          <Link className="text-link" href="/shop">رفتن به فروشگاه <span aria-hidden="true">←</span></Link>
+          <Link className="text-link" href="/shop">دیدن مجموعه رایحه‌ها <span aria-hidden="true">←</span></Link>
         </header>
         {unavailable ? <p className="catalog-state" role="status">کاتالوگ در دسترس نیست. لطفاً کمی بعد دوباره سر بزنید.</p> : products.length ? <div className="home-product-grid">{products.map(product => <ProductCard key={product.id} product={product} />)}</div> : <p className="catalog-state">هنوز محصولی در کاتالوگ ثبت نشده است.</p>}
         <p className="demo-data-note">تصویرها، تصویرسازی مفهومی هستند؛ جزئیات واقعی هر محصول را در صفحه‌ی آن ببینید.</p>
@@ -62,7 +62,7 @@ export default async function Home() {
         <div className="studio-invitation-copy">
           <p className="eyebrow">۰۳ / استودیو خلاق</p>
           <h2 className="heading">ساختن، راه دیگری برای کشف است.</h2>
-          <p>از میان نت‌های واقعی کاتالوگ انتخاب کنید، آن‌ها را در سه لایه بچینید و پیش‌نمایش مفهومی روایت خود را ببینید.</p>
+          <p>از میان نت‌های کاتالوگ انتخاب کنید، آن‌ها را در سه لایه بچینید و پیش‌نمایش مفهومی روایت خود را ببینید.</p>
           <div className="invitation-facts"><span>تا ۶ نت</span><span>۳ لایه‌ی رایحه</span><span>یک مفهوم شخصی</span></div>
           <Link className="btn btn-light" href="/studio/creative">ورود به استودیو خلاق <span aria-hidden="true">↗</span></Link>
         </div>

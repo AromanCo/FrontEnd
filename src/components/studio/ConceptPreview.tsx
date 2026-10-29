@@ -6,9 +6,9 @@ import { compositionMood, moodCopy } from '@/lib/studio/presentation';
 import { FragranceVessel } from '@/components/studio/FragranceVessel';
 
 export function ConceptPreview({
-  selected, families, name, active, busy, saved, onSave,
+  selected, families, name, active, busy, saved, onSave, allowSaving = true,
 }: {
-  selected: SelectedNote[]; families: Family[]; name: string; active: boolean; busy: boolean; saved: boolean; onSave: () => void;
+  selected: SelectedNote[]; families: Family[]; name: string; active: boolean; busy: boolean; saved: boolean; onSave: () => void; allowSaving?: boolean;
 }) {
   const mood = compositionMood(selected, families);
   return (
@@ -39,7 +39,7 @@ export function ConceptPreview({
         })}
       </div>
       <p className="preview-disclaimer">تصویر و توصیف، برداشت مفهومی هستند؛ نه فرمول تولید، ادعای ایمنی یا سنجه‌ی عملکرد.</p>
-      <button type="button" className="preview-save-button" onClick={onSave} disabled={busy}>{busy ? 'در حال ذخیره…' : saved ? 'ذخیره تغییرات' : 'ذخیره مفهوم'}<span aria-hidden="true">↗</span></button>
+      {allowSaving && <button type="button" className="preview-save-button" onClick={onSave} disabled={busy}>{busy ? 'در حال ذخیره…' : saved ? 'ذخیره تغییرات' : 'ذخیره مفهوم'}<span aria-hidden="true">↗</span></button>}
     </section>
   );
 }

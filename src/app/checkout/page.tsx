@@ -1,2 +1,4 @@
 import Link from 'next/link';
-export default function Checkout(){return <div className="container section"><p className="eyebrow">COMING NEXT</p><h1 className="heading mt-4">تسویه‌حساب نمایشی</h1><p className="mt-5 max-w-xl leading-9">این مسیر هنوز فعال نیست. هیچ سفارش یا پرداختی ثبت نمی‌شود و اطلاعات کارت دریافت نمی‌کنیم.</p><Link className="btn btn-primary mt-8" href="/shop">بازگشت به کاتالوگ</Link></div>}
+import { notFound } from 'next/navigation';
+import { getReleaseScope } from '@/lib/release-scope';
+export default function Checkout(){if(getReleaseScope()==='exploration')notFound();return <div className="container section"><p className="eyebrow">COMING NEXT</p><h1 className="heading mt-4">تسویه‌حساب نمایشی</h1><p className="mt-5 max-w-xl leading-9">این مسیر هنوز فعال نیست. هیچ سفارش یا پرداختی ثبت نمی‌شود و اطلاعات کارت دریافت نمی‌کنیم.</p><Link className="btn btn-primary mt-8" href="/shop">بازگشت به کاتالوگ</Link></div>}
