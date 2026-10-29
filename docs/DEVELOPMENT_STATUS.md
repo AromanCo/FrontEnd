@@ -10,7 +10,7 @@
 | Frontend | `9bea6ff38473d54fcc8b9900611aa5433ebd93f3` | M6-A8, PR #32, merged to `develop`. |
 | Backend | `df603654aaec03e4aeada20ab21d6e05803d8488` | M6-A7C, PR #23, merged to `develop`. |
 
-The current Frontend Backend pin is `df603654aaec03e4aeada20ab21d6e05803d8488`, recorded in `scripts/backend-pin.mjs` and Frontend CI. M6-A8 refreshed that pin to M6-A7C.
+The current Frontend Backend pin is `0be24c4597bd693e70348243c26e550a20a8ad0e`, recorded in `scripts/backend-pin.mjs` and Frontend CI. Earlier milestone rows below retain their original evidence baselines.
 
 The commit histories show the merge commits for Frontend PR #32 and Backend PR #23. The milestone handoff reports CI passed for each. A successful CI run verifies configured checks at the revision and runner used; it does not prove a production deployment, live SMS delivery, or commercial operation.
 

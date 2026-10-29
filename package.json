@@ -22,6 +22,7 @@
     "test:browser:auth": "node scripts/auth-browser-journey.mjs",
     "test:browser:real-stack": "node scripts/real-stack-runner.mjs",
     "test:browser:real-stack:postgres": "node scripts/real-stack-runner.mjs postgres",
+    "test:browser:exploration-real-stack": "node scripts/exploration-real-stack-runner.mjs",
     "test:postgres:transactions": "node scripts/real-stack-runner.mjs transactions",
     "test:browser:guided-save": "node scripts/guided-save-account-journey.mjs",
     "test:browser:guided-creative-save": "node scripts/guided-creative-save-journey.mjs",
