@@ -4,7 +4,8 @@
 
 ## Baselines and evidence boundary
 
-- Frontend baseline: `64849eb930bbc484aadd2e14446ed22cbcafb056`.
+- M6-A23 Frontend baseline: `64849eb930bbc484aadd2e14446ed22cbcafb056`.
+- M6-A24 source baseline: `76ce5fb22904b55792dacdc18842ad38cf8d21ef`. The working tree for this milestone is local and uncommitted; it is not a release revision. A future evidence package must identify the reviewed immutable Frontend revision actually used to build its target artifact.
 - Backend baseline: `0be24c4597bd693e70348243c26e550a20a8ad0e` (also pinned in `scripts/backend-pin.mjs`). Backend is not modified by this milestone.
 - M6-A20 establishes build/runtime public-showcase configuration guards. M6-A21 establishes local same-origin proxy behavior and five exact catalog GET templates. M6-A22 adds a repository/configuration-only preflight and regression tests.
 - The existing tests and CI can establish frontend behavior, request filtering, configuration validation, contract compatibility, and isolated browser/backend behavior. They do not establish a real DNS record, certificate, firewall, deployed process identity, database grant, production data rights, secret handling, monitoring, backups, recovery, or an operator's authority.
