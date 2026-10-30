@@ -22,7 +22,12 @@ const apiServer = createServer((request, response) => {
 await new Promise(resolve => apiServer.listen(18762, '127.0.0.1', resolve));
 
 const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', new URL(origin).port], {
-  env: { ...process.env, AROMAN_RELEASE_SCOPE: 'public-showcase', AROMAN_CATALOG_UPSTREAM_URL: `${apiOrigin}/api/v1` },
+  env: {
+    ...process.env,
+    AROMAN_RELEASE_SCOPE: 'public-showcase',
+    AROMAN_API_BASE_URL: `${apiOrigin}/api/v1`,
+    AROMAN_CATALOG_UPSTREAM_URL: `${apiOrigin}/api/v1`,
+  },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let serverLog = '';

@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { catalogUpstreamConfigurationError, publicApiConfigurationError, publicShowcaseRuntimeError } from '../src/lib/public-showcase-config.mjs';
 import { runPublicReleasePreflight } from '../scripts/public-release-preflight.mjs';
 import { chooseRecovery, rehearse } from '../scripts/public-rollback-rehearsal.mjs';
@@ -24,14 +27,21 @@ test('server-only upstream accepts legitimate loopback fixture and rejects unsaf
 });
 
 test('runtime rejects public build configuration drift', () => {
-  const metadata = { format: 1, scope: 'public-showcase', apiBase: 'https://catalog.example.test/api/v1' };
+  const metadata = { format: 2, scope: 'public-showcase', apiBase: 'https://catalog.example.test/api/v1', sourceRevision: 'a'.repeat(40), backendRevision: 'b'.repeat(40), configurationSha256: 'c'.repeat(64) };
   assert.equal(publicShowcaseRuntimeError('public-showcase', metadata, metadata.apiBase), null);
   assert.match(publicShowcaseRuntimeError('public-showcase', metadata, '/api/v1'), /does not match/);
   assert.match(publicShowcaseRuntimeError('public-showcase', null), /requires a production build/);
 });
 
 test('preflight distinguishes local evidence from external requirements', () => {
-  const valid = runPublicReleasePreflight({ env: { AROMAN_RELEASE_SCOPE: 'public-showcase', NEXT_PUBLIC_AROMAN_API_BASE_URL: '/api/v1', AROMAN_CATALOG_UPSTREAM_URL: 'http://127.0.0.1:8011/api/v1' } });
+  const distDirectory = mkdtempSync(join(tmpdir(), 'aroman-preflight-empty-dist-'));
+  let valid;
+  try {
+    valid = runPublicReleasePreflight({
+      env: { AROMAN_RELEASE_SCOPE: 'public-showcase', NEXT_PUBLIC_AROMAN_API_BASE_URL: '/api/v1', AROMAN_CATALOG_UPSTREAM_URL: 'http://127.0.0.1:8011/api/v1' },
+      distDirectory,
+    });
+  } finally { rmSync(distDirectory, { recursive: true, force: true }); }
   assert.deepEqual(valid.failed, []);
   assert.ok(valid.passed.length >= 5);
   assert.ok(valid.unverified.some(item => item.includes('DNS')));

@@ -140,6 +140,11 @@ jobs:
       - name: Public target evidence validator tests
         run: npm run test:public-target-evidence
 
+      - name: Candidate integrity and owner decision gate tests
+        run: |
+          npm run test:candidate-integrity
+          npm run test:launch-decisions
+
       - name: Offline public release verification
         env:
           AROMAN_RELEASE_SCOPE: public-showcase

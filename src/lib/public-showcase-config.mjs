@@ -97,15 +97,25 @@ export function catalogUpstreamConfigurationError(value) {
   return null;
 }
 
-export function publicShowcaseBuildMetadata(scope, apiBase) {
+export function publicShowcaseBuildMetadata(scope, apiBase, identity = {}) {
   if (scope !== 'public-showcase') return null;
   if (publicApiConfigurationError(scope, apiBase)) return null;
-  return { format: 1, scope, apiBase };
+  return {
+    format: 2,
+    scope,
+    apiBase,
+    sourceRevision: identity.sourceRevision ?? null,
+    backendRevision: identity.backendRevision ?? null,
+    configurationSha256: identity.configurationSha256 ?? null,
+  };
 }
 
 export function publicShowcaseRuntimeError(scope, metadata, runtimeApiBase) {
   if (scope !== 'public-showcase') return null;
-  if (!metadata || metadata.format !== 1 || metadata.scope !== 'public-showcase') {
+  if (!metadata || metadata.format !== 2 || metadata.scope !== 'public-showcase'
+    || !/^[a-f0-9]{40}$/.test(metadata.sourceRevision ?? '')
+    || !/^[a-f0-9]{40}$/.test(metadata.backendRevision ?? '')
+    || !/^[a-f0-9]{64}$/.test(metadata.configurationSha256 ?? '')) {
     return 'Runtime public-showcase mode requires a production build created with AROMAN_RELEASE_SCOPE=public-showcase and a validated public catalog API URL.';
   }
   const error = publicApiConfigurationError('public-showcase', metadata.apiBase);

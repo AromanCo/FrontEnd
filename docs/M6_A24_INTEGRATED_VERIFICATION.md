@@ -28,6 +28,6 @@ The recovery rehearsal proves only that the local decision function returns the 
 
 ## Release status
 
-M6-A24 source baseline: `76ce5fb22904b55792dacdc18842ad38cf8d21ef`.
+M6-A24 historical source baseline: `76ce5fb22904b55792dacdc18842ad38cf8d21ef` (merged through PR #47 and included in the M6-A25 development baseline).
 
-Backend remains pinned to `0be24c4597bd693e70348243c26e550a20a8ad0e`; no Backend changes are in scope. This working tree remains uncommitted. The M6-A23 example is structural only and intentionally contains zero `PASS` target controls.
+Backend remains pinned to `0be24c4597bd693e70348243c26e550a20a8ad0e`; no Backend changes are in scope. The M6-A23 example is structural only and intentionally contains zero `PASS` target controls. See M6-A25 documentation for the current development baseline and candidate identity process; this historical revision is not asserted as a current release candidate.

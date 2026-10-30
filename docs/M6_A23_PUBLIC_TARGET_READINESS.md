@@ -5,11 +5,13 @@
 ## Baselines and evidence boundary
 
 - M6-A23 Frontend baseline: `64849eb930bbc484aadd2e14446ed22cbcafb056`.
-- M6-A24 source baseline: `76ce5fb22904b55792dacdc18842ad38cf8d21ef`. The working tree for this milestone is local and uncommitted; it is not a release revision. A future evidence package must identify the reviewed immutable Frontend revision actually used to build its target artifact.
+- M6-A24 historical source baseline: `76ce5fb22904b55792dacdc18842ad38cf8d21ef` (merged through PR #47 and included in the later M6-A25 development baseline).
+- M6-A25 development baseline: `65568465a67b3697903f7337d4d8e831d6b9acf3`. This baseline identifies the starting checkout only; it is **not a release candidate**. A future candidate must record its actual source tree and compiled artifact identities.
 - Backend baseline: `0be24c4597bd693e70348243c26e550a20a8ad0e` (also pinned in `scripts/backend-pin.mjs`). Backend is not modified by this milestone.
 - M6-A20 establishes build/runtime public-showcase configuration guards. M6-A21 establishes local same-origin proxy behavior and five exact catalog GET templates. M6-A22 adds a repository/configuration-only preflight and regression tests.
 - The existing tests and CI can establish frontend behavior, request filtering, configuration validation, contract compatibility, and isolated browser/backend behavior. They do not establish a real DNS record, certificate, firewall, deployed process identity, database grant, production data rights, secret handling, monitoring, backups, recovery, or an operator's authority.
 - Existing preflight's `PASS` means repository/configuration check passed; its `UNVERIFIED` entries are not release acceptance. It does not validate a deployment evidence package. This document's validator is a separate offline structural/claim-quality check, not a live target scanner.
+- M6-A25 adds a deterministic candidate manifest and release gate; local source/build identity still does not verify a production target or convert any target control into PASS.
 - M6-A15 acceptance gates and M6-A19 through M6-A22 remain governing background. This matrix consolidates public target evidence and does not repeat or replace local route/build test coverage.
 
 ## Acceptance matrix

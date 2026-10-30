@@ -36,7 +36,7 @@ describe('release scope', () => {
     expect(getReleaseScope()).toBe('full');
     temporaryDist = mkdtempSync(join(tmpdir(), 'aroman-release-scope-'));
     process.env.AROMAN_TEST_NEXT_DIST_DIR = temporaryDist;
-    const metadata = { format: 1, scope: 'public-showcase', apiBase: 'https://catalog.example.test/api/v1' };
+    const metadata = { format: 2, scope: 'public-showcase', apiBase: 'https://catalog.example.test/api/v1', sourceRevision: '65568465a67b3697903f7337d4d8e831d6b9acf3', backendRevision: '0be24c4597bd693e70348243c26e550a20a8ad0e', configurationSha256: 'a'.repeat(64) };
     writeFileSync(join(temporaryDist, 'public-showcase-build.json'), JSON.stringify(metadata));
     process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL = metadata.apiBase;
     process.env.AROMAN_RELEASE_SCOPE = 'public-showcase';

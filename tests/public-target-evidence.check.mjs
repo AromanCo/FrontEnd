@@ -102,6 +102,18 @@ test('synthetic, repository, staging, operator assertion, and fixture claims can
   for (const mutate of cases) assert.notDeepEqual(validatePublicTargetEvidence(setFirstPass((_, control) => mutate(control))), []);
 });
 
+test('production PASS rejects references explicitly labeled as fixture or example evidence', () => {
+  for (const ref of ['fixture:catalog-response', 'artifacts/fixtures/catalog.json', 'target.example.review']) {
+    failsWith(setFirstPass((_, control) => { control.evidence_refs = [ref]; }), 'fixture/example evidence references');
+  }
+});
+
+test('malformed production PASS claims return validation errors without throwing', () => {
+  const document = validPassDocument();
+  delete document.controls[0].evidence_refs;
+  assert.ok(validatePublicTargetEvidence(document).some(error => error.includes('evidence_refs')));
+});
+
 test('secret-like fields and values are rejected', () => {
   const withSecretField = structuredClone(example); withSecretField.controls[0].api_token = 'do-not-store'; failsWith(withSecretField, 'secret-like field');
   const withSecretText = structuredClone(example); withSecretText.controls[0].evidence_refs = ['Authorization: Bearer abc123']; failsWith(withSecretText, 'resembling a credential');

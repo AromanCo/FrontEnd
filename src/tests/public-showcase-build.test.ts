@@ -2,9 +2,15 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { publicApiConfigurationError, publicShowcaseBuildMetadata } from '../../src/lib/public-showcase-config.mjs';
+import { publicApiConfigurationError, publicShowcaseBuildMetadata as createPublicShowcaseBuildMetadata } from '../../src/lib/public-showcase-config.mjs';
 import { publicShowcaseStartConfigurationError } from '../../scripts/public-showcase-start.mjs';
 import { getReleaseScope } from '@/lib/release-scope';
+
+const publicShowcaseBuildMetadata = (scope: string, apiBase: string) => createPublicShowcaseBuildMetadata(scope, apiBase, {
+  sourceRevision: '65568465a67b3697903f7337d4d8e831d6b9acf3',
+  backendRevision: '0be24c4597bd693e70348243c26e550a20a8ad0e',
+  configurationSha256: 'a'.repeat(64),
+});
 
 const originalScope = process.env.AROMAN_RELEASE_SCOPE;
 const originalDist = process.env.AROMAN_TEST_NEXT_DIST_DIR;
@@ -61,7 +67,7 @@ describe('public showcase API base validation', () => {
 
   it('accepts the exact same-origin catalog route candidate', () => {
     expect(publicApiConfigurationError('public-showcase', '/api/v1')).toBeNull();
-    expect(publicShowcaseBuildMetadata('public-showcase', '/api/v1')).toEqual({ format: 1, scope: 'public-showcase', apiBase: '/api/v1' });
+    expect(publicShowcaseBuildMetadata('public-showcase', '/api/v1')).toMatchObject({ format: 2, scope: 'public-showcase', apiBase: '/api/v1' });
   });
 });
 
@@ -82,7 +88,7 @@ describe('public showcase build-to-runtime consistency', () => {
 
   it('allows public-showcase runtime only when its build artifact records the validated compiled API base', () => {
     const metadata = publicShowcaseBuildMetadata('public-showcase', 'https://catalog.example.test/api/v1');
-    expect(metadata).toEqual({ format: 1, scope: 'public-showcase', apiBase: 'https://catalog.example.test/api/v1' });
+    expect(metadata).toMatchObject({ format: 2, scope: 'public-showcase', apiBase: 'https://catalog.example.test/api/v1' });
     selectTemporaryBuild(metadata);
     process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL = metadata!.apiBase;
     process.env.AROMAN_RELEASE_SCOPE = 'public-showcase';
@@ -106,7 +112,7 @@ describe('public showcase build-to-runtime consistency', () => {
   });
 
   it('rejects altered or invalid public build metadata', () => {
-    selectTemporaryBuild({ format: 1, scope: 'public-showcase', apiBase: 'http://127.0.0.1/api/v1' });
+    selectTemporaryBuild({ format: 2, scope: 'public-showcase', apiBase: 'http://127.0.0.1/api/v1', sourceRevision: 'a'.repeat(40), backendRevision: 'b'.repeat(40), configurationSha256: 'c'.repeat(64) });
     process.env.AROMAN_RELEASE_SCOPE = 'public-showcase';
     expect(() => getReleaseScope()).toThrow(/build metadata is invalid/);
   });
@@ -125,6 +131,15 @@ describe('public showcase build-to-runtime consistency', () => {
     expect(publicShowcaseStartConfigurationError(env)).toBeNull();
     expect(publicShowcaseStartConfigurationError({ NODE_ENV: 'production', AROMAN_TEST_NEXT_DIST_DIR: temporaryDist })).toMatch(/requires AROMAN_RELEASE_SCOPE=public-showcase/);
     expect(publicShowcaseStartConfigurationError({ ...env, AROMAN_CATALOG_UPSTREAM_URL: '' })).toMatch(/valid server-only AROMAN_CATALOG_UPSTREAM_URL/);
+  });
+
+  it('rejects public build metadata attributed to a different Backend revision', () => {
+    const metadata = { ...publicShowcaseBuildMetadata('public-showcase', '/api/v1')!, backendRevision: 'a'.repeat(40) };
+    selectTemporaryBuild(metadata);
+    expect(publicShowcaseStartConfigurationError({
+      NODE_ENV: 'production', AROMAN_RELEASE_SCOPE: 'public-showcase',
+      AROMAN_TEST_NEXT_DIST_DIR: temporaryDist, AROMAN_CATALOG_UPSTREAM_URL: 'http://127.0.0.1:8011/api/v1',
+    })).toMatch(/does not match the authorized Backend revision pin/);
   });
 
   it('keeps full and exploration runtime behavior independent of a public build marker', () => {
