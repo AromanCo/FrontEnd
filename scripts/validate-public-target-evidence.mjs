@@ -52,6 +52,10 @@ function isEvidenceRef(value) {
   return isMeaningful(value) && value.length >= 3 && !/^[-_.]+$/.test(value) && !/^https?:\/\/$/i.test(value);
 }
 
+function isFixtureEvidenceRef(value) {
+  return typeof value === 'string' && /^(?:fixture|synthetic)(?::|\/|$)|(?:^|\/)(?:fixtures?|synthetic)(?:\/|$)|(?:^|[._-])example(?:[._-]|$)/i.test(value);
+}
+
 export function validatePublicTargetEvidence(document) {
   const errors = [];
   if (!document || typeof document !== 'object' || Array.isArray(document)) return ['Evidence must be a JSON object.'];
@@ -88,6 +92,7 @@ export function validatePublicTargetEvidence(document) {
     if (control.status === 'PASS') {
       if (control.target_kind !== 'production') errors.push(`${prefix} cannot PASS without target_kind production.`);
       if (!passMethods.has(control.method)) errors.push(`${prefix} cannot PASS based on ${control.method}.`);
+      if (Array.isArray(control.evidence_refs) && control.evidence_refs.some(isFixtureEvidenceRef)) errors.push(`${prefix} cannot use fixture/example evidence references for a production PASS.`);
       if (!isTargetId(document.target_id)) errors.push(`${prefix} cannot support PASS for an invalid production target_id.`);
       if (!Array.isArray(control.evidence_refs) || control.evidence_refs.length === 0 || control.evidence_refs.some(ref => !isEvidenceRef(ref))) errors.push(`${prefix} cannot PASS without meaningful evidence references.`);
       if (!isReviewer(control.reviewer)) errors.push(`${prefix} cannot PASS without a named reviewer.`);

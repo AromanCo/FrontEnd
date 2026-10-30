@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { backendSha } from './backend-pin.mjs';
 import { catalogUpstreamConfigurationError, publicApiConfigurationError } from '../src/lib/public-showcase-config.mjs';
 import { validatePublicTargetEvidence } from './validate-public-target-evidence.mjs';
+import { CANDIDATE_MANIFEST, verifyCandidate } from './candidate-integrity.mjs';
 
 export function runPublicReleasePreflight({ env = process.env, cwd = process.cwd(), distDirectory } = {}) {
   const passed = [];
@@ -16,6 +17,7 @@ export function runPublicReleasePreflight({ env = process.env, cwd = process.cwd
     'Production database roles and credentials enforce read-only catalog access.',
     'The deployment runs only the pinned restricted aroman.exploration_api:app target.',
   ];
+  let candidateIntegrity;
   const check = (name, condition) => (condition ? passed : failed).push(name);
   check('AROMAN_RELEASE_SCOPE is explicitly public-showcase', env.AROMAN_RELEASE_SCOPE === 'public-showcase');
   const apiError = env.AROMAN_RELEASE_SCOPE === 'public-showcase'
@@ -43,7 +45,7 @@ export function runPublicReleasePreflight({ env = process.env, cwd = process.cwd
     check('M6-A23 evidence example is valid and all 13 controls remain UNVERIFIED', evidenceErrors.length === 0 && evidence.controls.length === 13 && evidence.controls.every(control => control.status === 'UNVERIFIED'));
     check('Evidence example Backend revision matches the authorized Backend pin', evidence.backend_revision === backendSha);
     const readiness = readFileSync(resolve(cwd, 'docs/M6_A23_PUBLIC_TARGET_READINESS.md'), 'utf8');
-    check('M6-A24 source baseline is consistent in readiness docs and evidence example', evidence.frontend_revision === '76ce5fb22904b55792dacdc18842ad38cf8d21ef' && readiness.includes('76ce5fb22904b55792dacdc18842ad38cf8d21ef'));
+    check('M6-A25 development baseline is identified separately from any release candidate', readiness.includes('M6-A25 development baseline') && readiness.includes('not a release candidate'));
     const runbook = readFileSync(resolve(cwd, 'docs/M6_A23_PUBLIC_DEPLOYMENT_RUNBOOK.md'), 'utf8');
     check('Readiness runbook retains explicit stop conditions and recovery procedure', ['stop', 'NO-GO', 'Code rollback', 'restore'].every(token => runbook.toLowerCase().includes(token.toLowerCase())));
     const metadataDirectory = distDirectory ?? resolve(cwd, env.AROMAN_TEST_NEXT_DIST_DIR || '.next');
@@ -51,15 +53,24 @@ export function runPublicReleasePreflight({ env = process.env, cwd = process.cwd
     if (existsSync(metadataPath)) {
       try {
         const metadata = JSON.parse(readFileSync(metadataPath, 'utf8'));
-        check('Compiled build metadata is public-showcase with the configured browser API base', metadata.scope === 'public-showcase' && metadata.apiBase === env.NEXT_PUBLIC_AROMAN_API_BASE_URL);
+        check('Compiled build metadata is current public-showcase metadata with the configured browser API base', metadata.format === 2 && metadata.scope === 'public-showcase' && metadata.apiBase === env.NEXT_PUBLIC_AROMAN_API_BASE_URL);
+        if (!existsSync(resolve(metadataDirectory, CANDIDATE_MANIFEST))) failed.push('Compiled public build metadata has no candidate manifest.');
       } catch { failed.push('Compiled public-showcase build metadata is valid JSON'); }
     } else {
       unverified.push('No compiled public-showcase build metadata is present; compiled API configuration is unverified.');
     }
+    if (existsSync(resolve(metadataDirectory, CANDIDATE_MANIFEST))) {
+      try {
+        candidateIntegrity = verifyCandidate({ cwd, distDirectory: metadataDirectory, env });
+        passed.push(...candidateIntegrity.passed.map(item => `Candidate: ${item}`));
+        failed.push(...candidateIntegrity.failed.map(item => `Candidate: ${item}`));
+        unverified.push(...candidateIntegrity.unverified);
+      } catch { failed.push('Candidate manifest is invalid or cannot be verified.'); }
+    }
   } catch {
     failed.push('Required repository release evidence is available');
   }
-  return { passed, failed, unverified };
+  return { passed, failed, unverified, candidateIntegrity };
 }
 
 export function main() {

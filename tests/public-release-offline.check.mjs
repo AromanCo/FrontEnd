@@ -68,7 +68,7 @@ test('CLI exits zero for valid same-origin and absolute HTTPS modes', () => {
 });
 
 test('CLI exits nonzero when a compiled public artifact has configuration drift', () => {
-  const metadata = { format: 1, scope: 'public-showcase', apiBase: 'https://old.example.test/api/v1' };
+  const metadata = { format: 2, scope: 'public-showcase', apiBase: 'https://old.example.test/api/v1', sourceRevision: 'a'.repeat(40), backendRevision: 'b'.repeat(40), configurationSha256: 'c'.repeat(64) };
   withDist(metadata, distDirectory => {
     const result = spawnSync(process.execPath, [cli], {
       cwd: root,
@@ -77,7 +77,7 @@ test('CLI exits nonzero when a compiled public artifact has configuration drift'
     });
     const output = `${result.stdout}${result.stderr}`;
     assert.equal(result.status, 1, output);
-    assert.match(output, /FAIL Compiled build metadata is public-showcase/);
+    assert.match(output, /FAIL Compiled build metadata is current public-showcase/);
     assert.match(output, /LOCAL VERIFICATION: FAIL/);
     assert.match(output, /PRODUCTION RELEASE AUTHORIZATION: UNVERIFIED/);
   });
@@ -144,15 +144,15 @@ test('explicit test environment is isolated from inherited process configuration
 });
 
 test('runtime configuration drift from an exploration artifact fails', () => {
-  const metadata = { format: 1, scope: 'exploration', apiBase: validHttps.NEXT_PUBLIC_AROMAN_API_BASE_URL };
+  const metadata = { format: 2, scope: 'exploration', apiBase: validHttps.NEXT_PUBLIC_AROMAN_API_BASE_URL, sourceRevision: 'a'.repeat(40), backendRevision: 'b'.repeat(40), configurationSha256: 'c'.repeat(64) };
   const { failed } = withDist(metadata, distDirectory => run(validHttps, distDirectory));
-  assert.ok(failed.includes('Compiled build metadata is public-showcase with the configured browser API base'));
+  assert.ok(failed.includes('Compiled build metadata is current public-showcase metadata with the configured browser API base'));
 });
 
 test('present public metadata with a different compiled API base fails', () => {
-  const metadata = { format: 1, scope: 'public-showcase', apiBase: 'https://old.example.test/api/v1' };
+  const metadata = { format: 2, scope: 'public-showcase', apiBase: 'https://old.example.test/api/v1', sourceRevision: 'a'.repeat(40), backendRevision: 'b'.repeat(40), configurationSha256: 'c'.repeat(64) };
   const { failed } = withDist(metadata, distDirectory => run(validHttps, distDirectory));
-  assert.ok(failed.includes('Compiled build metadata is public-showcase with the configured browser API base'));
+  assert.ok(failed.includes('Compiled build metadata is current public-showcase metadata with the configured browser API base'));
 });
 
 test('missing compiled metadata remains UNVERIFIED rather than production PASS', () => {

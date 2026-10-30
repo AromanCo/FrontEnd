@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "decisions": [
+    { "id": "D1", "status": "OPEN", "choice": "", "owner": "", "rationale": "", "approved_at": "" },
+    { "id": "D2", "status": "OPEN", "choice": "", "owner": "", "rationale": "", "approved_at": "" },
+    { "id": "D3", "status": "OPEN", "choice": "", "owner": "", "rationale": "", "approved_at": "" },
+    { "id": "D4", "status": "OPEN", "choice": "", "owner": "", "rationale": "", "approved_at": "" },
+    { "id": "D5", "status": "OPEN", "choice": "", "owner": "", "rationale": "", "approved_at": "" },
+    { "id": "D6", "status": "OPEN", "choice": "", "owner": "", "rationale": "", "approved_at": "" },
+    { "id": "D7", "status": "OPEN", "choice": "", "owner": "", "rationale": "", "approved_at": "" },
+    { "id": "D8", "status": "OPEN", "choice": "", "owner": "", "rationale": "", "approved_at": "" },
+    { "id": "D9", "status": "OPEN", "choice": "", "owner": "", "rationale": "", "approved_at": "" },
+    { "id": "D10", "status": "OPEN", "choice": "", "owner": "", "rationale": "", "approved_at": "" },
+    { "id": "D11", "status": "OPEN", "choice": "", "owner": "", "rationale": "", "approved_at": "" },
+    { "id": "D12", "status": "OPEN", "choice": "", "owner": "", "rationale": "", "approved_at": "" }
+  ]
+}
