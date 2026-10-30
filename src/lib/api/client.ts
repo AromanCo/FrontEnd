@@ -9,7 +9,8 @@ export type ConceptInput = components['schemas']['ConceptInput'];
 export type User = components['schemas']['UserOut'];
 export type Layer = 'top'|'heart'|'base';
 export const browserBase = process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:8000/api/v1');
-const serverBase = process.env.AROMAN_API_BASE_URL || browserBase;
+const absoluteBrowserBase = /^https?:\/\//i.test(browserBase) ? browserBase : '';
+const serverBase = process.env.AROMAN_API_BASE_URL || absoluteBrowserBase || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:8000/api/v1');
 export class ApiError extends Error { constructor(public status:number, message:string, public code?:string){super(message);this.name='ApiError'} }
 const messages:Record<number,string>={400:'کد نامعتبر یا منقضی شده است.',401:'برای ادامه وارد حساب شوید.',403:'دسترسی به این درخواست مجاز نیست.',404:'مورد درخواستی پیدا نشد.',422:'اطلاعات واردشده معتبر نیست.',429:'درخواست‌های زیادی ثبت شده است. کمی صبر کنید.',503:'این سرویس در حال حاضر در دسترس نیست.'};
 function forbiddenMessage(code:string|undefined){

@@ -4,6 +4,8 @@ import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 
 const origin = process.env.FRONTEND_ORIGIN || 'http://127.0.0.1:3201';
+const apiBase = process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL || '/api/v1';
+const catalogOrigin = new URL(apiBase, origin).origin;
 const systemChrome = process.env.CHROME_BIN || ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable'].find(existsSync);
 const browser = await chromium.launch({ ...(systemChrome ? { executablePath: systemChrome } : {}), headless: true, args: ['--no-sandbox', '--no-proxy-server'] });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -22,8 +24,10 @@ const recordApiRequest = request => {
 };
 page.on('pageerror', error => errors.push(error.message));
 desktopPage.on('pageerror', error => errors.push(error.message));
-await page.route('https://catalog.example.test/**', route => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
-await desktopPage.route('https://catalog.example.test/**', route => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+if (/^https?:\/\//i.test(apiBase)) {
+  await page.route(`${apiBase.replace(/\/api\/v1$/, '')}/**`, route => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+  await desktopPage.route(`${apiBase.replace(/\/api\/v1$/, '')}/**`, route => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+}
 page.on('request', recordApiRequest);
 desktopPage.on('request', recordApiRequest);
 async function expectAdvisorControlsVisible(targetPage) {
@@ -46,6 +50,8 @@ try {
   }
   await page.goto(new URL('/', origin).href);
   await desktopPage.goto(new URL('/', origin).href, { waitUntil: 'domcontentloaded' });
+  await page.goto(new URL('/shop', origin).href);
+  await page.getByRole('heading', { name: 'محصول ساختگی کاتالوگ عمومی' }).waitFor();
   const desktop = desktopPage.getByRole('navigation', { name: 'ناوبری اصلی' });
   for (const href of ['/shop', '/studio/creative', '/studio/guided', '/account', '/cart', '/checkout']) {
     assert.ok(await desktop.locator(`a[href="${href}"]`).first().isVisible(), `desktop navigation should expose ${href}`);
@@ -66,9 +72,10 @@ try {
   await expectAdvisorControlsVisible(page);
   assert.equal(new URL(page.url()).searchParams.get('from'), 'guided', 'in-place Smart Perfumer navigation should preserve Guided transfer route context');
   const permittedCatalogRoute = /^\/api\/v1\/(?:brands|fragrance-families|products|fragrance-notes|products\/[0-9a-f-]{36}\/variants)$/i;
-  assert.ok(browserApiRequests.every(({ method, origin: requestOrigin, path }) => method === 'GET' && requestOrigin === 'https://catalog.example.test' && permittedCatalogRoute.test(path)), `unexpected browser API requests: ${JSON.stringify(browserApiRequests)}`);
+  assert.ok(browserApiRequests.length > 0, 'public showcase journey must observe at least one catalog API request');
+  assert.ok(browserApiRequests.every(({ method, origin: requestOrigin, path }) => method === 'GET' && requestOrigin === catalogOrigin && permittedCatalogRoute.test(path)), `unexpected browser API requests: ${JSON.stringify(browserApiRequests)}`);
   assert.deepEqual(errors, []);
-  console.log(`PASS public showcase browser journey: all public routes and desktop/mobile links available; Smart Perfumer controls opened from another page and in-place; ${browserApiRequests.length} browser API requests across both contexts were permitted catalog GETs only; no browser errors.`);
+  console.log(`PASS public showcase browser journey: all public routes and desktop/mobile links available; Smart Perfumer controls opened from another page and in-place; ${browserApiRequests.length} browser API requests across both contexts were permitted catalog GETs only at ${catalogOrigin}; no browser errors.`);
 } finally {
   await context.close();
   await desktopPage.close();

@@ -45,13 +45,18 @@ describe('public showcase API base validation', () => {
     'https://catalog.example.test/api/v1?tenant=a', 'https://catalog.example.test/api/v1?', 'https://catalog.example.test/api/v1#catalog', 'https://catalog.example.test/api/v1#',
     'https://catalog.example.test/api/v1/', 'https://catalog.example.test/api/v2',
     'https://catalog.example.test/other/api/v1', 'ftp://catalog.example.test/api/v1', 'https:/catalog.example.test/api/v1',
-    'https://catalog.example.test:invalid/api/v1', '/api/v1',
+    'https://catalog.example.test:invalid/api/v1', '/api/v2', '//catalog.example.test/api/v1',
   ])('rejects invalid or unsafe API base %s', value => {
     expect(publicApiConfigurationError('public-showcase', value)).toBeTruthy();
   });
 
   it.each(['https://catalog.example.test/api/v1', 'http://192.0.2.20:8080/api/v1'])('accepts an absolute API base with the exact path: %s', value => {
     expect(publicApiConfigurationError('public-showcase', value)).toBeNull();
+  });
+
+  it('accepts the exact same-origin catalog route candidate', () => {
+    expect(publicApiConfigurationError('public-showcase', '/api/v1')).toBeNull();
+    expect(publicShowcaseBuildMetadata('public-showcase', '/api/v1')).toEqual({ format: 1, scope: 'public-showcase', apiBase: '/api/v1' });
   });
 });
 
@@ -74,6 +79,12 @@ describe('public showcase build-to-runtime consistency', () => {
     const metadata = publicShowcaseBuildMetadata('public-showcase', 'https://catalog.example.test/api/v1');
     expect(metadata).toEqual({ format: 1, scope: 'public-showcase', apiBase: 'https://catalog.example.test/api/v1' });
     selectTemporaryBuild(metadata);
+    process.env.AROMAN_RELEASE_SCOPE = 'public-showcase';
+    expect(getReleaseScope()).toBe('public-showcase');
+  });
+
+  it('allows public-showcase runtime metadata for the same-origin candidate', () => {
+    selectTemporaryBuild(publicShowcaseBuildMetadata('public-showcase', '/api/v1'));
     process.env.AROMAN_RELEASE_SCOPE = 'public-showcase';
     expect(getReleaseScope()).toBe('public-showcase');
   });

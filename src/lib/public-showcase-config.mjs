@@ -69,7 +69,8 @@ export function publicApiConfigurationError(scope, value) {
   if (scope !== 'public-showcase') return null;
   if (typeof value !== 'string' || value.length === 0) return 'Public showcase builds require NEXT_PUBLIC_AROMAN_API_BASE_URL.';
   if (value !== value.trim()) return 'NEXT_PUBLIC_AROMAN_API_BASE_URL must not contain surrounding whitespace.';
-  if (value.startsWith('/')) return 'Same-origin /api/v1 routing is not implemented yet; public showcase builds require an absolute API URL.';
+  if (value === API_BASE_PATH) return null;
+  if (value.startsWith('/')) return 'Same-origin API base must be exactly /api/v1.';
   if (value.includes('?') || value.includes('#')) return 'NEXT_PUBLIC_AROMAN_API_BASE_URL must not contain a query string or fragment.';
   if (!/^https?:\/\/[^/?#]+\/api\/v1$/i.test(value)) return 'NEXT_PUBLIC_AROMAN_API_BASE_URL must be an absolute HTTP(S) URL with the exact /api/v1 path.';
 
