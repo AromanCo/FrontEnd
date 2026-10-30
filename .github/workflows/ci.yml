@@ -271,57 +271,16 @@ jobs:
       - name: Build public showcase with validated catalog API base
         env:
           AROMAN_RELEASE_SCOPE: public-showcase
-          NEXT_PUBLIC_AROMAN_API_BASE_URL: https://catalog.example.test/api/v1
+          NEXT_PUBLIC_AROMAN_API_BASE_URL: /api/v1
         run: npm run build
 
-      - name: Run loopback-only public showcase browser journey
+      - name: Run compiled same-origin public catalog browser integration
         env:
           AROMAN_RELEASE_SCOPE: public-showcase
-          NEXT_PUBLIC_AROMAN_API_BASE_URL: https://catalog.example.test/api/v1
-          AROMAN_API_BASE_URL: http://127.0.0.1:1/api/v1
+          NEXT_PUBLIC_AROMAN_API_BASE_URL: /api/v1
+          AROMAN_API_BASE_URL: http://127.0.0.1:18762/api/v1
           FRONTEND_ORIGIN: http://127.0.0.1:3201
-        run: |
-          set -Eeuo pipefail
-          server_log="$(mktemp)"
-          server_pid=""
-
-          cleanup() {
-            result=$?
-            trap - EXIT
-            if [ -n "$server_pid" ] && kill -0 "$server_pid" 2>/dev/null; then
-              kill "$server_pid" 2>/dev/null || true
-              wait "$server_pid" 2>/dev/null || true
-            fi
-            if [ "$result" -ne 0 ]; then
-              echo "Public showcase Next.js diagnostics:" >&2
-              cat "$server_log" >&2
-            fi
-            rm -f "$server_log"
-            exit "$result"
-          }
-          trap cleanup EXIT
-
-          npm start -- --hostname 127.0.0.1 --port 3201 >"$server_log" 2>&1 &
-          server_pid=$!
-          ready=false
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent "$FRONTEND_ORIGIN/" >/dev/null 2>&1; then
-              ready=true
-              break
-            fi
-            if ! kill -0 "$server_pid" 2>/dev/null; then
-              echo "Public showcase server exited before becoming ready (attempt $attempt)." >&2
-              cat "$server_log" >&2
-              exit 1
-            fi
-            sleep 1
-          done
-          if [ "$ready" != true ]; then
-            echo "Public showcase server did not become ready within 30 seconds." >&2
-            cat "$server_log" >&2
-            exit 1
-          fi
-          npm run test:browser:public-showcase
+        run: npm run test:browser:public-catalog-same-origin
 
   exploration-real-stack-browser:
     runs-on: ubuntu-24.04

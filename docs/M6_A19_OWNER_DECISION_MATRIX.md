@@ -39,7 +39,7 @@ These are neutral alternatives for the user-to-application access boundary. The 
 
 ## Same-origin API routing comparison
 
-Routing is an independent decision from the access architecture above. Both candidates remain open. M6-A18 found no configured same-origin catalog route; the current browser base is the compiled `NEXT_PUBLIC_AROMAN_API_BASE_URL` with localhost fallback. A relative `/api/v1` browser base is a candidate only after explicit review and release enforcement. Neither routing candidate is implemented or accepted.
+Routing is an independent decision from the access architecture above. Both candidates remain open and unselected. M6-A21 implements a local allowlisted Next.js route candidate and `/api/v1` browser base behind public-showcase build validation; this is implementation evidence only, not owner approval or public exposure. The alternative gateway/ingress route remains documented and unselected. The current development browser base may still use a localhost fallback outside production.
 
 | Control / tradeoff | Narrowly allowlisted Next.js BFF | Identity-protected gateway/ingress path routing |
 |---|---|---|
