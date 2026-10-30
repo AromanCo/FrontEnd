@@ -1,5 +1,7 @@
 # Launch readiness audit
 
+> **Scope note (M6-A26):** This audit is a historical broad exploration/authentication readiness review and is not the current first-release recommendation. For the proposed read-only public showcase, scope, architecture alternatives, D1–D12 owner workbook and M6-A27 handoff, see [M6-A26 Public Launch Architecture and Owner Package](M6_A26_PUBLIC_LAUNCH_ARCHITECTURE_AND_OWNER_PACKAGE.md). Authentication, OTP, persistence and commerce remain excluded from that proposed first release unless separately approved. Historical findings below remain relevant if those capabilities are later proposed; they do not authorize or require their implementation for M6-A27.
+
 Scope: tracked FrontEnd at `d7c944ecef0cc50cad6c106220527fca9a765ca7` and pinned Backend at `a59a97728b2f9c0bc34c03b8c356dd0bd6e0bfb9`. This is a repository evidence review, not a deployment approval. “Blocking” means the item must be resolved and verified before a public preproduction environment that offers login or persists user data. CI checks below describe configured gates; this audit does not claim a new GitHub run has passed.
 
 ## Capabilities covered by CI
