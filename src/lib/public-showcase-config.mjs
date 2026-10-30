@@ -72,15 +72,28 @@ export function publicApiConfigurationError(scope, value) {
   if (value === API_BASE_PATH) return null;
   if (value.startsWith('/')) return 'Same-origin API base must be exactly /api/v1.';
   if (value.includes('?') || value.includes('#')) return 'NEXT_PUBLIC_AROMAN_API_BASE_URL must not contain a query string or fragment.';
-  if (!/^https?:\/\/[^/?#]+\/api\/v1$/i.test(value)) return 'NEXT_PUBLIC_AROMAN_API_BASE_URL must be an absolute HTTP(S) URL with the exact /api/v1 path.';
+  if (!/^https:\/\/[^/?#]+\/api\/v1$/i.test(value)) return 'NEXT_PUBLIC_AROMAN_API_BASE_URL must be an absolute HTTPS URL with the exact /api/v1 path.';
 
   let url;
   try { url = new URL(value); } catch { return 'NEXT_PUBLIC_AROMAN_API_BASE_URL must be an absolute HTTP(S) URL.'; }
-  if (!['http:', 'https:'].includes(url.protocol)) return 'NEXT_PUBLIC_AROMAN_API_BASE_URL must use HTTP(S).';
+  if (url.protocol !== 'https:') return 'Absolute NEXT_PUBLIC_AROMAN_API_BASE_URL values must use HTTPS.';
   if (url.username || url.password) return 'NEXT_PUBLIC_AROMAN_API_BASE_URL must not contain embedded credentials.';
   if (url.search || url.hash) return 'NEXT_PUBLIC_AROMAN_API_BASE_URL must not contain a query string or fragment.';
   if (url.pathname !== API_BASE_PATH) return `NEXT_PUBLIC_AROMAN_API_BASE_URL must use the exact ${API_BASE_PATH} path.`;
   if (isLoopbackHost(url.hostname)) return 'Public showcase builds cannot use a loopback API URL.';
+  if (!url.hostname || url.origin === 'null' || url.href !== value) return 'NEXT_PUBLIC_AROMAN_API_BASE_URL must be a well-formed canonical HTTPS origin with the exact /api/v1 path.';
+  return null;
+}
+
+/** Server-only catalog target validation; HTTP loopback remains useful for isolated fixtures. */
+export function catalogUpstreamConfigurationError(value) {
+  if (typeof value !== 'string' || value.length === 0) return 'AROMAN_CATALOG_UPSTREAM_URL is required for the same-origin public catalog proxy.';
+  if (value.length > 512 || value !== value.trim() || /[?#]/.test(value)) return 'AROMAN_CATALOG_UPSTREAM_URL must be an absolute URL without whitespace, query, or fragment.';
+  let url;
+  try { url = new URL(value); } catch { return 'AROMAN_CATALOG_UPSTREAM_URL must be a valid absolute HTTP(S) URL.'; }
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.pathname !== API_BASE_PATH || url.search || url.hash || !url.hostname || url.origin === 'null' || url.href !== value) {
+    return 'AROMAN_CATALOG_UPSTREAM_URL must be a canonical HTTP(S) origin with the exact /api/v1 path and no credentials.';
+  }
   return null;
 }
 
@@ -90,13 +103,15 @@ export function publicShowcaseBuildMetadata(scope, apiBase) {
   return { format: 1, scope, apiBase };
 }
 
-export function publicShowcaseRuntimeError(scope, metadata) {
+export function publicShowcaseRuntimeError(scope, metadata, runtimeApiBase) {
   if (scope !== 'public-showcase') return null;
   if (!metadata || metadata.format !== 1 || metadata.scope !== 'public-showcase') {
     return 'Runtime public-showcase mode requires a production build created with AROMAN_RELEASE_SCOPE=public-showcase and a validated public catalog API URL.';
   }
   const error = publicApiConfigurationError('public-showcase', metadata.apiBase);
-  return error ? `Public showcase build metadata is invalid: ${error}` : null;
+  if (error) return `Public showcase build metadata is invalid: ${error}`;
+  if (runtimeApiBase !== undefined && runtimeApiBase !== metadata.apiBase) return 'Runtime NEXT_PUBLIC_AROMAN_API_BASE_URL does not match the validated public showcase build configuration.';
+  return null;
 }
 
 export function readPublicShowcaseBuildMetadata(cwd, distDirectory) {

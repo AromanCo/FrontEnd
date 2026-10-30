@@ -7,6 +7,7 @@ import { getReleaseScope, isExplorationOnlyPath } from '@/lib/release-scope';
 const originalScope = process.env.AROMAN_RELEASE_SCOPE;
 const originalNodeEnv = process.env.NODE_ENV;
 const originalDist = process.env.AROMAN_TEST_NEXT_DIST_DIR;
+const originalApiBase = process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL;
 let temporaryDist: string | undefined;
 afterEach(() => {
   if (originalScope === undefined) delete process.env.AROMAN_RELEASE_SCOPE;
@@ -14,6 +15,8 @@ afterEach(() => {
   Object.assign(process.env, { NODE_ENV: originalNodeEnv });
   if (originalDist === undefined) delete process.env.AROMAN_TEST_NEXT_DIST_DIR;
   else process.env.AROMAN_TEST_NEXT_DIST_DIR = originalDist;
+  if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL;
+  else process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL = originalApiBase;
   if (temporaryDist) rmSync(temporaryDist, { recursive: true, force: true });
   temporaryDist = undefined;
 });
@@ -35,6 +38,7 @@ describe('release scope', () => {
     process.env.AROMAN_TEST_NEXT_DIST_DIR = temporaryDist;
     const metadata = { format: 1, scope: 'public-showcase', apiBase: 'https://catalog.example.test/api/v1' };
     writeFileSync(join(temporaryDist, 'public-showcase-build.json'), JSON.stringify(metadata));
+    process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL = metadata.apiBase;
     process.env.AROMAN_RELEASE_SCOPE = 'public-showcase';
     expect(getReleaseScope()).toBe('public-showcase');
     process.env.AROMAN_RELEASE_SCOPE = 'Full';

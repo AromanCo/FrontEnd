@@ -9,6 +9,7 @@ import { getReleaseScope } from '@/lib/release-scope';
 const originalScope = process.env.AROMAN_RELEASE_SCOPE;
 const originalDist = process.env.AROMAN_TEST_NEXT_DIST_DIR;
 const originalNodeEnv = process.env.NODE_ENV;
+const originalApiBase = process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL;
 let temporaryDist: string | undefined;
 
 afterEach(() => {
@@ -17,6 +18,8 @@ afterEach(() => {
   if (originalDist === undefined) delete process.env.AROMAN_TEST_NEXT_DIST_DIR;
   else process.env.AROMAN_TEST_NEXT_DIST_DIR = originalDist;
   Object.assign(process.env, { NODE_ENV: originalNodeEnv });
+  if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL;
+  else process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL = originalApiBase;
   if (temporaryDist) rmSync(temporaryDist, { recursive: true, force: true });
   temporaryDist = undefined;
 });
@@ -44,13 +47,15 @@ describe('public showcase API base validation', () => {
     'http://user@catalog.example.test/api/v1', 'https://user:pass@catalog.example.test/api/v1',
     'https://catalog.example.test/api/v1?tenant=a', 'https://catalog.example.test/api/v1?', 'https://catalog.example.test/api/v1#catalog', 'https://catalog.example.test/api/v1#',
     'https://catalog.example.test/api/v1/', 'https://catalog.example.test/api/v2',
+    'http://192.0.2.20:8080/api/v1',
     'https://catalog.example.test/other/api/v1', 'ftp://catalog.example.test/api/v1', 'https:/catalog.example.test/api/v1',
     'https://catalog.example.test:invalid/api/v1', '/api/v2', '//catalog.example.test/api/v1',
   ])('rejects invalid or unsafe API base %s', value => {
     expect(publicApiConfigurationError('public-showcase', value)).toBeTruthy();
   });
 
-  it.each(['https://catalog.example.test/api/v1', 'http://192.0.2.20:8080/api/v1'])('accepts an absolute API base with the exact path: %s', value => {
+  it('accepts an absolute HTTPS API base with the exact path', () => {
+    const value = 'https://catalog.example.test/api/v1';
     expect(publicApiConfigurationError('public-showcase', value)).toBeNull();
   });
 
@@ -79,14 +84,25 @@ describe('public showcase build-to-runtime consistency', () => {
     const metadata = publicShowcaseBuildMetadata('public-showcase', 'https://catalog.example.test/api/v1');
     expect(metadata).toEqual({ format: 1, scope: 'public-showcase', apiBase: 'https://catalog.example.test/api/v1' });
     selectTemporaryBuild(metadata);
+    process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL = metadata!.apiBase;
     process.env.AROMAN_RELEASE_SCOPE = 'public-showcase';
     expect(getReleaseScope()).toBe('public-showcase');
   });
 
   it('allows public-showcase runtime metadata for the same-origin candidate', () => {
-    selectTemporaryBuild(publicShowcaseBuildMetadata('public-showcase', '/api/v1'));
+    const metadata = publicShowcaseBuildMetadata('public-showcase', '/api/v1');
+    selectTemporaryBuild(metadata);
+    process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL = metadata!.apiBase;
     process.env.AROMAN_RELEASE_SCOPE = 'public-showcase';
     expect(getReleaseScope()).toBe('public-showcase');
+  });
+
+  it('rejects a runtime API base that differs from the validated build metadata', () => {
+    const metadata = publicShowcaseBuildMetadata('public-showcase', 'https://catalog.example.test/api/v1');
+    selectTemporaryBuild(metadata);
+    process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL = 'https://other.example.test/api/v1';
+    process.env.AROMAN_RELEASE_SCOPE = 'public-showcase';
+    expect(() => getReleaseScope()).toThrow(/Runtime NEXT_PUBLIC_AROMAN_API_BASE_URL does not match/);
   });
 
   it('rejects altered or invalid public build metadata', () => {
@@ -103,10 +119,12 @@ describe('public showcase build-to-runtime consistency', () => {
   });
 
   it('allows npm start only for the public artifact with its compiled catalog API base', () => {
-    const metadata = publicShowcaseBuildMetadata('public-showcase', 'https://catalog.example.test/api/v1');
+    const metadata = publicShowcaseBuildMetadata('public-showcase', '/api/v1');
     selectTemporaryBuild(metadata);
-    const env = { NODE_ENV: 'production', AROMAN_RELEASE_SCOPE: 'public-showcase', AROMAN_TEST_NEXT_DIST_DIR: temporaryDist };
+    const env = { NODE_ENV: 'production', AROMAN_RELEASE_SCOPE: 'public-showcase', AROMAN_TEST_NEXT_DIST_DIR: temporaryDist, AROMAN_CATALOG_UPSTREAM_URL: 'http://127.0.0.1:8011/api/v1' };
     expect(publicShowcaseStartConfigurationError(env)).toBeNull();
+    expect(publicShowcaseStartConfigurationError({ NODE_ENV: 'production', AROMAN_TEST_NEXT_DIST_DIR: temporaryDist })).toMatch(/requires AROMAN_RELEASE_SCOPE=public-showcase/);
+    expect(publicShowcaseStartConfigurationError({ ...env, AROMAN_CATALOG_UPSTREAM_URL: '' })).toMatch(/valid server-only AROMAN_CATALOG_UPSTREAM_URL/);
   });
 
   it('keeps full and exploration runtime behavior independent of a public build marker', () => {

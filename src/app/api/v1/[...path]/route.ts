@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { catalogUpstreamConfigurationError } from '@/lib/public-showcase-config.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,10 +12,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 type Route = { path: string; query: string[] };
 
 function safeUpstreamBase(value: string | undefined): URL | null {
-  if (!value || value.length > 512 || value !== value.trim()) return null;
+  if (catalogUpstreamConfigurationError(value)) return null;
   try {
-    const url = new URL(value);
-    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || url.pathname !== '/api/v1') return null;
+    const url = new URL(value!);
     return url;
   } catch { return null; }
 }

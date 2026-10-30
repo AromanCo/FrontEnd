@@ -16,7 +16,7 @@ export function getReleaseScope(): ReleaseScope {
   if (scope === 'public-showcase') {
     const distDirectory = process.env.AROMAN_TEST_NEXT_DIST_DIR || '.next';
     const metadata = readPublicShowcaseBuildMetadata(process.cwd(), distDirectory);
-    const error = publicShowcaseRuntimeError(scope, metadata);
+    const error = publicShowcaseRuntimeError(scope, metadata, process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL);
     if (error) throw new Error(error);
   }
   return scope;
