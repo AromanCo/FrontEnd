@@ -9,6 +9,7 @@ import { getReleaseScope } from '@/lib/release-scope';
 const originalScope = process.env.AROMAN_RELEASE_SCOPE;
 const originalDist = process.env.AROMAN_TEST_NEXT_DIST_DIR;
 const originalNodeEnv = process.env.NODE_ENV;
+const originalApiBase = process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL;
 let temporaryDist: string | undefined;
 
 afterEach(() => {
@@ -17,6 +18,8 @@ afterEach(() => {
   if (originalDist === undefined) delete process.env.AROMAN_TEST_NEXT_DIST_DIR;
   else process.env.AROMAN_TEST_NEXT_DIST_DIR = originalDist;
   Object.assign(process.env, { NODE_ENV: originalNodeEnv });
+  if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL;
+  else process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL = originalApiBase;
   if (temporaryDist) rmSync(temporaryDist, { recursive: true, force: true });
   temporaryDist = undefined;
 });
@@ -81,14 +84,25 @@ describe('public showcase build-to-runtime consistency', () => {
     const metadata = publicShowcaseBuildMetadata('public-showcase', 'https://catalog.example.test/api/v1');
     expect(metadata).toEqual({ format: 1, scope: 'public-showcase', apiBase: 'https://catalog.example.test/api/v1' });
     selectTemporaryBuild(metadata);
+    process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL = metadata!.apiBase;
     process.env.AROMAN_RELEASE_SCOPE = 'public-showcase';
     expect(getReleaseScope()).toBe('public-showcase');
   });
 
   it('allows public-showcase runtime metadata for the same-origin candidate', () => {
-    selectTemporaryBuild(publicShowcaseBuildMetadata('public-showcase', '/api/v1'));
+    const metadata = publicShowcaseBuildMetadata('public-showcase', '/api/v1');
+    selectTemporaryBuild(metadata);
+    process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL = metadata!.apiBase;
     process.env.AROMAN_RELEASE_SCOPE = 'public-showcase';
     expect(getReleaseScope()).toBe('public-showcase');
+  });
+
+  it('rejects a runtime API base that differs from the validated build metadata', () => {
+    const metadata = publicShowcaseBuildMetadata('public-showcase', 'https://catalog.example.test/api/v1');
+    selectTemporaryBuild(metadata);
+    process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL = 'https://other.example.test/api/v1';
+    process.env.AROMAN_RELEASE_SCOPE = 'public-showcase';
+    expect(() => getReleaseScope()).toThrow(/Runtime NEXT_PUBLIC_AROMAN_API_BASE_URL does not match/);
   });
 
   it('rejects altered or invalid public build metadata', () => {
