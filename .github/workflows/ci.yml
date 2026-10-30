@@ -137,6 +137,9 @@ jobs:
       - name: Public release preflight regression tests
         run: npm run test:public-release-preflight
 
+      - name: Public target evidence validator tests
+        run: npm run test:public-target-evidence
+
       - name: Guided Save fixture contract
         run: npm run test:fixture:guided-save
 

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AROMAN public target evidence package",
+  "description": "Structural claim format only. Schema validation does not authenticate referenced evidence or establish production state.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "target_id", "frontend_revision", "backend_revision", "controls"],
+  "properties": {
+    "format": { "const": 1 },
+    "target_id": { "type": "string", "minLength": 3, "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._:-]*[A-Za-z0-9])$", "not": { "enum": ["unknown", "UNKNOWN", "n/a", "N/A", "na", "NA", "none", "NONE", "null", "NULL", "not assigned", "NOT ASSIGNED", "not captured", "NOT CAPTURED", "todo", "TODO", "tbd", "TBD", "placeholder", "PLACEHOLDER", "example", "EXAMPLE"] } },
+    "frontend_revision": { "type": "string", "minLength": 1, "pattern": "^\\S+$", "not": { "enum": ["UNASSIGNED", "unassigned", "unknown", "UNKNOWN", "n/a", "N/A", "na", "NA", "none", "NONE", "null", "NULL", "not assigned", "NOT ASSIGNED", "not captured", "NOT CAPTURED", "todo", "TODO", "tbd", "TBD", "placeholder", "PLACEHOLDER", "example", "EXAMPLE"] } },
+    "backend_revision": { "type": "string", "minLength": 1, "pattern": "^\\S+$", "not": { "enum": ["UNASSIGNED", "unassigned", "unknown", "UNKNOWN", "n/a", "N/A", "na", "NA", "none", "NONE", "null", "NULL", "not assigned", "NOT ASSIGNED", "not captured", "NOT CAPTURED", "todo", "TODO", "tbd", "TBD", "placeholder", "PLACEHOLDER", "example", "EXAMPLE"] } },
+    "controls": {
+      "type": "array",
+      "minItems": 13,
+      "maxItems": 13,
+      "items": { "$ref": "#/$defs/control" },
+      "allOf": [
+        { "contains": { "properties": { "id": { "const": "domain_dns" } }, "required": ["id"] } },
+        { "contains": { "properties": { "id": { "const": "https_tls" } }, "required": ["id"] } },
+        { "contains": { "properties": { "id": { "const": "network_isolation" } }, "required": ["id"] } },
+        { "contains": { "properties": { "id": { "const": "catalog_target_routing" } }, "required": ["id"] } },
+        { "contains": { "properties": { "id": { "const": "catalog_routes" } }, "required": ["id"] } },
+        { "contains": { "properties": { "id": { "const": "excluded_capabilities" } }, "required": ["id"] } },
+        { "contains": { "properties": { "id": { "const": "database_migrations" } }, "required": ["id"] } },
+        { "contains": { "properties": { "id": { "const": "content_provenance" } }, "required": ["id"] } },
+        { "contains": { "properties": { "id": { "const": "environment_secrets" } }, "required": ["id"] } },
+        { "contains": { "properties": { "id": { "const": "logging" } }, "required": ["id"] } },
+        { "contains": { "properties": { "id": { "const": "monitoring_incident" } }, "required": ["id"] } },
+        { "contains": { "properties": { "id": { "const": "backup_rollback_recovery" } }, "required": ["id"] } },
+        { "contains": { "properties": { "id": { "const": "release_signoff" } }, "required": ["id"] } }
+      ]
+    }
+  },
+  "allOf": [
+    { "if": { "properties": { "controls": { "contains": { "properties": { "status": { "const": "PASS" } }, "required": ["status"] } } }, "required": ["controls"] }, "then": { "properties": { "target_id": { "minLength": 3, "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._:-]*[A-Za-z0-9])$", "not": { "enum": ["unassigned", "UNASSIGNED", "unknown", "UNKNOWN", "n/a", "N/A", "na", "NA", "none", "NONE", "null", "NULL", "not assigned", "NOT ASSIGNED", "not captured", "NOT CAPTURED", "todo", "TODO", "tbd", "TBD", "placeholder", "PLACEHOLDER", "example", "EXAMPLE"] } } } } }
+  ],
+  "$defs": {
+    "control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "status", "target_kind", "verified_at", "method", "evidence_refs", "reviewer"],
+      "properties": {
+        "id": { "enum": ["domain_dns", "https_tls", "network_isolation", "catalog_target_routing", "catalog_routes", "excluded_capabilities", "database_migrations", "content_provenance", "environment_secrets", "logging", "monitoring_incident", "backup_rollback_recovery", "release_signoff"] },
+        "status": { "enum": ["PASS", "FAIL", "UNVERIFIED"] },
+        "target_kind": { "enum": ["production", "staging", "synthetic_fixture", "repository"] },
+        "verified_at": { "anyOf": [{ "const": "NOT_CAPTURED" }, { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$" }] },
+        "method": { "enum": ["automated_probe", "configuration_inspection", "independent_review", "operator_assertion", "synthetic_fixture"] },
+        "evidence_refs": { "type": "array", "items": { "type": "string", "minLength": 3, "pattern": "^(?![-_.]+$)(?!\\s)(?!.*\\s$).+$", "not": { "enum": ["-", "--", "n/a", "N/A", "na", "NA", "none", "NONE", "null", "NULL", "unknown", "UNKNOWN", "unassigned", "UNASSIGNED", "not assigned", "NOT ASSIGNED", "not captured", "NOT CAPTURED", "todo", "TODO", "tbd", "TBD", "placeholder", "PLACEHOLDER", "example", "EXAMPLE"] } } },
+        "reviewer": { "type": "string", "minLength": 1, "pattern": "^(?!\\s)(?!.*\\s{2,})(?!.*\\s$).+$", "not": { "enum": ["", "-", "--", "n/a", "N/A", "na", "NA", "none", "NONE", "null", "NULL", "unknown", "UNKNOWN", "unassigned", "not assigned", "NOT ASSIGNED", "not captured", "NOT CAPTURED", "todo", "TODO", "tbd", "TBD", "placeholder", "PLACEHOLDER", "example", "EXAMPLE"] } }
+      },
+      "allOf": [
+        { "if": { "properties": { "status": { "const": "PASS" } }, "required": ["status"] }, "then": { "properties": { "target_kind": { "const": "production" }, "verified_at": { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$" }, "method": { "enum": ["automated_probe", "configuration_inspection", "independent_review"] }, "evidence_refs": { "minItems": 1 }, "reviewer": { "minLength": 2, "not": { "enum": ["unassigned", "UNASSIGNED", "unknown", "UNKNOWN", "n/a", "N/A", "none", "NONE", "null", "NULL", "not assigned", "NOT ASSIGNED", "not captured", "NOT CAPTURED", "todo", "TODO", "tbd", "TBD", "placeholder", "PLACEHOLDER", "example", "EXAMPLE"] } } } } }
+      ]
+    }
+  }
+}
