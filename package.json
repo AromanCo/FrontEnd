@@ -36,7 +36,9 @@
     "test:fixture:guided-save": "node --test tests/guided-save-fixture.check.mjs",
     "test:browser:mobile-rtl": "node scripts/mobile-rtl-journey.mjs",
     "test:browser:firefox": "BROWSER_ENGINE=firefox node scripts/mobile-rtl-journey.mjs",
-    "test:browser:webkit": "BROWSER_ENGINE=webkit node scripts/mobile-rtl-journey.mjs"
+    "test:browser:webkit": "BROWSER_ENGINE=webkit node scripts/mobile-rtl-journey.mjs",
+    "validate:public-target-evidence": "node scripts/validate-public-target-evidence.mjs",
+    "test:public-target-evidence": "node --test tests/public-target-evidence.check.mjs"
   },
   "dependencies": {
     "next": "^16.4.2",

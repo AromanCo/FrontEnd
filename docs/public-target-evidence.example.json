@@ -1,0 +1,125 @@
+{
+  "format": 1,
+  "target_id": "UNASSIGNED",
+  "frontend_revision": "64849eb930bbc484aadd2e14446ed22cbcafb056",
+  "backend_revision": "0be24c4597bd693e70348243c26e550a20a8ad0e",
+  "controls": [
+    {
+      "id": "domain_dns",
+      "status": "UNVERIFIED",
+      "target_kind": "production",
+      "verified_at": "NOT_CAPTURED",
+      "method": "operator_assertion",
+      "evidence_refs": [],
+      "reviewer": "UNASSIGNED"
+    },
+    {
+      "id": "https_tls",
+      "status": "UNVERIFIED",
+      "target_kind": "production",
+      "verified_at": "NOT_CAPTURED",
+      "method": "operator_assertion",
+      "evidence_refs": [],
+      "reviewer": "UNASSIGNED"
+    },
+    {
+      "id": "network_isolation",
+      "status": "UNVERIFIED",
+      "target_kind": "production",
+      "verified_at": "NOT_CAPTURED",
+      "method": "operator_assertion",
+      "evidence_refs": [],
+      "reviewer": "UNASSIGNED"
+    },
+    {
+      "id": "catalog_target_routing",
+      "status": "UNVERIFIED",
+      "target_kind": "production",
+      "verified_at": "NOT_CAPTURED",
+      "method": "operator_assertion",
+      "evidence_refs": [],
+      "reviewer": "UNASSIGNED"
+    },
+    {
+      "id": "catalog_routes",
+      "status": "UNVERIFIED",
+      "target_kind": "production",
+      "verified_at": "NOT_CAPTURED",
+      "method": "operator_assertion",
+      "evidence_refs": [],
+      "reviewer": "UNASSIGNED"
+    },
+    {
+      "id": "excluded_capabilities",
+      "status": "UNVERIFIED",
+      "target_kind": "production",
+      "verified_at": "NOT_CAPTURED",
+      "method": "operator_assertion",
+      "evidence_refs": [],
+      "reviewer": "UNASSIGNED"
+    },
+    {
+      "id": "database_migrations",
+      "status": "UNVERIFIED",
+      "target_kind": "production",
+      "verified_at": "NOT_CAPTURED",
+      "method": "operator_assertion",
+      "evidence_refs": [],
+      "reviewer": "UNASSIGNED"
+    },
+    {
+      "id": "content_provenance",
+      "status": "UNVERIFIED",
+      "target_kind": "production",
+      "verified_at": "NOT_CAPTURED",
+      "method": "operator_assertion",
+      "evidence_refs": [],
+      "reviewer": "UNASSIGNED"
+    },
+    {
+      "id": "environment_secrets",
+      "status": "UNVERIFIED",
+      "target_kind": "production",
+      "verified_at": "NOT_CAPTURED",
+      "method": "operator_assertion",
+      "evidence_refs": [],
+      "reviewer": "UNASSIGNED"
+    },
+    {
+      "id": "logging",
+      "status": "UNVERIFIED",
+      "target_kind": "production",
+      "verified_at": "NOT_CAPTURED",
+      "method": "operator_assertion",
+      "evidence_refs": [],
+      "reviewer": "UNASSIGNED"
+    },
+    {
+      "id": "monitoring_incident",
+      "status": "UNVERIFIED",
+      "target_kind": "production",
+      "verified_at": "NOT_CAPTURED",
+      "method": "operator_assertion",
+      "evidence_refs": [],
+      "reviewer": "UNASSIGNED"
+    },
+    {
+      "id": "backup_rollback_recovery",
+      "status": "UNVERIFIED",
+      "target_kind": "production",
+      "verified_at": "NOT_CAPTURED",
+      "method": "operator_assertion",
+      "evidence_refs": [],
+      "reviewer": "UNASSIGNED"
+    },
+    {
+      "id": "release_signoff",
+      "status": "UNVERIFIED",
+      "target_kind": "production",
+      "verified_at": "NOT_CAPTURED",
+      "method": "operator_assertion",
+      "evidence_refs": [],
+      "reviewer": "UNASSIGNED"
+    }
+  ]
+}
