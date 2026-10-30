@@ -1,13 +1,25 @@
-export type ReleaseScope = 'exploration' | 'full';
+import { publicShowcaseRuntimeError, readPublicShowcaseBuildMetadata } from './public-showcase-config.mjs';
+
+export type ReleaseScope = 'exploration' | 'public-showcase' | 'full';
 
 /** Read only on the server. Never expose the environment variable to browser code. */
 export function getReleaseScope(): ReleaseScope {
   const explicit = process.env.AROMAN_RELEASE_SCOPE;
+  let scope: ReleaseScope;
   if (explicit === undefined) {
-    return process.env.NODE_ENV === 'production' ? 'exploration' : 'full';
+    scope = process.env.NODE_ENV === 'production' ? 'exploration' : 'full';
+  } else if (explicit === 'exploration' || explicit === 'public-showcase' || explicit === 'full') {
+    scope = explicit;
+  } else {
+    throw new Error('Invalid AROMAN_RELEASE_SCOPE. Expected "exploration", "public-showcase", or "full".');
   }
-  if (explicit === 'exploration' || explicit === 'full') return explicit;
-  throw new Error('Invalid AROMAN_RELEASE_SCOPE. Expected "exploration" or "full".');
+  if (scope === 'public-showcase') {
+    const distDirectory = process.env.AROMAN_TEST_NEXT_DIST_DIR || '.next';
+    const metadata = readPublicShowcaseBuildMetadata(process.cwd(), distDirectory);
+    const error = publicShowcaseRuntimeError(scope, metadata);
+    if (error) throw new Error(error);
+  }
+  return scope;
 }
 
 export function isExplorationOnlyPath(pathname: string): boolean {

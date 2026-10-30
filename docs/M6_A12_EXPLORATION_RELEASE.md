@@ -8,7 +8,7 @@ It excludes registration, login, OTP, accounts, saved or previously saved concep
 
 ## Release scope configuration
 
-Set the one server-side setting `AROMAN_RELEASE_SCOPE` to `exploration` or `full`. For an exploration deployment, explicitly set `AROMAN_RELEASE_SCOPE=exploration`; production also defaults to exploration if it is omitted. The checked-in `.env.example` uses this safe value. Do not copy a `full` setting into a production environment: it enables the existing login, account, cart, checkout, and saved-concept frontend flows.
+Set the one server-side setting `AROMAN_RELEASE_SCOPE` to `exploration` or `full`. For an exploration deployment, explicitly set `AROMAN_RELEASE_SCOPE=exploration`; production also defaults to exploration if it is omitted. The checked-in `.env.example` uses this safe value. Do not copy a `full` setting into a production environment: it enables the existing login, account, cart, checkout, and saved-concept frontend flows. The separate M6-A20 `public-showcase` scope must also be selected during its build; its validated public catalog API base is recorded in the build output and required again by the start check.
 
 ```sh
 AROMAN_RELEASE_SCOPE=exploration npm run dev

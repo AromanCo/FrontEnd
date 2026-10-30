@@ -78,7 +78,7 @@ export function BlendAdvisor({
     onUndo();
   };
 
-  return <section className="blend-advisor" aria-label="پیشنهاد خلاق آرومان">
+  return <section className="blend-advisor" id="smart-perfumer" aria-label="پیشنهاد خلاق آرومان">
     <details open={open} onToggle={event => setOpen(event.currentTarget.open)}>
       <summary ref={summaryRef} tabIndex={0}>پیشنهاد خلاق آرومان</summary>
       <div className="blend-advisor-content">
