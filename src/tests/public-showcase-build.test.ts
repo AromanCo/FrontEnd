@@ -1,0 +1,108 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+import { publicApiConfigurationError, publicShowcaseBuildMetadata } from '../../src/lib/public-showcase-config.mjs';
+import { publicShowcaseStartConfigurationError } from '../../scripts/public-showcase-start.mjs';
+import { getReleaseScope } from '@/lib/release-scope';
+
+const originalScope = process.env.AROMAN_RELEASE_SCOPE;
+const originalDist = process.env.AROMAN_TEST_NEXT_DIST_DIR;
+const originalNodeEnv = process.env.NODE_ENV;
+let temporaryDist: string | undefined;
+
+afterEach(() => {
+  if (originalScope === undefined) delete process.env.AROMAN_RELEASE_SCOPE;
+  else process.env.AROMAN_RELEASE_SCOPE = originalScope;
+  if (originalDist === undefined) delete process.env.AROMAN_TEST_NEXT_DIST_DIR;
+  else process.env.AROMAN_TEST_NEXT_DIST_DIR = originalDist;
+  Object.assign(process.env, { NODE_ENV: originalNodeEnv });
+  if (temporaryDist) rmSync(temporaryDist, { recursive: true, force: true });
+  temporaryDist = undefined;
+});
+
+function selectTemporaryBuild(metadata?: unknown) {
+  temporaryDist = mkdtempSync(join(tmpdir(), 'aroman-public-showcase-build-'));
+  process.env.AROMAN_TEST_NEXT_DIST_DIR = temporaryDist;
+  if (metadata !== undefined) {
+    writeFileSync(join(temporaryDist, 'public-showcase-build.json'), JSON.stringify(metadata));
+  }
+}
+
+describe('public showcase API base validation', () => {
+  it('does not change validation of full and exploration scopes', () => {
+    expect(publicApiConfigurationError('exploration', undefined)).toBeNull();
+    expect(publicApiConfigurationError('full', undefined)).toBeNull();
+  });
+
+  it.each([
+    undefined, '', ' https://catalog.example.test/api/v1', 'https://catalog.example.test/api/v1 ',
+    'http://localhost:8000/api/v1', 'http://localhost.:8000/api/v1', 'http://api.localhost/api/v1',
+    'http://localhost.localdomain/api/v1', 'http://ip6-localhost/api/v1', 'http://ip6-loopback/api/v1',
+    'http://127.1/api/v1', 'http://127.0.0.2/api/v1', 'http://127.255.255.254/api/v1', 'http://[::1]/api/v1',
+    'http://[::ffff:127.0.0.1]/api/v1', 'http://[::ffff:7f00:2]/api/v1', 'http://[::7f00:2]/api/v1',
+    'http://user@catalog.example.test/api/v1', 'https://user:pass@catalog.example.test/api/v1',
+    'https://catalog.example.test/api/v1?tenant=a', 'https://catalog.example.test/api/v1?', 'https://catalog.example.test/api/v1#catalog', 'https://catalog.example.test/api/v1#',
+    'https://catalog.example.test/api/v1/', 'https://catalog.example.test/api/v2',
+    'https://catalog.example.test/other/api/v1', 'ftp://catalog.example.test/api/v1', 'https:/catalog.example.test/api/v1',
+    'https://catalog.example.test:invalid/api/v1', '/api/v1',
+  ])('rejects invalid or unsafe API base %s', value => {
+    expect(publicApiConfigurationError('public-showcase', value)).toBeTruthy();
+  });
+
+  it.each(['https://catalog.example.test/api/v1', 'http://192.0.2.20:8080/api/v1'])('accepts an absolute API base with the exact path: %s', value => {
+    expect(publicApiConfigurationError('public-showcase', value)).toBeNull();
+  });
+});
+
+describe('public showcase build-to-runtime consistency', () => {
+  it.each(['full', 'exploration'])('does not mark a %s build as public-showcase capable', scope => {
+    expect(publicShowcaseBuildMetadata(scope, 'https://catalog.example.test/api/v1')).toBeNull();
+  });
+
+  it('rejects switching a full or exploration build to public-showcase at runtime', () => {
+    for (const buildScope of ['full', 'exploration']) {
+      selectTemporaryBuild(publicShowcaseBuildMetadata(buildScope, 'http://127.0.0.1/api/v1') ?? undefined);
+      process.env.AROMAN_RELEASE_SCOPE = 'public-showcase';
+      expect(() => getReleaseScope()).toThrow(/requires a production build created with AROMAN_RELEASE_SCOPE=public-showcase/);
+      if (temporaryDist) rmSync(temporaryDist, { recursive: true, force: true });
+      temporaryDist = undefined;
+    }
+  });
+
+  it('allows public-showcase runtime only when its build artifact records the validated compiled API base', () => {
+    const metadata = publicShowcaseBuildMetadata('public-showcase', 'https://catalog.example.test/api/v1');
+    expect(metadata).toEqual({ format: 1, scope: 'public-showcase', apiBase: 'https://catalog.example.test/api/v1' });
+    selectTemporaryBuild(metadata);
+    process.env.AROMAN_RELEASE_SCOPE = 'public-showcase';
+    expect(getReleaseScope()).toBe('public-showcase');
+  });
+
+  it('rejects altered or invalid public build metadata', () => {
+    selectTemporaryBuild({ format: 1, scope: 'public-showcase', apiBase: 'http://127.0.0.1/api/v1' });
+    process.env.AROMAN_RELEASE_SCOPE = 'public-showcase';
+    expect(() => getReleaseScope()).toThrow(/build metadata is invalid/);
+  });
+
+  it('blocks npm start when runtime selects public-showcase for a non-public build artifact', () => {
+    selectTemporaryBuild();
+    const env = { NODE_ENV: 'production', AROMAN_RELEASE_SCOPE: 'public-showcase', AROMAN_TEST_NEXT_DIST_DIR: temporaryDist };
+    expect(publicShowcaseStartConfigurationError(env)).toMatch(/requires a production build created with AROMAN_RELEASE_SCOPE=public-showcase/);
+    expect(publicShowcaseStartConfigurationError({ NODE_ENV: 'production', AROMAN_RELEASE_SCOPE: 'full', AROMAN_TEST_NEXT_DIST_DIR: temporaryDist })).toBeNull();
+  });
+
+  it('allows npm start only for the public artifact with its compiled catalog API base', () => {
+    const metadata = publicShowcaseBuildMetadata('public-showcase', 'https://catalog.example.test/api/v1');
+    selectTemporaryBuild(metadata);
+    const env = { NODE_ENV: 'production', AROMAN_RELEASE_SCOPE: 'public-showcase', AROMAN_TEST_NEXT_DIST_DIR: temporaryDist };
+    expect(publicShowcaseStartConfigurationError(env)).toBeNull();
+  });
+
+  it('keeps full and exploration runtime behavior independent of a public build marker', () => {
+    selectTemporaryBuild();
+    process.env.AROMAN_RELEASE_SCOPE = 'full';
+    expect(getReleaseScope()).toBe('full');
+    process.env.AROMAN_RELEASE_SCOPE = 'exploration';
+    expect(getReleaseScope()).toBe('exploration');
+  });
+});

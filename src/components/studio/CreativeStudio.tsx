@@ -68,6 +68,35 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [tab, setTab] = useState(0);
+  useEffect(() => {
+    let selectFrame = 0;
+    let revealFrame = 0;
+    const activate = () => {
+      cancelAnimationFrame(selectFrame);
+      cancelAnimationFrame(revealFrame);
+      selectFrame = requestAnimationFrame(() => {
+        setTab(1);
+        revealFrame = requestAnimationFrame(() => {
+          const advisor = document.getElementById('smart-perfumer');
+          const details = advisor?.querySelector('details');
+          if (details && !details.open) details.open = true;
+          advisor?.scrollIntoView({ block: 'start' });
+        });
+      });
+    };
+    const activateFromHash = () => {
+      if (window.location.hash === '#smart-perfumer') activate();
+    };
+    activateFromHash();
+    window.addEventListener('hashchange', activateFromHash);
+    window.addEventListener('aroman:show-smart-perfumer', activate);
+    return () => {
+      cancelAnimationFrame(selectFrame);
+      cancelAnimationFrame(revealFrame);
+      window.removeEventListener('hashchange', activateFromHash);
+      window.removeEventListener('aroman:show-smart-perfumer', activate);
+    };
+  }, []);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [noteError, setNoteError] = useState('');

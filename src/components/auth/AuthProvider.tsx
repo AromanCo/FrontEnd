@@ -2,9 +2,11 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ApiError, auth, setCsrf, renewCsrf, type User } from '@/lib/api/client';
+import type { ReleaseScope } from '@/lib/release-scope';
 
 type AuthState = {
   authEnabled: boolean;
+  publicShowcase: boolean;
   user: User | null;
   loading: boolean;
   error: string;
@@ -14,8 +16,9 @@ type AuthState = {
 
 const Context = createContext<AuthState | null>(null);
 
-export function AuthProvider({ children, scope }: { children: React.ReactNode; scope: 'exploration' | 'full' }) {
+export function AuthProvider({ children, scope }: { children: React.ReactNode; scope: ReleaseScope }) {
   const authEnabled = scope === 'full';
+  const publicShowcase = scope === 'public-showcase';
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(authEnabled);
   const [error, setError] = useState('');
@@ -81,7 +84,7 @@ export function AuthProvider({ children, scope }: { children: React.ReactNode; s
     setLoading(false);
   };
 
-  return <Context.Provider value={{ authEnabled, user, loading, error, refresh, logout }}>
+  return <Context.Provider value={{ authEnabled, publicShowcase, user, loading, error, refresh, logout }}>
     {error && <div role="alert" className="container my-4 rounded-xl bg-blush p-4">
       <p>وضعیت نشست مشخص نشد. {error}</p>
       <button type="button" className="mt-2 underline disabled:opacity-50" disabled={retrying} onClick={() => void retry()}>

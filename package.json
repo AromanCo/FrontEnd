@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "build": "node scripts/public-showcase-build.mjs",
+    "start": "node scripts/public-showcase-start.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -16,6 +16,7 @@
     "screenshots": "node scripts/capture.mjs",
     "screenshots:visual": "node scripts/capture-visual-alignment.mjs",
     "test:browser": "node scripts/browser-journey.mjs",
+    "test:browser:public-showcase": "node scripts/public-showcase-journey.mjs",
     "test:browser:responsive": "node scripts/responsive-studio-journey.mjs",
     "test:browser:guided": "node scripts/guided-studio-journey.mjs && node scripts/guided-handoff-route-journey.mjs",
     "test:browser:integration": "node scripts/integrated-qa-journey.mjs",

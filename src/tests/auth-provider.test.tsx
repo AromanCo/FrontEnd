@@ -17,6 +17,7 @@ vi.mock('@/lib/api/client', () => ({
 
 import { ApiError } from '@/lib/api/client';
 import { AuthProvider, useAuth } from '@/components/auth/AuthProvider';
+import { Header } from '@/components/layout/Header';
 
 const user = { id: 'id', mobile_e164: '+989121234567', role: 'customer' };
 function Probe() {
@@ -122,4 +123,27 @@ it('keeps a ready guest context and makes no authentication calls in exploration
   expect(mocks.renewCsrf).not.toHaveBeenCalled();
   expect(mocks.me).not.toHaveBeenCalled();
   expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('keeps a ready guest context and makes no authentication calls in public-showcase mode', async () => {
+  render(<AuthProvider scope="public-showcase"><Probe /></AuthProvider>);
+  await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('guest'));
+  expect(mocks.session).not.toHaveBeenCalled();
+  expect(mocks.renewCsrf).not.toHaveBeenCalled();
+  expect(mocks.me).not.toHaveBeenCalled();
+  expect(mocks.logout).not.toHaveBeenCalled();
+});
+
+it('exposes major public areas and clearly labeled previews in desktop and mobile navigation', () => {
+  render(<AuthProvider scope="public-showcase"><Header /></AuthProvider>);
+  const desktop = screen.getByRole('navigation', { name: 'ناوبری اصلی' });
+  for (const href of ['/shop', '/studio/creative', '/studio/guided', '/account', '/cart', '/checkout']) {
+    expect(desktop.querySelector(`a[href="${href}"]`), href).toBeTruthy();
+  }
+  expect(desktop).toHaveTextContent('پیش‌نمایش');
+  fireEvent.click(screen.getByRole('button', { name: 'باز کردن فهرست' }));
+  const mobile = screen.getByRole('navigation', { name: 'ناوبری موبایل' });
+  for (const href of ['/shop', '/studio/creative', '/studio/guided', '/account', '/cart', '/checkout']) {
+    expect(mobile.querySelector(`a[href="${href}"]`), href).toBeTruthy();
+  }
 });
