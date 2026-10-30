@@ -1,18 +1,24 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { publicShowcaseRuntimeError, readPublicShowcaseBuildMetadata } from '../src/lib/public-showcase-config.mjs';
+import { catalogUpstreamConfigurationError, publicShowcaseRuntimeError, readPublicShowcaseBuildMetadata } from '../src/lib/public-showcase-config.mjs';
 
 export function publicShowcaseStartConfigurationError(env = process.env, cwd = process.cwd()) {
   const explicit = env.AROMAN_RELEASE_SCOPE;
+  const distDirectory = env.AROMAN_TEST_NEXT_DIST_DIR || '.next';
+  const metadata = readPublicShowcaseBuildMetadata(cwd, distDirectory);
   const scope = explicit ?? (env.NODE_ENV === 'production' ? 'exploration' : 'full');
   if (!['exploration', 'public-showcase', 'full'].includes(scope)) {
     return 'Invalid AROMAN_RELEASE_SCOPE. Expected "exploration", "public-showcase", or "full".';
   }
+  if (metadata?.scope === 'public-showcase' && explicit !== 'public-showcase') {
+    return 'A public-showcase production build requires AROMAN_RELEASE_SCOPE=public-showcase at runtime.';
+  }
   if (scope !== 'public-showcase') return null;
-  const distDirectory = env.AROMAN_TEST_NEXT_DIST_DIR || '.next';
-  const metadata = readPublicShowcaseBuildMetadata(cwd, distDirectory);
-  return publicShowcaseRuntimeError(scope, metadata);
+  if (metadata?.apiBase === '/api/v1' && catalogUpstreamConfigurationError(env.AROMAN_CATALOG_UPSTREAM_URL)) {
+    return 'Public same-origin runtime requires a valid server-only AROMAN_CATALOG_UPSTREAM_URL.';
+  }
+  return publicShowcaseRuntimeError(scope, metadata, env.NEXT_PUBLIC_AROMAN_API_BASE_URL);
 }
 
 export function main(args = process.argv.slice(2), env = process.env) {

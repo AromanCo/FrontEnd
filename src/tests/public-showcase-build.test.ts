@@ -44,13 +44,15 @@ describe('public showcase API base validation', () => {
     'http://user@catalog.example.test/api/v1', 'https://user:pass@catalog.example.test/api/v1',
     'https://catalog.example.test/api/v1?tenant=a', 'https://catalog.example.test/api/v1?', 'https://catalog.example.test/api/v1#catalog', 'https://catalog.example.test/api/v1#',
     'https://catalog.example.test/api/v1/', 'https://catalog.example.test/api/v2',
+    'http://192.0.2.20:8080/api/v1',
     'https://catalog.example.test/other/api/v1', 'ftp://catalog.example.test/api/v1', 'https:/catalog.example.test/api/v1',
     'https://catalog.example.test:invalid/api/v1', '/api/v2', '//catalog.example.test/api/v1',
   ])('rejects invalid or unsafe API base %s', value => {
     expect(publicApiConfigurationError('public-showcase', value)).toBeTruthy();
   });
 
-  it.each(['https://catalog.example.test/api/v1', 'http://192.0.2.20:8080/api/v1'])('accepts an absolute API base with the exact path: %s', value => {
+  it('accepts an absolute HTTPS API base with the exact path', () => {
+    const value = 'https://catalog.example.test/api/v1';
     expect(publicApiConfigurationError('public-showcase', value)).toBeNull();
   });
 
@@ -103,10 +105,12 @@ describe('public showcase build-to-runtime consistency', () => {
   });
 
   it('allows npm start only for the public artifact with its compiled catalog API base', () => {
-    const metadata = publicShowcaseBuildMetadata('public-showcase', 'https://catalog.example.test/api/v1');
+    const metadata = publicShowcaseBuildMetadata('public-showcase', '/api/v1');
     selectTemporaryBuild(metadata);
-    const env = { NODE_ENV: 'production', AROMAN_RELEASE_SCOPE: 'public-showcase', AROMAN_TEST_NEXT_DIST_DIR: temporaryDist };
+    const env = { NODE_ENV: 'production', AROMAN_RELEASE_SCOPE: 'public-showcase', AROMAN_TEST_NEXT_DIST_DIR: temporaryDist, AROMAN_CATALOG_UPSTREAM_URL: 'http://127.0.0.1:8011/api/v1' };
     expect(publicShowcaseStartConfigurationError(env)).toBeNull();
+    expect(publicShowcaseStartConfigurationError({ NODE_ENV: 'production', AROMAN_TEST_NEXT_DIST_DIR: temporaryDist })).toMatch(/requires AROMAN_RELEASE_SCOPE=public-showcase/);
+    expect(publicShowcaseStartConfigurationError({ ...env, AROMAN_CATALOG_UPSTREAM_URL: '' })).toMatch(/valid server-only AROMAN_CATALOG_UPSTREAM_URL/);
   });
 
   it('keeps full and exploration runtime behavior independent of a public build marker', () => {
