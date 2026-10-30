@@ -140,6 +140,16 @@ jobs:
       - name: Public target evidence validator tests
         run: npm run test:public-target-evidence
 
+      - name: Offline public release verification
+        env:
+          AROMAN_RELEASE_SCOPE: public-showcase
+          NEXT_PUBLIC_AROMAN_API_BASE_URL: /api/v1
+          AROMAN_CATALOG_UPSTREAM_URL: http://127.0.0.1:18762/api/v1
+        run: npm run verify:public-release:offline
+
+      - name: Offline public release verifier regression tests
+        run: npm run test:public-release-offline
+
       - name: Guided Save fixture contract
         run: npm run test:fixture:guided-save
 
@@ -279,6 +289,13 @@ jobs:
           AROMAN_RELEASE_SCOPE: public-showcase
           NEXT_PUBLIC_AROMAN_API_BASE_URL: /api/v1
         run: npm run build
+
+      - name: Verify public build configuration and offline release evidence
+        env:
+          AROMAN_RELEASE_SCOPE: public-showcase
+          NEXT_PUBLIC_AROMAN_API_BASE_URL: /api/v1
+          AROMAN_CATALOG_UPSTREAM_URL: http://127.0.0.1:18762/api/v1
+        run: npm run verify:public-release:offline
 
       - name: Run compiled same-origin public catalog browser integration
         env:

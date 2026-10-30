@@ -68,6 +68,8 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [tab, setTab] = useState(0);
+  const [advisorOpen, setAdvisorOpen] = useState(false);
+  const [advisorFocusRequest, setAdvisorFocusRequest] = useState(0);
   useEffect(() => {
     let selectFrame = 0;
     let revealFrame = 0;
@@ -76,12 +78,9 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
       cancelAnimationFrame(revealFrame);
       selectFrame = requestAnimationFrame(() => {
         setTab(1);
-        revealFrame = requestAnimationFrame(() => {
-          const advisor = document.getElementById('smart-perfumer');
-          const details = advisor?.querySelector('details');
-          if (details && !details.open) details.open = true;
-          advisor?.scrollIntoView({ block: 'start' });
-        });
+        setAdvisorOpen(true);
+        setAdvisorFocusRequest(request => request + 1);
+        revealFrame = requestAnimationFrame(() => document.getElementById('smart-perfumer')?.scrollIntoView({ block: 'start' }));
       });
     };
     const activateFromHash = () => {
@@ -853,6 +852,7 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
           onRemove={id => { changeSelected(current => current.filter(item => item.note.id !== id)); setNotice(''); }}
           onReorder={(id, direction) => changeSelected(current => reorder(current, id, direction))}
           advisor={<BlendAdvisor result={advisorResult} loading={advisorLoading} accepted={advisorAccepted} canUndo={Boolean(advisorUndo)} busy={busy || advisorForkBusy}
+            open={advisorOpen} focusRequest={advisorFocusRequest} onOpenChange={setAdvisorOpen}
             applyBlockedMessage={advisorApplyBlock} forkBlockedMessage={advisorForkBlock} requestBlockedMessage={advisorRequestBlock}
             allowFork={authEnabled} onRequest={() => void requestAdvisor()} onApply={applyAdvisorSuggestion} onFork={openAdvisorForkConfirmation} onReject={rejectAdvisorSuggestion} onUndo={undoAdvisorSuggestion} />} />
         <ConceptPreview selected={selected} families={families} name={name} active={tab === 2} busy={busy || editorLocked} saved={Boolean(savedId)} onSave={() => void save()} allowSaving={authEnabled} />

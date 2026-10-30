@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import type { AdvisorResult } from '@/lib/studio/advisor/types';
 import { layerLabels, layers, type SelectedNote } from '@/lib/studio/composition';
 
@@ -14,6 +14,9 @@ type Props = Readonly<{
   forkBlockedMessage: string | null;
   requestBlockedMessage: string | null;
   allowFork?: boolean;
+  open: boolean;
+  focusRequest: number;
+  onOpenChange: (open: boolean) => void;
   onRequest: () => void;
   onApply: () => void;
   onFork: () => void;
@@ -38,9 +41,8 @@ function LayerComposition({ selected, label }: { selected: readonly SelectedNote
 
 export function BlendAdvisor({
   result, loading, accepted, canUndo, busy, applyBlockedMessage, forkBlockedMessage, requestBlockedMessage, allowFork = true,
-  onRequest, onApply, onFork, onReject, onUndo,
+  open, focusRequest, onOpenChange, onRequest, onApply, onFork, onReject, onUndo,
 }: Props) {
-  const [open, setOpen] = useState(false);
   const summaryRef = useRef<HTMLElement>(null);
   const requestRef = useRef<HTMLButtonElement>(null);
   const undoRef = useRef<HTMLButtonElement>(null);
@@ -65,6 +67,10 @@ export function BlendAdvisor({
     focusAfterTransition.current = null;
   }, [accepted, result, open]);
 
+  useEffect(() => {
+    if (focusRequest > 0 && open) summaryRef.current?.focus();
+  }, [focusRequest, open]);
+
   const apply = () => {
     focusAfterTransition.current = 'undo';
     onApply();
@@ -79,7 +85,7 @@ export function BlendAdvisor({
   };
 
   return <section className="blend-advisor" id="smart-perfumer" aria-label="پیشنهاد خلاق آرومان">
-    <details open={open} onToggle={event => setOpen(event.currentTarget.open)}>
+    <details open={open} onToggle={event => onOpenChange(event.currentTarget.open)}>
       <summary ref={summaryRef} tabIndex={0}>پیشنهاد خلاق آرومان</summary>
       <div className="blend-advisor-content">
         <p className="blend-advisor-intro">یک راه ویرایشی برای کاوش در چیدمان مفهومی نت‌های انتخابی شما.</p>
