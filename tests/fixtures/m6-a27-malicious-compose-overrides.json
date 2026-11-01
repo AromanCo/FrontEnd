@@ -1,0 +1,17 @@
+[
+  { "name": "public frontend bind", "path": ["services", "showcase", "ports", "0", "host_ip"], "value": "0.0.0.0" },
+  { "name": "IPv6 public bind", "path": ["services", "showcase", "ports", "0", "host_ip"], "value": "::" },
+  { "name": "backend host port", "path": ["services", "catalog-api", "ports"], "value": [{ "target": 8000, "published": "18000", "host_ip": "127.0.0.1", "protocol": "tcp" }] },
+  { "name": "database host port", "path": ["services", "database", "ports"], "value": [{ "target": 5432, "published": "15432", "host_ip": "127.0.0.1", "protocol": "tcp" }] },
+  { "name": "host network", "path": ["services", "database", "network_mode"], "value": "host" },
+  { "name": "privileged container", "path": ["services", "catalog-api", "privileged"], "value": true },
+  { "name": "docker socket bind", "path": ["services", "showcase", "volumes"], "value": [{ "type": "bind", "source": "/var/run/docker.sock", "target": "/var/run/docker.sock" }] },
+  { "name": "mutable release image", "path": ["services", "showcase", "image"], "value": "registry.invalid/aroman/showcase:latest" },
+  { "name": "missing database memory limit", "path": ["services", "database", "deploy", "resources", "limits", "memory"], "delete": true },
+  { "name": "runtime uses migrator identity", "path": ["services", "catalog-api", "secrets"], "value": ["catalog_migration_database_url"] },
+  { "name": "external application network", "path": ["networks", "aroman_database", "external"], "value": true },
+  { "name": "runtime public API bypass", "path": ["services", "catalog-api", "command", "2"], "value": "uvicorn aroman.main:app --host 0.0.0.0" },
+  { "name": "browser upstream secret leak", "path": ["services", "showcase", "environment", "NEXT_PUBLIC_AROMAN_CATALOG_UPSTREAM_URL"], "value": "http://catalog-api:8000/api/v1" },
+  { "name": "protected PostgreSQL port collision", "path": ["services", "showcase", "ports", "0", "published"], "value": "5432" },
+  { "name": "secret points into repository", "path": ["secrets", "otp_pepper", "file"], "value": "/home/mrq/Dev/Aroman/FrontEnd-M6-A27/.env" }
+]

@@ -1,0 +1,93 @@
+{
+  "format": 1,
+  "source_kind": "historical-owner-snapshot-not-live-acceptance",
+  "target_acceptance": false,
+  "deployable": false,
+  "disposition": "UNVERIFIED",
+  "planning_only_root_disk_target_gib": 80,
+  "planning_note": "The approximately 80 GiB root-disk target is planning only and excluded from all capacity arithmetic until separately approved and measured as completed.",
+  "supplied_snapshot": {
+    "root_disk_total_gib": 37,
+    "root_disk_free_gib": 12,
+    "root_inode_used_percent": 19,
+    "cpu_count": 4,
+    "memory_total_gib": 7.7,
+    "memory_available_gib": 5.4,
+    "swap_gib": 2,
+    "existing_container_count": 16,
+    "nginx_active": true,
+    "ufw_active": true
+  },
+  "storage_projection_gib": {
+    "incremental": null,
+    "free_after": null,
+    "minimum_reserve": 10
+  },
+  "checks": [
+    {
+      "id": "inode_headroom",
+      "status": "UNVERIFIED",
+      "detail": "19.0% inode use is supplied measurement only; recheck on target and retain inode headroom."
+    },
+    {
+      "id": "disk_headroom",
+      "status": "UNVERIFIED",
+      "detail": "Docker usage and/or storage estimates are incomplete; do not treat unknown values as zero. Supplied free space is 12.00 GiB, only 2.00 GiB above the provisional reserve before unmeasured growth."
+    },
+    {
+      "id": "image_build_growth",
+      "status": "UNVERIFIED",
+      "detail": "Release image, build cache, rollback artifact and data/log growth require measured values and ongoing limits; automatic cleanup is not proposed."
+    },
+    {
+      "id": "database_logs",
+      "status": "UNVERIFIED",
+      "detail": "Database and log growth are estimates, not observed production rates."
+    },
+    {
+      "id": "backup_recovery_storage",
+      "status": "UNVERIFIED",
+      "detail": "Backup location, isolation, retention, encryption and restore rehearsal still require owner approval."
+    },
+    {
+      "id": "shared_host_memory",
+      "status": "WARNING",
+      "detail": "Supplied limits leave 3.28 GiB before host overhead; shared-host contention remains unmeasured."
+    },
+    {
+      "id": "cpu_contention",
+      "status": "WARNING",
+      "detail": "AROMAN CPU limits are bounded, but supplied existing workloads lack explicit CPU/memory limits or measurements: Pazhoochi, AROMAN coming-soon website and database, Zarbin services and PostgreSQL, Rond Bot services, PostgreSQL and Redis, Xray, Other existing services."
+    },
+    {
+      "id": "port_conflict",
+      "status": "UNVERIFIED",
+      "detail": "No AROMAN host port has been selected; target inventory and Nginx routing must be checked before assignment."
+    },
+    {
+      "id": "network_isolation",
+      "status": "UNVERIFIED",
+      "detail": "Nginx was reported active; UFW was reported active. Docker/UFW behavior, reachability, dedicated network membership and host forwarding require approved IPv4 and IPv6 verification."
+    },
+    {
+      "id": "nginx_routing",
+      "status": "UNVERIFIED",
+      "detail": "Nginx and AROMAN coming-soon route, vhost and upstream collision checks require target evidence."
+    },
+    {
+      "id": "existing_service_blast_radius",
+      "status": "WARNING",
+      "detail": "The same host contains protected unrelated applications; no AROMAN operation may modify, reconnect, rebuild or clean their resources."
+    },
+    {
+      "id": "single_host_failure_domain",
+      "status": "WARNING",
+      "detail": "Architecture A shares the Afra host and provider failure domain; recovery and downtime acceptance are unresolved."
+    },
+    {
+      "id": "ipv4_ipv6_firewall",
+      "status": "UNVERIFIED",
+      "detail": "Verify Docker NAT/filter behavior, IPv4 and IPv6 forwarding, UFW effective rules and external reachability from an authorized vantage point."
+    }
+  ]
+}

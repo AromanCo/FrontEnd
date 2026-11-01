@@ -1,0 +1,352 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-real-stack-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      AROMAN_RELEASE_SCOPE: full
+    steps:
+      - name: Check out FrontEnd
+        uses: actions/checkout@v4
+
+      - name: Check out pinned public Backend
+        uses: actions/checkout@v4
+        with:
+          repository: AromanCo/Backend
+          ref: 0be24c4597bd693e70348243c26e550a20a8ad0e
+          path: backend-pinned
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install FrontEnd and Backend runtime dependencies
+        run: |
+          npm ci
+          python -m pip install 'fastapi>=0.115,<1' 'uvicorn>=0.34,<1' 'pydantic-settings>=2.7,<3' 'sqlalchemy>=2.0,<3' 'alembic>=1.14,<2' 'psycopg[binary]>=3.2,<4' 'httpx>=0.27,<1'
+          npx playwright install --with-deps chromium
+          echo "CHROME_BIN=$(node -e 'process.stdout.write(require("playwright").chromium.executablePath())')" >> "$GITHUB_ENV"
+
+      - name: Run isolated PostgreSQL 17 FastAPI and Next.js Chromium journey
+        env:
+          AROMAN_TEST_BACKEND_DIR: ${{ github.workspace }}/backend-pinned
+          AROMAN_TEST_PYTHON: python
+        run: npm run test:browser:real-stack:postgres
+
+      - name: Run PostgreSQL transaction and concurrency invariants
+        env:
+          AROMAN_TEST_BACKEND_DIR: ${{ github.workspace }}/backend-pinned
+          AROMAN_TEST_PYTHON: python
+        run: npm run test:postgres:transactions
+
+  real-stack-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      AROMAN_RELEASE_SCOPE: full
+    steps:
+      - name: Check out FrontEnd
+        uses: actions/checkout@v4
+
+      - name: Check out pinned public Backend
+        uses: actions/checkout@v4
+        with:
+          repository: AromanCo/Backend
+          ref: 0be24c4597bd693e70348243c26e550a20a8ad0e
+          path: backend-pinned
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install FrontEnd and Backend runtime dependencies
+        run: |
+          npm ci
+          python -m pip install 'fastapi>=0.115,<1' 'uvicorn>=0.34,<1' 'pydantic-settings>=2.7,<3' 'sqlalchemy>=2.0,<3' 'alembic>=1.14,<2'
+          npx playwright install --with-deps chromium
+          echo "CHROME_BIN=$(node -e 'process.stdout.write(require("playwright").chromium.executablePath())')" >> "$GITHUB_ENV"
+
+      - name: Check pinned Backend OpenAPI contract and drift detection
+        env:
+          AROMAN_TEST_BACKEND_DIR: ${{ github.workspace }}/backend-pinned
+          AROMAN_TEST_PYTHON: python
+        run: |
+          npm run types:api:check
+          npm run test:api-contract
+
+      - name: Run real FastAPI and Next.js Chromium journey
+        env:
+          AROMAN_TEST_BACKEND_DIR: ${{ github.workspace }}/backend-pinned
+          AROMAN_TEST_PYTHON: python
+        run: npm run test:browser:real-stack
+
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      FRONTEND_ORIGIN: http://localhost:3000
+      NEXT_PUBLIC_AROMAN_API_BASE_URL: http://localhost:8000/api/v1
+      AROMAN_RELEASE_SCOPE: full
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Local release smoke checker tests
+        run: node --test tests/local-release-smoke.check.mjs
+
+      - name: Public release preflight regression tests
+        run: npm run test:public-release-preflight
+
+      - name: Public target evidence validator tests
+        run: npm run test:public-target-evidence
+
+      - name: Private preproduction static security and release tests
+        run: npm run test:private-preproduction
+
+      - name: Candidate integrity and owner decision gate tests
+        run: |
+          npm run test:candidate-integrity
+          npm run test:launch-decisions
+
+      - name: Offline public release verification
+        env:
+          AROMAN_RELEASE_SCOPE: public-showcase
+          NEXT_PUBLIC_AROMAN_API_BASE_URL: /api/v1
+          AROMAN_CATALOG_UPSTREAM_URL: http://127.0.0.1:18762/api/v1
+        run: npm run verify:public-release:offline
+
+      - name: Offline public release verifier regression tests
+        run: npm run test:public-release-offline
+
+      - name: Guided Save fixture contract
+        run: npm run test:fixture:guided-save
+
+      - name: Production build
+        run: npm run build
+
+      - name: Install Firefox and WebKit system dependencies
+        timeout-minutes: 10
+        run: |
+          npx playwright --version
+          df -h /
+          npx playwright install-deps firefox webkit
+
+      - name: Download Playwright Firefox and WebKit
+        timeout-minutes: 10
+        env:
+          DEBUG: pw:install
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: '120000'
+        run: npx playwright install firefox webkit
+
+      - name: Detect system Chrome
+        run: |
+          set -euo pipefail
+          chrome_bin="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          if [ -z "$chrome_bin" ]; then
+            echo "System Chrome was not found on the ubuntu-24.04 runner." >&2
+            exit 1
+          fi
+          echo "CHROME_BIN=$chrome_bin" >> "$GITHUB_ENV"
+          echo "Using system Chrome at $chrome_bin"
+
+      - name: Run isolated browser journeys
+        run: |
+          set -Eeuo pipefail
+          server_log="$(mktemp)"
+          server_pid=""
+
+          cleanup() {
+            result=$?
+            trap - EXIT
+            if [ -n "$server_pid" ] && kill -0 "$server_pid" 2>/dev/null; then
+              kill "$server_pid" 2>/dev/null || true
+              wait "$server_pid" 2>/dev/null || true
+            fi
+            if [ "$result" -ne 0 ]; then
+              echo "Next.js production server diagnostics:" >&2
+              cat "$server_log" >&2
+            fi
+            exit "$result"
+          }
+          trap cleanup EXIT
+
+          ./node_modules/.bin/next start --hostname 0.0.0.0 --port 3000 >"$server_log" 2>&1 &
+          server_pid=$!
+          ready=false
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://localhost:3000/login >/dev/null 2>&1; then
+              ready=true
+              break
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              echo "Next.js production server exited before becoming ready (attempt $attempt)." >&2
+              cat "$server_log" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+
+          if [ "$ready" != true ]; then
+            echo "Next.js production server did not become ready at http://localhost:3000/login within 30 seconds." >&2
+            cat "$server_log" >&2
+            exit 1
+          fi
+
+          npm run test:browser:auth
+          npm run test:browser:guided-save
+          npm run test:browser:guided-creative-save
+          npm run test:browser:save-retry
+          npm run test:browser:save-session-expiry
+          npm run test:browser:save-pending
+          npm run test:browser:mobile-rtl
+          npm run test:browser:firefox -- --strict-a11y
+          npm run test:browser:webkit -- --strict-a11y
+
+  exploration-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      AROMAN_RELEASE_SCOPE: exploration
+      NEXT_PUBLIC_AROMAN_API_BASE_URL: http://127.0.0.1:18761/api/v1
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Scope and authentication unit tests
+        run: npx vitest run tests/release-scope.test.ts src/tests/auth-provider.test.tsx
+
+      - name: Production build with full scope, then exercise exploration at runtime
+        env:
+          # Deliberately differ from the server runtime to catch accidental build-time scope freezing.
+          AROMAN_RELEASE_SCOPE: full
+        run: npm run build
+
+      - name: Reject public runtime scope for a full-scope build
+        run: |
+          set -Eeuo pipefail
+          set +e
+          output="$(AROMAN_RELEASE_SCOPE=public-showcase npm start -- --help 2>&1)"
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "A full-scope artifact unexpectedly started in public-showcase mode." >&2
+            exit 1
+          fi
+          echo "$output" | grep -F "requires a production build created with AROMAN_RELEASE_SCOPE=public-showcase"
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run compiled Next.js exploration acceptance journey
+        run: node scripts/exploration-release-journey.mjs
+
+      - name: Build public showcase with validated catalog API base
+        env:
+          AROMAN_RELEASE_SCOPE: public-showcase
+          NEXT_PUBLIC_AROMAN_API_BASE_URL: /api/v1
+        run: npm run build
+
+      - name: Verify public build configuration and offline release evidence
+        env:
+          AROMAN_RELEASE_SCOPE: public-showcase
+          NEXT_PUBLIC_AROMAN_API_BASE_URL: /api/v1
+          AROMAN_CATALOG_UPSTREAM_URL: http://127.0.0.1:18762/api/v1
+        run: npm run verify:public-release:offline
+
+      - name: Run compiled same-origin public catalog browser integration
+        env:
+          AROMAN_RELEASE_SCOPE: public-showcase
+          NEXT_PUBLIC_AROMAN_API_BASE_URL: /api/v1
+          AROMAN_API_BASE_URL: http://127.0.0.1:18762/api/v1
+          FRONTEND_ORIGIN: http://127.0.0.1:3201
+        run: npm run test:browser:public-catalog-same-origin
+
+  exploration-real-stack-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out FrontEnd
+        uses: actions/checkout@v4
+
+      - name: Check out pinned Backend
+        uses: actions/checkout@v4
+        with:
+          repository: AromanCo/Backend
+          ref: 0be24c4597bd693e70348243c26e550a20a8ad0e
+          path: backend-pinned
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install FrontEnd, Backend, and Chromium dependencies
+        run: |
+          npm ci
+          python -m pip install ./backend-pinned
+          npx playwright install --with-deps chromium
+          echo "CHROME_BIN=$(node -e 'process.stdout.write(require("playwright").chromium.executablePath())')" >> "$GITHUB_ENV"
+
+      - name: Run restricted exploration API and compiled Next.js acceptance
+        env:
+          AROMAN_TEST_BACKEND_DIR: ${{ github.workspace }}/backend-pinned
+          AROMAN_TEST_PYTHON: python
+        run: npm run test:browser:exploration-real-stack

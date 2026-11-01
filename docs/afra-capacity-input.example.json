@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "source_kind": "historical-owner-snapshot-not-live-acceptance",
+  "hardware": {
+    "cpu_count": 4,
+    "memory_total_gib": 7.7,
+    "memory_available_gib": 5.4,
+    "swap_gib": 2,
+    "root_disk_total_gib": 37,
+    "root_disk_free_gib": 12,
+    "root_inode_used_percent": 19
+  },
+  "host_context": {
+    "existing_container_count": 16,
+    "nginx_active": true,
+    "ufw_active": true
+  },
+  "docker_usage_gib": {
+    "images": null,
+    "volumes": null,
+    "build_cache": null
+  },
+  "existing_workloads": [
+    { "name": "Pazhoochi", "cpu_limits": false, "memory_limits": false },
+    { "name": "AROMAN coming-soon website and database", "cpu_limits": false, "memory_limits": false },
+    { "name": "Zarbin services and PostgreSQL", "cpu_limits": false, "memory_limits": false },
+    { "name": "Rond Bot services, PostgreSQL and Redis", "cpu_limits": false, "memory_limits": false },
+    { "name": "Xray", "cpu_limits": false, "memory_limits": false },
+    { "name": "Other existing services", "cpu_limits": null, "memory_limits": null }
+  ],
+  "existing_published_ports": [
+    { "service": "Zarbin PostgreSQL", "port": 5432 },
+    { "service": "Zarbin Backend API", "port": 8123 },
+    { "service": "Rond Bot Backend", "port": 8000 },
+    { "service": "Rond Bot admin", "port": 3008 },
+    { "service": "AROMAN coming-soon", "port": 3027 },
+    { "service": "Xray", "port": 8443 },
+    { "service": "localhost-only service", "port": 3001 },
+    { "service": "localhost-only service", "port": 8027 }
+  ],
+  "proposed_aroman": {
+    "frontend_memory_gib": 0.75,
+    "backend_memory_gib": 0.625,
+    "database_memory_gib": 0.75,
+    "frontend_cpu": 0.75,
+    "backend_cpu": 0.5,
+    "database_cpu": 0.5,
+    "migration_memory_gib": 0.375,
+    "migration_cpu": 0.25,
+    "host_port": null
+  },
+  "storage_estimates_gib": {
+    "release_image": null,
+    "build_growth": null,
+    "database_growth": null,
+    "logs": null,
+    "backup": null,
+    "rollback_artifact": null
+  },
+  "planned_root_disk_target_gib": 80,
+  "network_firewall_uncertainty": true,
+  "nginx_routing_checked": false
+}

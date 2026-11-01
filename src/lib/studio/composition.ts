@@ -1,0 +1,9 @@
+import type { ConceptInput,Layer,Note } from '@/lib/api/client';
+export type SelectedNote={note:Note;layer:Layer};
+export const layers:Layer[]=['top','heart','base'];
+export const layerLabels:Record<Layer,string>={top:'آغازین',heart:'میانی',base:'پایه'};
+export function addNote(current:SelectedNote[],note:Note,layer:Layer='heart'){if(current.some(item=>item.note.id===note.id)||current.length>=6)return current;return [...current,{note,layer}]}
+export function moveNote(current:SelectedNote[],id:string,layer:Layer){return current.map(item=>item.note.id===id?{...item,layer}:item)}
+export function reorder(current:SelectedNote[],id:string,direction:-1|1){const item=current.find(entry=>entry.note.id===id);if(!item)return current;const group=current.map((entry,index)=>({entry,index})).filter(value=>value.entry.layer===item.layer);const groupIndex=group.findIndex(value=>value.entry.note.id===id);const target=group[groupIndex+direction];if(!target)return current;const next=[...current];[next[group[groupIndex].index],next[target.index]]=[next[target.index],next[group[groupIndex].index]];return next}
+export function payload(name:string,current:SelectedNote[]):ConceptInput{return{name:name.trim(),notes:current.map((item)=>({note_id:item.note.id,layer:item.layer,position:current.filter(other=>other.layer===item.layer).findIndex(other=>other.note.id===item.note.id)}))}}
+export function summary(current:SelectedNote[]){if(!current.length)return 'با انتخاب رایحه‌ها، روایت عطر شما اینجا شکل می‌گیرد.';const groups=layers.map(layer=>{const names=current.filter(item=>item.layer===layer).map(item=>item.note.name);return names.length?`${layerLabels[layer]}: ${names.join('، ')}`:null}).filter(Boolean);return `ترکیب مفهومی شما با ${groups.join('؛ ')} شکل می‌گیرد. این پیش‌نمایش یک برداشت حسی است.`}

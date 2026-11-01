@@ -1,0 +1,198 @@
+# REVIEW ONLY. No command in this repository deploys this file.
+# All image references and local secret paths are required at render time.
+name: aroman-private-preproduction
+
+services:
+  showcase:
+    image: ${AROMAN_FRONTEND_IMAGE:?set an approved immutable Frontend image digest}
+    user: "10001:10001"
+    init: true
+    read_only: true
+    restart: on-failure:3
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    pids_limit: 128
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+      - /app/.next/cache:rw,noexec,nosuid,size=64m,mode=755
+      - /app/.next/server/route-cache:rw,noexec,nosuid,size=64m,mode=755
+    ports:
+      - target: 3000
+        published: ${AROMAN_FRONTEND_HOST_PORT:?set an unused loopback host port}
+        host_ip: 127.0.0.1
+        protocol: tcp
+    environment:
+      AROMAN_RELEASE_SCOPE: public-showcase
+      NEXT_PUBLIC_AROMAN_API_BASE_URL: /api/v1
+      AROMAN_CATALOG_UPSTREAM_URL: http://catalog-api:8000/api/v1
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+    networks: [aroman_catalog]
+    depends_on:
+      catalog-api:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 768M
+          pids: 128
+
+  catalog-api:
+    image: ${AROMAN_CATALOG_API_IMAGE:?set an approved restricted catalog API image digest}
+    user: "10001:10001"
+    init: true
+    read_only: true
+    restart: on-failure:3
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    pids_limit: 128
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+    environment:
+      ENVIRONMENT: production
+      CORS_ORIGINS: ${AROMAN_BACKEND_CORS_ORIGINS:?set the separately approved exact HTTPS browser origin}
+      COOKIE_SECURE: "true"
+    command:
+      - sh
+      - -ec
+      - |
+        export DATABASE_URL="$(cat /run/secrets/catalog_runtime_database_url)"
+        export OTP_PEPPER="$(cat /run/secrets/otp_pepper)"
+        export SESSION_PEPPER="$(cat /run/secrets/session_pepper)"
+        exec uvicorn aroman.exploration_api:app --host 0.0.0.0 --port 8000 --no-access-log --no-proxy-headers
+    secrets: [catalog_runtime_database_url, otp_pepper, session_pepper]
+    networks: [aroman_catalog, aroman_database]
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/brands?limit=1', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 640M
+          pids: 128
+
+  database:
+    image: ${AROMAN_POSTGRES_IMAGE:?set an approved immutable digest for the reviewed AROMAN PostgreSQL image}
+    restart: on-failure:3
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    # CHOWN fixes socket/data ownership; SETGID/SETUID drop permanently to
+    # postgres; DAC_READ_SEARCH lets the entrypoint inspect its mode-0700 data directory.
+    cap_add: [CHOWN, DAC_READ_SEARCH, SETGID, SETUID]
+    pids_limit: 128
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+      - /var/run/postgresql:rw,noexec,nosuid,size=16m,mode=3775
+    environment:
+      POSTGRES_DB: ${AROMAN_DB_NAME:?set the isolated AROMAN database name (must be aroman)}
+      POSTGRES_USER: aroman_bootstrap
+      POSTGRES_PASSWORD_FILE: /run/secrets/database_bootstrap_password
+    secrets: [database_bootstrap_password, catalog_migration_password, catalog_runtime_password]
+    configs:
+      - source: aroman_role_init
+        target: /docker-entrypoint-initdb.d/10-aroman-role-init.sh
+    volumes:
+      - aroman_catalog_data:/var/lib/postgresql/data
+    networks: [aroman_database]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 768M
+          pids: 128
+
+  migrate:
+    image: ${AROMAN_CATALOG_API_IMAGE:?set an approved restricted catalog API image digest}
+    profiles: [controlled-migration]
+    user: "10001:10001"
+    init: true
+    read_only: true
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    pids_limit: 64
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+    entrypoint:
+      - sh
+      - -ec
+      - |
+        export DATABASE_URL="$(cat /run/secrets/catalog_migration_database_url)"
+        export OTP_PEPPER="$(cat /run/secrets/otp_pepper)"
+        export SESSION_PEPPER="$(cat /run/secrets/session_pepper)"
+        alembic upgrade head
+        exec python /run/configs/apply-catalog-read-only-grants.py
+    environment:
+      ENVIRONMENT: production
+      CORS_ORIGINS: ${AROMAN_BACKEND_CORS_ORIGINS:?set the separately approved exact HTTPS browser origin}
+      COOKIE_SECURE: "true"
+    secrets: [catalog_migration_database_url, otp_pepper, session_pepper]
+    configs:
+      - source: aroman_catalog_grants
+        target: /run/configs/apply-catalog-read-only-grants.py
+    networks: [aroman_database]
+    depends_on:
+      database:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 384M
+          pids: 64
+
+networks:
+  aroman_catalog:
+    internal: true
+  aroman_database:
+    internal: true
+
+volumes:
+  aroman_catalog_data: {}
+
+secrets:
+  catalog_runtime_database_url:
+    file: ${AROMAN_RUNTIME_DATABASE_URL_FILE:?provide an externally managed runtime URL secret file}
+  catalog_migration_database_url:
+    file: ${AROMAN_MIGRATION_DATABASE_URL_FILE:?provide a distinct externally managed migration URL secret file}
+  database_bootstrap_password:
+    file: ${AROMAN_DATABASE_BOOTSTRAP_PASSWORD_FILE:?provide an externally managed bootstrap password secret file}
+  catalog_migration_password:
+    file: ${AROMAN_MIGRATION_PASSWORD_FILE:?provide the matching externally managed migrator role password secret file}
+  catalog_runtime_password:
+    file: ${AROMAN_RUNTIME_PASSWORD_FILE:?provide the matching externally managed SELECT-only runtime role password secret file}
+  otp_pepper:
+    file: ${AROMAN_OTP_PEPPER_FILE:?provide an externally managed unused OTP pepper required by the pinned Backend settings}
+  session_pepper:
+    file: ${AROMAN_SESSION_PEPPER_FILE:?provide an externally managed unused session pepper required by the pinned Backend settings}
+
+configs:
+  aroman_role_init:
+    file: ./database-role-init.sh
+  aroman_catalog_grants:
+    file: ./apply-catalog-read-only-grants.py
