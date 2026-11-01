@@ -48,21 +48,27 @@ async function expectAdvisorControlsVisible(targetPage) {
 try {
   for (const [path, heading] of [
     ['/', 'رایحه‌ای که'], ['/shop', 'کشف محصولات'], ['/studio/guided', ''], ['/studio/creative', 'روایت رایحه'],
-    ['/account', 'حساب کاربری'], ['/login', 'ورود به آرومان'], ['/cart', 'سبد خرید'], ['/checkout', 'تسویه‌حساب'],
   ]) {
     const response = await page.goto(new URL(path, origin).href, { waitUntil: 'domcontentloaded' });
     assert.equal(response?.status(), 200, `${path} should be public`);
     if (heading) await page.getByRole('heading', { name: new RegExp(heading) }).waitFor();
-    if (['/account', '/login', '/cart', '/checkout'].includes(path)) await page.locator('main').getByText(/پیش‌نمایش/).first().waitFor();
+  }
+  for (const path of ['/login', '/account', '/cart', '/checkout']) {
+    const response = await fetch(new URL(path, origin));
+    assert.equal(response.status, 404, `${path} must not be directly accessible in public-showcase mode`);
   }
   await page.goto(new URL('/', origin).href);
   await desktopPage.goto(new URL('/', origin).href, { waitUntil: 'domcontentloaded' });
+  for (const href of ['/login', '/account', '/cart', '/checkout']) {
+    assert.equal(await desktopPage.locator(`a[href="${href}"]`).count(), 0, `public page chrome must omit ${href}`);
+  }
   await page.goto(new URL('/shop', origin).href);
   await page.getByRole('heading', { name: 'محصول ساختگی کاتالوگ عمومی' }).waitFor();
   const desktop = desktopPage.getByRole('navigation', { name: 'ناوبری اصلی' });
-  for (const href of ['/shop', '/studio/creative', '/studio/guided', '/account', '/cart', '/checkout']) {
+  for (const href of ['/shop', '/studio/creative', '/studio/guided', '/studio/creative#smart-perfumer']) {
     assert.ok(await desktop.locator(`a[href="${href}"]`).first().isVisible(), `desktop navigation should expose ${href}`);
   }
+  for (const href of ['/login', '/account', '/cart', '/checkout']) assert.equal(await desktop.locator(`a[href="${href}"]`).count(), 0, `desktop navigation must omit ${href}`);
   await desktop.getByRole('link', { name: 'اسمارت پرفیومر' }).click();
   await expectAdvisorControlsVisible(desktopPage);
   const desktopSummary = desktopPage.locator('#smart-perfumer summary');
@@ -77,10 +83,12 @@ try {
   await desktopPage.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole('button', { name: 'باز کردن فهرست' }).click();
   const mobile = page.getByRole('navigation', { name: 'ناوبری موبایل' });
-  for (const path of ['/shop', '/studio/creative', '/studio/guided', '/account', '/cart', '/checkout']) {
+  for (const path of ['/shop', '/studio/creative', '/studio/guided', '/studio/creative#smart-perfumer']) {
     const link = mobile.locator(`a[href="${path}"]`).first();
     assert.ok(await link.isVisible(), `mobile navigation should visibly expose ${path}`);
   }
+  for (const href of ['/login', '/account', '/cart', '/checkout']) assert.equal(await page.locator(`a[href="${href}"]`).count(), 0, `public mobile page chrome must omit ${href}`);
+  for (const href of ['/login', '/account', '/cart', '/checkout']) assert.equal(await mobile.locator(`a[href="${href}"]`).count(), 0, `mobile navigation must omit ${href}`);
   await mobile.getByRole('link', { name: 'اسمارت پرفیومر' }).click();
   await expectAdvisorControlsVisible(page);
   const mobileSummary = page.locator('#smart-perfumer summary');
@@ -110,7 +118,7 @@ try {
   assert.ok(browserApiRequests.length > 0, 'public showcase journey must observe at least one catalog API request');
   assert.ok(browserApiRequests.every(({ method, origin: requestOrigin, path }) => method === 'GET' && requestOrigin === catalogOrigin && permittedCatalogRoute.test(path)), `unexpected browser API requests: ${JSON.stringify(browserApiRequests)}`);
   assert.deepEqual(errors, []);
-  console.log(`PASS public showcase browser journey: all public routes and desktop/mobile links available; Smart Perfumer hash, initial-hash, repeated-toggle, rerender, and Guided-context checks passed; no horizontal overflow at 320, 390, 768, or 1440px; ${browserApiRequests.length} browser API requests across both contexts were permitted catalog GETs only at ${catalogOrigin}; no browser errors.`);
+  console.log(`PASS public showcase browser journey: catalog/studio routes available, excluded pages return 404, desktop/mobile links contain only public catalog and studio navigation; Smart Perfumer and Guided-context checks passed; no horizontal overflow; ${browserApiRequests.length} browser API requests were permitted catalog GETs only.`);
 } finally {
   await context.close();
   await desktopPage.close();

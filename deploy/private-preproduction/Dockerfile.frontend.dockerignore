@@ -1,0 +1,14 @@
+**
+!.next/
+!.next/**
+!package.json
+!package-lock.json
+!public/
+!public/**
+!next.config.mjs
+!scripts/
+!scripts/public-showcase-start.mjs
+!scripts/backend-pin.mjs
+!src/
+!src/lib/
+!src/lib/public-showcase-config.mjs

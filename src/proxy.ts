@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { getReleaseScope, isExplorationOnlyPath } from '@/lib/release-scope';
+import { getReleaseScope, isExplorationOnlyPath, isExcludedPathForScope } from '@/lib/release-scope';
 
 export function proxy(request: NextRequest) {
   try {
-    if (getReleaseScope() === 'exploration' && isExplorationOnlyPath(request.nextUrl.pathname)) {
+    if (isExcludedPathForScope(getReleaseScope(), request.nextUrl.pathname)) {
       return new Response(null, { status: 404 });
     }
   } catch {

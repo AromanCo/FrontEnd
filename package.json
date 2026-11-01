@@ -43,7 +43,14 @@
     "test:browser:firefox": "BROWSER_ENGINE=firefox node scripts/mobile-rtl-journey.mjs",
     "test:browser:webkit": "BROWSER_ENGINE=webkit node scripts/mobile-rtl-journey.mjs",
     "validate:public-target-evidence": "node scripts/validate-public-target-evidence.mjs",
-    "test:public-target-evidence": "node --test tests/public-target-evidence.check.mjs"
+    "test:public-target-evidence": "node --test tests/public-target-evidence.check.mjs",
+    "validate:private-compose": "node scripts/validate-private-compose.mjs",
+    "assess:afra-capacity": "node scripts/assess-afra-capacity.mjs",
+    "validate:private-release-record": "node scripts/validate-private-release-record.mjs",
+    "prepare:private-candidate": "node scripts/prepare-private-candidate.mjs",
+    "test:private-preproduction": "node --test tests/private-preproduction.check.mjs tests/private-release-record.check.mjs tests/private-candidate-preparation.check.mjs",
+    "test:private-secret-readability": "node scripts/test-private-secret-readability.local.mjs",
+    "test:private-postgres-runtime": "node scripts/test-private-postgres-runtime.local.mjs"
   },
   "dependencies": {
     "next": "^16.4.2",

@@ -1,0 +1,23 @@
+# Build context is the clean, read-only Backend checkout at its approved source
+# revision. PYTHON_RUNTIME_IMAGE must be a full digest for an approved Python 3.12 base.
+ARG PYTHON_RUNTIME_IMAGE
+FROM ${PYTHON_RUNTIME_IMAGE}
+RUN python -c 'import sys; assert sys.version_info >= (3, 12), "Python 3.12+ is required"'
+
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+COPY pyproject.toml ./
+RUN python -c 'import tomllib; data=tomllib.load(open("pyproject.toml", "rb")); print("\n".join(data["project"]["dependencies"]))' > /tmp/aroman-requirements.txt \
+    && pip install --no-cache-dir -r /tmp/aroman-requirements.txt 'setuptools>=75'
+COPY README.md ./
+COPY aroman ./aroman
+COPY alembic.ini ./
+COPY alembic ./alembic
+RUN pip install --no-cache-dir --no-deps --no-build-isolation . \
+    && useradd --uid 10001 --create-home app
+
+USER 10001:10001
+EXPOSE 8000
+CMD ["uvicorn", "aroman.exploration_api:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--no-proxy-headers"]

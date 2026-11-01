@@ -50,6 +50,10 @@ try {
 
   const prohibited = await fetch(`${origin}/api/v1/auth/session`);
   assert.equal(prohibited.status, 404, 'prohibited API path should be rejected by the running Next.js server');
+  for (const path of ['/login', '/account', '/cart', '/checkout']) {
+    const excludedPage = await fetch(`${origin}${path}`);
+    assert.equal(excludedPage.status, 404, `${path} must be unavailable in public-showcase mode`);
+  }
   const unsupportedMethod = await fetch(`${origin}/api/v1/products`, { method: 'POST', body: '{}' });
   assert.equal(unsupportedMethod.status, 405, 'unsupported method should be rejected by the running Next.js server');
   assert.equal(upstreamCalls.length, upstreamCallsBeforeRejectedRequests, 'rejected requests must not reach the upstream fixture');
@@ -61,7 +65,7 @@ try {
   const journeyStatus = await new Promise(resolve => journey.once('exit', (code, signal) => resolve(signal ? 1 : code)));
   assert.equal(journeyStatus, 0, 'public browser journey should pass against the real same-origin catalog route');
   assert.ok(upstreamCalls.length > 1, 'browser journey should load catalog through the same-origin route');
-  console.log(`PASS compiled same-origin catalog journey: ${upstreamCalls.length} loopback fixture requests; real response verified; prohibited route 404; POST 405.`);
+  console.log(`PASS compiled same-origin catalog journey: ${upstreamCalls.length} loopback fixture requests; catalog response verified; excluded auth/account/cart/checkout pages and API route 404; POST 405.`);
 } finally {
   if (server.exitCode === null) {
     server.kill('SIGTERM');

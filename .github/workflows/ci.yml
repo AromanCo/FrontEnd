@@ -140,6 +140,9 @@ jobs:
       - name: Public target evidence validator tests
         run: npm run test:public-target-evidence
 
+      - name: Private preproduction static security and release tests
+        run: npm run test:private-preproduction
+
       - name: Candidate integrity and owner decision gate tests
         run: |
           npm run test:candidate-integrity

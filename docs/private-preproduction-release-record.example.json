@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "purpose": "private-preproduction-candidate-preparation",
+  "evidence_kind": "not-captured",
+  "public_release_disposition": "NO-GO",
+  "production_target_controls": "UNVERIFIED",
+  "target_control_statuses": {
+    "domain_dns": "UNVERIFIED",
+    "https_tls": "UNVERIFIED",
+    "network_isolation": "UNVERIFIED",
+    "catalog_target_routing": "UNVERIFIED",
+    "catalog_routes": "UNVERIFIED",
+    "excluded_capabilities": "UNVERIFIED",
+    "database_migrations": "UNVERIFIED",
+    "content_provenance": "UNVERIFIED",
+    "environment_secrets": "UNVERIFIED",
+    "logging": "UNVERIFIED",
+    "monitoring_incident": "UNVERIFIED",
+    "backup_rollback_recovery": "UNVERIFIED",
+    "release_signoff": "UNVERIFIED"
+  },
+  "production_acceptance_claim": false,
+  "deployable_claim": false,
+  "slots": {
+    "frontend_source_revision": "NOT_CAPTURED",
+    "backend_source_revision": "NOT_CAPTURED",
+    "source_tree_integrity_sha256": "NOT_CAPTURED",
+    "frontend_compiled_artifact_sha256": "NOT_CAPTURED",
+    "frontend_container_image_digest": "NOT_CAPTURED",
+    "catalog_api_container_image_digest": "NOT_CAPTURED",
+    "postgres_container_image_digest": "NOT_CAPTURED",
+    "effective_compose_sha256": "NOT_CAPTURED",
+    "database_schema_migration_identity": "NOT_CAPTURED",
+    "deployment_operator": "NOT_CAPTURED",
+    "independent_reviewer": "NOT_CAPTURED",
+    "backup_evidence_reference": "NOT_CAPTURED",
+    "restore_evidence_reference": "NOT_CAPTURED",
+    "previous_approved_artifact_identity": "NOT_CAPTURED",
+    "rollback_procedure_reference": "NOT_CAPTURED",
+    "content_rights_review_references": ["NOT_CAPTURED"],
+    "target_evidence_reference": "NOT_CAPTURED"
+  }
+}

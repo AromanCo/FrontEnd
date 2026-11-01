@@ -28,3 +28,7 @@ export function isExplorationOnlyPath(pathname: string): boolean {
     (route) => normalized === route || normalized.startsWith(`${route}/`),
   );
 }
+
+export function isExcludedPathForScope(scope: ReleaseScope, pathname: string): boolean {
+  return scope !== 'full' && isExplorationOnlyPath(pathname);
+}

@@ -1,0 +1,9 @@
+# Build the PostgreSQL runtime from a reviewed, digest-pinned official Alpine image.
+# The dedicated group lets the official root entrypoint drop to postgres while
+# retaining read access to only the root:10001 mode-0440 initialization secrets.
+ARG POSTGRES_BASE_IMAGE
+FROM ${POSTGRES_BASE_IMAGE}
+
+RUN addgroup -S -g 10001 aroman_secret_readers \
+    && addgroup postgres aroman_secret_readers \
+    && id postgres | grep -q '10001'

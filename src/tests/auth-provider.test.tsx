@@ -134,16 +134,32 @@ it('keeps a ready guest context and makes no authentication calls in public-show
   expect(mocks.logout).not.toHaveBeenCalled();
 });
 
-it('exposes major public areas and clearly labeled previews in desktop and mobile navigation', () => {
+it('exposes only catalog and studio areas in public-showcase desktop and mobile navigation', () => {
   render(<AuthProvider scope="public-showcase"><Header /></AuthProvider>);
   const desktop = screen.getByRole('navigation', { name: 'ناوبری اصلی' });
-  for (const href of ['/shop', '/studio/creative', '/studio/guided', '/account', '/cart', '/checkout']) {
+  for (const href of ['/shop', '/studio/creative', '/studio/guided', '/studio/creative#smart-perfumer']) {
     expect(desktop.querySelector(`a[href="${href}"]`), href).toBeTruthy();
   }
-  expect(desktop).toHaveTextContent('پیش‌نمایش');
+  for (const href of ['/login', '/account', '/cart', '/checkout']) expect(desktop.querySelector(`a[href="${href}"]`), href).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'باز کردن فهرست' }));
   const mobile = screen.getByRole('navigation', { name: 'ناوبری موبایل' });
-  for (const href of ['/shop', '/studio/creative', '/studio/guided', '/account', '/cart', '/checkout']) {
+  for (const href of ['/shop', '/studio/creative', '/studio/guided', '/studio/creative#smart-perfumer']) {
     expect(mobile.querySelector(`a[href="${href}"]`), href).toBeTruthy();
   }
+  for (const href of ['/login', '/account', '/cart', '/checkout']) expect(mobile.querySelector(`a[href="${href}"]`), href).toBeNull();
+});
+
+it('preserves full-scope authentication navigation and keeps exploration navigation read-only', () => {
+  const { unmount } = render(<AuthProvider scope="full"><Header /></AuthProvider>);
+  const full = screen.getByRole('navigation', { name: 'ناوبری اصلی' });
+  expect(full.querySelector('a[href="/shop"]')).toBeTruthy();
+  expect(full.querySelector('a[href="/studio/guided"]')).toBeTruthy();
+  expect(full.querySelector('a[href="/studio/creative"]')).toBeTruthy();
+  expect(document.querySelector('a[href="/account"]')).toBeTruthy();
+  expect(document.querySelector('a[href="/cart"]')).toBeTruthy();
+  unmount();
+  render(<AuthProvider scope="exploration"><Header /></AuthProvider>);
+  const exploration = screen.getByRole('navigation', { name: 'ناوبری اصلی' });
+  for (const href of ['/shop', '/studio/creative', '/studio/guided', '/studio/creative#smart-perfumer']) expect(exploration.querySelector(`a[href="${href}"]`), href).toBeTruthy();
+  for (const href of ['/login', '/account', '/cart', '/checkout']) expect(exploration.querySelector(`a[href="${href}"]`), href).toBeNull();
 });
