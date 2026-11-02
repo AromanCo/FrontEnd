@@ -12,7 +12,8 @@
     "backend": {
       "repository": "AromanCo/Backend",
       "revision": "NOT_CAPTURED",
-      "authorized_pin": "0be24c4597bd693e70348243c26e550a20a8ad0e"
+      "authorized_pin": "0be24c4597bd693e70348243c26e550a20a8ad0e",
+      "clean_checkout_attestation": { "status": "NOT_CAPTURED", "reference": "NOT_CAPTURED" }
     }
   },
   "frontend_candidate": {
@@ -51,6 +52,11 @@
       "sha256": "NOT_CAPTURED"
     },
     "effective_compose": { "status": "NOT_CAPTURED", "fingerprint_sha256": "NOT_CAPTURED" },
+    "compose_fingerprints": {
+      "runtime": { "status": "NOT_CAPTURED", "reference": "NOT_CAPTURED", "fingerprint_sha256": "NOT_CAPTURED", "evidence_class": "NOT_CAPTURED" },
+      "controlled_migration": { "status": "NOT_CAPTURED", "reference": "NOT_CAPTURED", "fingerprint_sha256": "NOT_CAPTURED", "evidence_class": "NOT_CAPTURED" }
+    },
+    "canonicalization_algorithm": "aroman-canonical-json-v1",
     "non_secret_reference_ids": ["AROMAN_RELEASE_SCOPE", "NEXT_PUBLIC_AROMAN_API_BASE_URL", "AROMAN_CATALOG_UPSTREAM_URL"],
     "secret_reference_ids": ["catalog_runtime_database_url", "catalog_migration_database_url", "database_bootstrap_password", "catalog_migration_password", "catalog_runtime_password", "otp_pepper", "session_pepper"]
   },

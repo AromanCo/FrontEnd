@@ -80,9 +80,10 @@ function readRegularFile(path, root, label) {
 
 export function sourceIdentity(cwd = process.cwd()) {
   const root = realpathSync(cwd);
-  const revision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+  const gitOptions = { cwd: root, env: { PATH: '/usr/bin:/bin', HOME: '/tmp', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C' } };
+  const revision = execFileSync('git', ['-c', 'core.fsmonitor=false', 'rev-parse', 'HEAD'], { ...gitOptions, encoding: 'utf8' }).trim();
   if (!/^[a-f0-9]{40}$/.test(revision)) throw new Error('Unable to identify a full Frontend Git revision.');
-  const files = execFileSync('git', ['ls-files', '-co', '--exclude-standard', '-z'], { cwd: root, encoding: 'buffer' })
+  const files = execFileSync('git', ['-c', 'core.fsmonitor=false', 'ls-files', '-co', '--exclude-standard', '-z'], { ...gitOptions, encoding: 'buffer' })
     .toString('utf8').split('\0').filter(Boolean).sort();
   const hash = createHash('sha256');
   for (const file of files) {

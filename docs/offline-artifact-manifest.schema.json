@@ -84,6 +84,14 @@
             "fingerprint_sha256": { "const": "NOT_CAPTURED" }
           }
         },
+        "compose_fingerprints": {
+          "type": "object", "additionalProperties": false, "required": ["runtime", "controlled_migration"],
+          "properties": {
+            "runtime": { "$ref": "#/$defs/profileFingerprint" },
+            "controlled_migration": { "$ref": "#/$defs/profileFingerprint" }
+          }
+        },
+        "canonicalization_algorithm": { "const": "aroman-canonical-json-v1" },
         "non_secret_reference_ids": {
           "type": "array", "uniqueItems": true,
           "items": { "enum": ["AROMAN_RELEASE_SCOPE", "NEXT_PUBLIC_AROMAN_API_BASE_URL", "AROMAN_CATALOG_UPSTREAM_URL", "AROMAN_BACKEND_CORS_ORIGINS"] }
@@ -155,7 +163,7 @@
         "repository": { "const": "AromanCo/FrontEnd" },
         "revision": { "$ref": "#/$defs/revisionOrMissing" },
         "source_tree_sha256": { "$ref": "#/$defs/shaOrMissing" },
-        "clean_checkout_attestation": { "$ref": "#/$defs/evidenceReference" }
+        "clean_checkout_attestation": { "$ref": "#/$defs/observationReference" }
       }
     },
     "backendSource": {
@@ -163,7 +171,8 @@
       "properties": {
         "repository": { "const": "AromanCo/Backend" },
         "revision": { "$ref": "#/$defs/revisionOrMissing" },
-        "authorized_pin": { "type": "string", "const": "0be24c4597bd693e70348243c26e550a20a8ad0e" }
+        "authorized_pin": { "type": "string", "const": "0be24c4597bd693e70348243c26e550a20a8ad0e" },
+        "clean_checkout_attestation": { "$ref": "#/$defs/observationReference" }
       }
     },
     "image": {
@@ -190,6 +199,31 @@
       "allOf": [
         { "if": { "properties": { "status": { "const": "NOT_CAPTURED" } }, "required": ["status"] }, "then": { "properties": { "reference": { "const": "NOT_CAPTURED" } } } },
         { "if": { "properties": { "status": { "const": "UNVERIFIED" } }, "required": ["status"] }, "then": { "properties": { "reference": { "pattern": "^sha256:[a-f0-9]{64}$" } } } }
+      ]
+    },
+    "observationReference": {
+      "type": "object", "additionalProperties": false, "required": ["status", "reference"],
+      "properties": {
+        "status": { "enum": ["NOT_CAPTURED", "UNVERIFIED", "OBSERVED_CLEAN", "STRUCTURALLY_VALID"] },
+        "reference": { "type": "string", "pattern": "^(NOT_CAPTURED|sha256:[a-f0-9]{64})$" }
+      },
+      "allOf": [
+        { "if": { "properties": { "status": { "const": "NOT_CAPTURED" } }, "required": ["status"] }, "then": { "properties": { "reference": { "const": "NOT_CAPTURED" } } } },
+        { "if": { "properties": { "status": { "enum": ["UNVERIFIED", "OBSERVED_CLEAN", "STRUCTURALLY_VALID"] } }, "required": ["status"] }, "then": { "properties": { "reference": { "pattern": "^sha256:[a-f0-9]{64}$" } } } }
+      ]
+    },
+    "profileFingerprint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "reference", "fingerprint_sha256", "evidence_class"],
+      "properties": {
+        "status": { "enum": ["NOT_CAPTURED", "STRUCTURALLY_VALID"] },
+        "reference": { "type": "string", "pattern": "^(NOT_CAPTURED|sha256:[a-f0-9]{64})$" },
+        "fingerprint_sha256": { "$ref": "#/$defs/shaOrMissing" },
+        "evidence_class": { "enum": ["NOT_CAPTURED", "synthetic", "repository_candidate"] }
+      },
+      "allOf": [
+        { "if": { "properties": { "status": { "const": "NOT_CAPTURED" } }, "required": ["status"] }, "then": { "properties": { "reference": { "const": "NOT_CAPTURED" }, "fingerprint_sha256": { "const": "NOT_CAPTURED" }, "evidence_class": { "const": "NOT_CAPTURED" } } } },
+        { "if": { "properties": { "status": { "const": "STRUCTURALLY_VALID" } }, "required": ["status"] }, "then": { "properties": { "reference": { "pattern": "^sha256:[a-f0-9]{64}$" }, "fingerprint_sha256": { "pattern": "^[a-f0-9]{64}$" }, "evidence_class": { "enum": ["synthetic", "repository_candidate"] } } } }
       ]
     }
   }

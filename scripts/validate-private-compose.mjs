@@ -56,14 +56,14 @@ export function validateDatabasePrivilegePolicy(roleScript, grantScript) {
   return errors;
 }
 
-export function validateSecretInventory({ directory, entries, files }) {
+export function validateSecretInventory({ directory, entries, files, requiredSecrets = REQUIRED_SECRETS }) {
   const errors = [];
   if (!directory || directory.isSymbolicLink || !directory.isDirectory || directory.uid !== 0 || directory.gid !== 0 || directory.mode !== REQUIRED_SECRET_DIRECTORY_MODE) {
     errors.push('Secret directory must be a non-symlink root:root directory with mode 0700.');
   }
-  const expectedNames = [...REQUIRED_SECRETS].sort();
-  if (!Array.isArray(entries) || [...entries].sort().join(',') !== expectedNames.join(',')) errors.push('Secret directory must contain exactly the seven required secret files and no unexpected entries.');
-  for (const name of REQUIRED_SECRETS) {
+  const expectedNames = [...requiredSecrets].sort();
+  if (!Array.isArray(entries) || [...entries].sort().join(',') !== expectedNames.join(',')) errors.push('Secret directory must contain exactly the required secret files and no unexpected entries.');
+  for (const name of requiredSecrets) {
     const file = files?.[name];
     if (!file || file.isSymbolicLink || !file.isFile || file.uid !== 0 || file.gid !== REQUIRED_SECRET_FILE_GID || file.mode !== REQUIRED_SECRET_FILE_MODE || !file.contents?.trim()) {
       errors.push(`Secret ${name} must be a non-empty regular root:10001 file with mode 0440.`);
@@ -99,11 +99,11 @@ function inspectSecretInventory(secrets) {
   return { directory, entries, files, paths: expectedPaths };
 }
 
-function validateSecretFiles(secrets, repoRoot, suppliedInventory) {
+function validateSecretFiles(secrets, repoRoot, suppliedInventory, requiredSecrets = REQUIRED_SECRETS) {
   const errors = [];
   const values = {};
   const inventory = suppliedInventory || inspectSecretInventory(secrets);
-  errors.push(...validateSecretInventory(inventory));
+  errors.push(...validateSecretInventory({ ...inventory, requiredSecrets }));
   for (const [name, secret] of Object.entries(secrets || {})) {
     const file = resolve(secret?.file || '/invalid');
     const rel = relative(repoRoot, file);
@@ -116,7 +116,7 @@ function validateSecretFiles(secrets, repoRoot, suppliedInventory) {
   const databaseSecrets = [
     ['catalog_runtime_database_url', 'aroman_app', 'catalog_runtime_password'],
     ['catalog_migration_database_url', 'aroman_migrator', 'catalog_migration_password'],
-  ];
+  ].filter(([name, , passwordName]) => Object.hasOwn(secrets || {}, name) && Object.hasOwn(secrets || {}, passwordName));
   for (const [name, user, passwordName] of databaseSecrets) {
     try {
       const url = new URL(values[name]);
@@ -133,20 +133,24 @@ function validateSecretFiles(secrets, repoRoot, suppliedInventory) {
   const migrationPassword = values.catalog_migration_password;
   const otp = values.otp_pepper;
   const session = values.session_pepper;
-  if (Object.values(values).length === REQUIRED_SECRETS.length && new Set(Object.values(values)).size !== REQUIRED_SECRETS.length) errors.push('Each secret and credential file must contain a distinct value.');
-  if ([bootstrap, runtimePassword, migrationPassword].some(value => typeof value !== 'string' || value.length < 32)
-    || new Set([bootstrap, runtimePassword, migrationPassword]).size !== 3) errors.push('Bootstrap, runtime and migration database passwords must be strong, non-empty and mutually distinct.');
+  if (Object.values(values).length === requiredSecrets.length && new Set(Object.values(values)).size !== requiredSecrets.length) errors.push('Each secret and credential file must contain a distinct value.');
+  const dbPasswords = [bootstrap, runtimePassword, migrationPassword].filter((_, index) => [
+    Object.hasOwn(secrets || {}, 'database_bootstrap_password'), Object.hasOwn(secrets || {}, 'catalog_runtime_password'), Object.hasOwn(secrets || {}, 'catalog_migration_password'),
+  ][index]);
+  if (dbPasswords.some(value => typeof value !== 'string' || value.length < 32) || new Set(dbPasswords).size !== dbPasswords.length) error(errors, 'Database passwords must be strong, non-empty and mutually distinct.');
   if (typeof otp !== 'string' || typeof session !== 'string' || otp.length < 32 || session.length < 32 || otp === session) errors.push('Backend-required OTP and session peppers must each contain at least 32 characters and differ.');
   return errors;
 }
 
-export function validateEffectiveCompose(config, { secretInventory } = {}) {
+export function validateEffectiveCompose(config, { secretInventory, profile = 'controlled-migration' } = {}) {
   const errors = [];
   if (!config || typeof config !== 'object' || Array.isArray(config)) return ['Rendered Compose configuration must be an object.'];
   if (Object.keys(config).sort().join(',') !== ['configs', 'name', 'networks', 'secrets', 'services', 'volumes'].sort().join(',')) error(errors, 'Rendered Compose contains unapproved top-level configuration.');
   if (config.name !== 'aroman-private-preproduction') error(errors, 'Compose project identity must be aroman-private-preproduction.');
   const services = config.services;
-  if (!services || Object.keys(services).sort().join(',') !== [...SERVICES].sort().join(',')) error(errors, `Service set must be exactly: ${SERVICES.join(', ')}.`);
+  if (!['default', 'controlled-migration'].includes(profile)) error(errors, 'Compose profile selection is invalid.');
+  const expectedServices = profile === 'default' ? SERVICES.filter(name => name !== 'migrate') : SERVICES;
+  if (!services || Object.keys(services).sort().join(',') !== [...expectedServices].sort().join(',')) error(errors, `Service set must be exactly: ${expectedServices.join(', ')}.`);
   const networks = config.networks;
   if (!networks || Object.keys(networks).sort().join(',') !== [...NETWORKS].sort().join(',')) error(errors, `Network set must be exactly: ${NETWORKS.join(', ')}.`);
   for (const [name, network] of Object.entries(networks || {})) {
@@ -154,16 +158,18 @@ export function validateEffectiveCompose(config, { secretInventory } = {}) {
   }
   const volumes = config.volumes || {};
   if (Object.keys(volumes).join(',') !== 'aroman_catalog_data' || volumes.aroman_catalog_data?.external === true || volumes.aroman_catalog_data?.name !== 'aroman-private-preproduction_aroman_catalog_data') error(errors, 'Only the unique project-local aroman_catalog_data volume is permitted.');
+  const requiredSecrets = profile === 'default' ? REQUIRED_SECRETS.filter(name => name !== 'catalog_migration_database_url') : REQUIRED_SECRETS;
   const declaredSecrets = config.secrets || {};
-  if (Object.keys(declaredSecrets).sort().join(',') !== [...REQUIRED_SECRETS].sort().join(',')) error(errors, 'Required secret references must be present exactly once with no additions.');
+  if (Object.keys(declaredSecrets).sort().join(',') !== [...requiredSecrets].sort().join(',')) error(errors, 'Required secret references must be present exactly once with no additions.');
   for (const [name, secret] of Object.entries(declaredSecrets)) if (secret?.name !== `aroman-private-preproduction_${name}` || secret?.external === true) error(errors, `Secret ${name} must use its project-local identity.`);
   const inventory = secretInventory || inspectSecretInventory(declaredSecrets);
-  errors.push(...validateSecretFiles(declaredSecrets, REPO, inventory));
-  if (Object.keys(config.configs || {}).sort().join(',') !== ['aroman_catalog_grants', 'aroman_role_init'].sort().join(',')
+  errors.push(...validateSecretFiles(declaredSecrets, REPO, inventory, requiredSecrets));
+  const requiredConfigs = profile === 'default' ? ['aroman_role_init'] : ['aroman_catalog_grants', 'aroman_role_init'];
+  if (Object.keys(config.configs || {}).sort().join(',') !== requiredConfigs.sort().join(',')
     || resolve(config.configs?.aroman_role_init?.file || '/') !== ROLE_INIT_FILE
     || config.configs?.aroman_role_init?.name !== 'aroman-private-preproduction_aroman_role_init'
-    || resolve(config.configs?.aroman_catalog_grants?.file || '/') !== CATALOG_GRANTS_FILE
-    || config.configs?.aroman_catalog_grants?.name !== 'aroman-private-preproduction_aroman_catalog_grants') error(errors, 'Only the two uniquely named, reviewed database privilege configuration files are permitted.');
+    || (profile !== 'default' && (resolve(config.configs?.aroman_catalog_grants?.file || '/') !== CATALOG_GRANTS_FILE
+    || config.configs?.aroman_catalog_grants?.name !== 'aroman-private-preproduction_aroman_catalog_grants'))) error(errors, 'Only the uniquely named, reviewed database privilege configuration files are permitted.');
   let roleScript = '';
   let grantsScript = '';
   try { roleScript = readFileSync(ROLE_INIT_FILE, 'utf8'); } catch { error(errors, 'Reviewed database role initialization script is unreadable.'); }
@@ -228,7 +234,7 @@ export function validateEffectiveCompose(config, { secretInventory } = {}) {
   if (dbVolumes.length !== 1 || dbVolumes[0]?.type !== 'volume' || dbVolumes[0]?.source !== 'aroman_catalog_data' || dbVolumes[0]?.target !== '/var/lib/postgresql/data' || dbVolumes[0]?.read_only === true) error(errors, 'Database may use only its project-local writable catalog data volume.');
   if (JSON.stringify(services?.showcase?.depends_on || {}) !== JSON.stringify({ 'catalog-api': { condition: 'service_healthy', required: true } })
     || JSON.stringify(services?.['catalog-api']?.depends_on || {}) !== JSON.stringify({ database: { condition: 'service_healthy', required: true } })
-    || JSON.stringify(services?.migrate?.depends_on || {}) !== JSON.stringify({ database: { condition: 'service_healthy', required: true } })) error(errors, 'Service health dependencies must match the isolated Frontend/API/database startup order.');
+    || (services?.migrate && JSON.stringify(services.migrate.depends_on || {}) !== JSON.stringify({ database: { condition: 'service_healthy', required: true } }))) error(errors, 'Service health dependencies must match the isolated Frontend/API/database startup order.');
   for (const port of services?.showcase?.ports || []) {
     if (port.target !== 3000 || port.host_ip !== '127.0.0.1' || port.protocol !== 'tcp' || port.mode !== 'ingress') error(errors, 'Frontend host mapping must be TCP 127.0.0.1:<port>:3000 only.');
     const published = Number(port.published);
@@ -264,21 +270,21 @@ export function validateEffectiveCompose(config, { secretInventory } = {}) {
     try { const url = new URL(value); return url.protocol !== 'https:' || url.origin !== value || url.username || url.password || url.pathname !== '/' || url.search || url.hash || value.includes('*'); }
     catch { return true; }
   })) error(errors, 'Backend CORS must be a required exact HTTPS origin list with no wildcard.');
-  if (Object.keys(services?.migrate?.environment || {}).sort().join(',') !== ['CORS_ORIGINS', 'COOKIE_SECURE', 'ENVIRONMENT'].sort().join(',')
-    || services?.migrate?.environment?.ENVIRONMENT !== 'production' || services?.migrate?.environment?.COOKIE_SECURE !== 'true') error(errors, 'Migration settings must match secure production Backend configuration with no extra overrides.');
+  if (services?.migrate && (Object.keys(services.migrate.environment || {}).sort().join(',') !== ['CORS_ORIGINS', 'COOKIE_SECURE', 'ENVIRONMENT'].sort().join(',')
+    || services.migrate.environment?.ENVIRONMENT !== 'production' || services.migrate.environment?.COOKIE_SECURE !== 'true')) error(errors, 'Migration settings must match secure production Backend configuration with no extra overrides.');
   const migrationCommand = [
     'sh', '-ec',
     'export DATABASE_URL="$$(cat /run/secrets/catalog_migration_database_url)"\nexport OTP_PEPPER="$$(cat /run/secrets/otp_pepper)"\nexport SESSION_PEPPER="$$(cat /run/secrets/session_pepper)"\nalembic upgrade head\nexec python /run/configs/apply-catalog-read-only-grants.py\n',
   ];
-  if (JSON.stringify(services?.migrate?.entrypoint) !== JSON.stringify(migrationCommand) || services?.migrate?.command !== null) error(errors, 'Migration command must use only the separate migration URL secret and approved Alembic upgrade operation.');
+  if (services?.migrate && (JSON.stringify(services.migrate.entrypoint) !== JSON.stringify(migrationCommand) || services.migrate.command !== null)) error(errors, 'Migration command must use only the separate migration URL secret and approved Alembic upgrade operation.');
   const migrationConfigs = services?.migrate?.configs || [];
-  if (migrationConfigs.length !== 1 || migrationConfigs[0]?.source !== 'aroman_catalog_grants' || migrationConfigs[0]?.target !== '/run/configs/apply-catalog-read-only-grants.py') error(errors, 'Migration process must mount only the reviewed catalog grant script.');
+  if (services?.migrate && (migrationConfigs.length !== 1 || migrationConfigs[0]?.source !== 'aroman_catalog_grants' || migrationConfigs[0]?.target !== '/run/configs/apply-catalog-read-only-grants.py')) error(errors, 'Migration process must mount only the reviewed catalog grant script.');
   if (Object.keys(services?.database?.environment || {}).sort().join(',') !== ['POSTGRES_DB', 'POSTGRES_PASSWORD_FILE', 'POSTGRES_USER'].sort().join(',')) error(errors, 'Database environment contains missing or unapproved overrides.');
   if (services?.database?.environment?.POSTGRES_DB !== 'aroman' || services?.database?.environment?.POSTGRES_USER !== 'aroman_bootstrap') error(errors, 'Database must use the dedicated aroman database and bootstrap identity required by the pinned role setup.');
   if (services?.database?.environment?.POSTGRES_PASSWORD_FILE !== '/run/secrets/database_bootstrap_password') error(errors, 'Database bootstrap password must be read from its mounted secret file.');
   if (services?.database?.command !== null || services?.database?.entrypoint !== null) error(errors, 'Database command and entrypoint overrides are prohibited.');
   if (services?.database?.configs?.length !== 1 || services.database.configs[0]?.source !== 'aroman_role_init' || services.database.configs[0]?.target !== '/docker-entrypoint-initdb.d/10-aroman-role-init.sh') error(errors, 'Database must mount only the reviewed role initialization config at the official init-script path.');
-  if (services?.migrate?.profiles?.join(',') !== 'controlled-migration') error(errors, 'Migration service must remain behind the controlled-migration profile.');
+  if (services?.migrate && services.migrate.profiles?.join(',') !== 'controlled-migration') error(errors, 'Migration service must remain behind the controlled-migration profile.');
   for (const [name, secret] of Object.entries(declaredSecrets)) {
     const source = secret?.file;
     if (typeof source !== 'string' || !source) error(errors, `${name} must reference an external secret file.`);
@@ -289,12 +295,16 @@ export function validateEffectiveCompose(config, { secretInventory } = {}) {
     }
   }
   const secretFiles = Object.values(declaredSecrets).map(secret => resolve(secret?.file || '/invalid'));
-  if (new Set(secretFiles).size !== REQUIRED_SECRETS.length) error(errors, 'Every credential and Backend-required pepper must use a distinct secret file.');
+  if (new Set(secretFiles).size !== requiredSecrets.length) error(errors, 'Every credential and Backend-required pepper must use a distinct secret file.');
   return [...new Set(errors)];
 }
 
-export function renderCompose({ composeFile = COMPOSE_FILE, env = {}, cwd = REPO } = {}) {
-  const result = execFileSync('docker', ['compose', '--profile', 'controlled-migration', '-f', composeFile, 'config', '--format', 'json'], {
+export function renderCompose({ composeFile = COMPOSE_FILE, env = {}, cwd = REPO, profile = 'controlled-migration' } = {}) {
+  if (!['default', 'controlled-migration'].includes(profile)) throw new Error('Unsupported private Compose profile selection.');
+  const args = ['compose'];
+  if (profile === 'controlled-migration') args.push('--profile', profile);
+  args.push('-f', composeFile, 'config', '--format', 'json');
+  const result = execFileSync('docker', args, {
     cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...env, COMPOSE_PROJECT_NAME: 'aroman-private-preproduction' },
   });
   return JSON.parse(result);
