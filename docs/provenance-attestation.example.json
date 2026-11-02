@@ -1,0 +1,70 @@
+{
+  "format": 1,
+  "type": "aroman-provenance-attestation",
+  "evidence_class": "synthetic_fixture",
+  "artifact": {
+    "type": "frontend-compiled-candidate",
+    "immutable_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "subject": {
+    "artifact_type": "frontend-compiled-candidate",
+    "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "source": {
+    "frontend_repository": "AromanCo/FrontEnd",
+    "frontend_revision": "1111111111111111111111111111111111111111",
+    "frontend_tree_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "backend_repository": "AromanCo/Backend",
+    "backend_revision": "0be24c4597bd693e70348243c26e550a20a8ad0e",
+    "backend_authorized_pin": "0be24c4597bd693e70348243c26e550a20a8ad0e"
+  },
+  "build_inputs": [
+    {
+      "name": "package-lock",
+      "identity": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "builder_identity_claim": {
+    "status": "NOT_CAPTURED",
+    "value": "NOT_CAPTURED"
+  },
+  "build_workflow_identity_claim": {
+    "status": "NOT_CAPTURED",
+    "value": "NOT_CAPTURED"
+  },
+  "build_invocation_reference": {
+    "status": "NOT_CAPTURED",
+    "reference": "NOT_CAPTURED"
+  },
+  "dependency_lock_evidence": {
+    "status": "NOT_CAPTURED",
+    "reference": "NOT_CAPTURED"
+  },
+  "build_platform": "NOT_CAPTURED",
+  "build_toolchain_identity": "NOT_CAPTURED",
+  "base_image_identity": "NOT_CAPTURED",
+  "sbom_reference": {
+    "status": "NOT_CAPTURED",
+    "reference": "NOT_CAPTURED"
+  },
+  "provenance_statement_reference": {
+    "status": "NOT_CAPTURED",
+    "reference": "NOT_CAPTURED"
+  },
+  "signature_reference": {
+    "status": "NOT_CAPTURED",
+    "reference": "NOT_CAPTURED"
+  },
+  "verification_evidence_reference": {
+    "status": "NOT_CAPTURED",
+    "reference": "NOT_CAPTURED"
+  },
+  "signature_verification": "UNVERIFIED",
+  "signer_authentication": "UNVERIFIED",
+  "signer_authorization": "UNVERIFIED",
+  "trust_root": "NOT_CAPTURED",
+  "independent_review": "UNVERIFIED",
+  "deployable": false,
+  "production_acceptance_claim": false,
+  "public_release_disposition": "NO-GO"
+}

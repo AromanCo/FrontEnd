@@ -1,0 +1,337 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aroman.invalid/schemas/provenance-attestation-v1.schema.json",
+  "title": "AROMAN Provenance Evidence Descriptor",
+  "description": "Offline structural and internal-consistency record only; never establishes cryptographic or policy trust.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "type",
+    "evidence_class",
+    "artifact",
+    "subject",
+    "source",
+    "build_inputs",
+    "builder_identity_claim",
+    "build_workflow_identity_claim",
+    "build_invocation_reference",
+    "dependency_lock_evidence",
+    "build_platform",
+    "build_toolchain_identity",
+    "base_image_identity",
+    "sbom_reference",
+    "provenance_statement_reference",
+    "signature_reference",
+    "verification_evidence_reference",
+    "signature_verification",
+    "signer_authentication",
+    "signer_authorization",
+    "trust_root",
+    "independent_review",
+    "deployable",
+    "production_acceptance_claim",
+    "public_release_disposition"
+  ],
+  "properties": {
+    "format": {
+      "const": 1
+    },
+    "type": {
+      "const": "aroman-provenance-attestation"
+    },
+    "evidence_class": {
+      "enum": [
+        "synthetic_fixture",
+        "repository_candidate"
+      ]
+    },
+    "artifact": {
+      "$ref": "#/$defs/artifact"
+    },
+    "subject": {
+      "$ref": "#/$defs/subject"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "build_inputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/input"
+      },
+      "minItems": 1
+    },
+    "builder_identity_claim": {
+      "$ref": "#/$defs/claim"
+    },
+    "build_workflow_identity_claim": {
+      "$ref": "#/$defs/claim"
+    },
+    "build_invocation_reference": {
+      "$ref": "#/$defs/evidence"
+    },
+    "dependency_lock_evidence": {
+      "$ref": "#/$defs/evidence"
+    },
+    "build_platform": {
+      "$ref": "#/$defs/value"
+    },
+    "build_toolchain_identity": {
+      "$ref": "#/$defs/value"
+    },
+    "base_image_identity": {
+      "$ref": "#/$defs/image"
+    },
+    "sbom_reference": {
+      "$ref": "#/$defs/evidence"
+    },
+    "provenance_statement_reference": {
+      "$ref": "#/$defs/evidence"
+    },
+    "signature_reference": {
+      "$ref": "#/$defs/evidence"
+    },
+    "verification_evidence_reference": {
+      "$ref": "#/$defs/evidence"
+    },
+    "signature_verification": {
+      "const": "UNVERIFIED"
+    },
+    "signer_authentication": {
+      "const": "UNVERIFIED"
+    },
+    "signer_authorization": {
+      "const": "UNVERIFIED"
+    },
+    "trust_root": {
+      "const": "NOT_CAPTURED"
+    },
+    "independent_review": {
+      "const": "UNVERIFIED"
+    },
+    "deployable": {
+      "const": false
+    },
+    "production_acceptance_claim": {
+      "const": false
+    },
+    "public_release_disposition": {
+      "const": "NO-GO"
+    }
+  },
+  "$defs": {
+    "missing": {
+      "const": "NOT_CAPTURED"
+    },
+    "sha": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/missing"
+        },
+        {
+          "$ref": "#/$defs/sha"
+        }
+      ]
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/missing"
+        },
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/+@-]*$"
+        }
+      ]
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "immutable_digest"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "frontend-compiled-candidate",
+            "frontend-oci-image",
+            "restricted-catalog-api-oci-image",
+            "postgresql-oci-image",
+            "effective-runtime-compose",
+            "controlled-migration-compose"
+          ]
+        },
+        "immutable_digest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/missing"
+            },
+            {
+              "$ref": "#/$defs/sha"
+            }
+          ]
+        }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_type",
+        "digest"
+      ],
+      "properties": {
+        "artifact_type": {
+          "enum": [
+            "frontend-compiled-candidate",
+            "frontend-oci-image",
+            "restricted-catalog-api-oci-image",
+            "postgresql-oci-image",
+            "effective-runtime-compose",
+            "controlled-migration-compose"
+          ]
+        },
+        "digest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/missing"
+            },
+            {
+              "$ref": "#/$defs/sha"
+            }
+          ]
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frontend_repository",
+        "frontend_revision",
+        "frontend_tree_sha256",
+        "backend_repository",
+        "backend_revision",
+        "backend_authorized_pin"
+      ],
+      "properties": {
+        "frontend_repository": {
+          "const": "AromanCo/FrontEnd"
+        },
+        "frontend_revision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/missing"
+            },
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            }
+          ]
+        },
+        "frontend_tree_sha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/missing"
+            },
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          ]
+        },
+        "backend_repository": {
+          "const": "AromanCo/Backend"
+        },
+        "backend_revision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/missing"
+            },
+            {
+              "type": "string",
+              "const": "0be24c4597bd693e70348243c26e550a20a8ad0e"
+            }
+          ]
+        },
+        "backend_authorized_pin": {
+          "const": "0be24c4597bd693e70348243c26e550a20a8ad0e"
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "identity"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        "identity": {
+          "$ref": "#/$defs/ref"
+        }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "value"
+      ],
+      "properties": {
+        "status": {
+          "const": "NOT_CAPTURED"
+        },
+        "value": {
+          "const": "NOT_CAPTURED"
+        }
+      }
+    },
+    "evidence": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "reference"],
+          "properties": {
+            "status": { "const": "NOT_CAPTURED" },
+            "reference": { "const": "NOT_CAPTURED" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "reference"],
+          "properties": {
+            "status": { "const": "UNVERIFIED" },
+            "reference": { "$ref": "#/$defs/sha" }
+          }
+        }
+      ]
+    },
+    "image": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/missing"
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9./_-]*@sha256:[a-f0-9]{64}$"
+        }
+      ]
+    }
+  }
+}

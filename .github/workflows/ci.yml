@@ -156,6 +156,9 @@ jobs:
       - name: Offline artifact manifest validation tests
         run: npm run test:offline-artifact-manifest
 
+      - name: Offline provenance attestation tests
+        run: npm run test:provenance-attestation
+
       - name: Offline public release verification
         env:
           AROMAN_RELEASE_SCOPE: public-showcase
