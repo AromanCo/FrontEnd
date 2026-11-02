@@ -269,12 +269,41 @@ test('manifest fingerprint is stable across object-key order', () => {
   assert.equal(canonicalJson(manifest), canonicalJson(reversed));
   assert.equal(manifestFingerprint(manifest), manifestFingerprint(reversed));
 });
+test('M6-A28C canonicalization golden result remains compatible after helper extraction', () => {
+  assert.equal(canonicalJson({ b: [1, 2], a: 1 }), '{"a":1,"b":[1,2]}');
+  assert.equal(manifestFingerprint({ b: [1, 2], a: 1 }), '8baa73198470c7bb4c3ce142a8fd651affc0310d878bb9bd159e37a573fb4874');
+});
 
 test('manifest tampering changes the deterministic fingerprint', () => {
   const manifest = syntheticManifest();
   const original = manifestFingerprint(manifest);
   manifest.dependencies.frontend.platform = 'linux/arm64';
   assert.notEqual(manifestFingerprint(manifest), original);
+});
+
+test('clean-checkout and profile fingerprint references preserve explicit evidence states and reject trust', () => {
+  const manifest = syntheticManifest();
+  assert.equal(validateManifest(manifest).valid, true);
+  manifest.sources.frontend.clean_checkout_attestation = { status: 'OBSERVED_CLEAN', reference: `sha256:${'a'.repeat(64)}` };
+  manifest.sources.backend.clean_checkout_attestation = { status: 'STRUCTURALLY_VALID', reference: `sha256:${'b'.repeat(64)}` };
+  manifest.runtime_configuration.compose_fingerprints.runtime = { status: 'STRUCTURALLY_VALID', reference: `sha256:${'c'.repeat(64)}`, fingerprint_sha256: 'd'.repeat(64), evidence_class: 'synthetic' };
+  const result = validateManifest(manifest);
+  assert.equal(result.valid, true); assert.equal(result.deployable, false); assert.equal(result.public_release_disposition, 'NO-GO');
+  assert.ok(result.warnings.some(item => item.includes('synthetic')));
+  manifest.sources.frontend.clean_checkout_attestation.status = 'TRUST_ESTABLISHED';
+  assert.ok(validateManifest(manifest).errors.some(item => item.includes('TRUST_ESTABLISHED')));
+});
+test('existing M6-A28C v1 manifests remain valid when A28D additive fields are absent', () => {
+  const manifest = clone(example);
+  delete manifest.sources.backend.clean_checkout_attestation;
+  delete manifest.runtime_configuration.compose_fingerprints;
+  delete manifest.runtime_configuration.canonicalization_algorithm;
+  manifest.sources.frontend.clean_checkout_attestation = { status: 'UNVERIFIED', reference: `sha256:${'e'.repeat(64)}` };
+  const result = validateManifest(manifest);
+  assert.equal(result.valid, true);
+  assert.equal(result.trusted, false);
+  assert.equal(result.deployable, false);
+  assert.equal(result.public_release_disposition, 'NO-GO');
 });
 
 test('CLI emits machine-readable blocked verification for a valid template', () => {

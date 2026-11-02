@@ -8,7 +8,7 @@ import { assessCapacity } from '../scripts/assess-afra-capacity.mjs';
 import { COMPOSE_FILE, REQUIRED_SECRETS, validateSecretInventory, renderCompose, validateDatabasePrivilegePolicy, validateEffectiveCompose } from '../scripts/validate-private-compose.mjs';
 
 const digest = n => String(n).repeat(64);
-function localComposeFixture(callback) {
+function localComposeFixture(callback, profile = 'controlled-migration') {
   const root = mkdtempSync(join(tmpdir(), 'aroman-m6-a27-'));
   const secrets = Object.fromEntries(REQUIRED_SECRETS.map(name => [name, join(root, name)]));
   try {
@@ -24,7 +24,7 @@ function localComposeFixture(callback) {
       session_pepper: 'SyntheticSessionPepperM6A27_00000000000000001',
     };
     for (const [name, path] of Object.entries(secrets)) writeFileSync(path, `${values[name]}\n`, { mode: 0o600 });
-    const config = renderCompose({ composeFile: COMPOSE_FILE, env: {
+    const config = renderCompose({ composeFile: COMPOSE_FILE, profile, env: {
       AROMAN_FRONTEND_IMAGE: `registry.invalid/aroman/showcase@sha256:${digest('a')}`,
       AROMAN_CATALOG_API_IMAGE: `registry.invalid/aroman/catalog@sha256:${digest('b')}`,
       AROMAN_POSTGRES_IMAGE: `registry.invalid/library/postgres@sha256:${digest('c')}`,
@@ -37,15 +37,16 @@ function localComposeFixture(callback) {
       AROMAN_MIGRATION_PASSWORD_FILE: secrets.catalog_migration_password,
       AROMAN_OTP_PEPPER_FILE: secrets.otp_pepper, AROMAN_SESSION_PEPPER_FILE: secrets.session_pepper,
     } });
-    const validate = value => validateEffectiveCompose(value, { secretInventory: syntheticSecretInventory(value, secrets) });
-    callback(config, validate);
+    const validate = (value, selectedProfile = profile) => validateEffectiveCompose(value, { secretInventory: syntheticSecretInventory(value, secrets), profile: selectedProfile });
+    callback(config, validate, secrets);
   } finally { rmSync(root, { recursive: true, force: true }); }
 }
 
 function syntheticSecretInventory(config, secretPaths) {
   const files = {};
   const paths = {};
-  for (const name of REQUIRED_SECRETS) {
+  const names = Object.keys(config.secrets || {});
+  for (const name of names) {
     const filePath = config.secrets[name]?.file;
     paths[name] = filePath;
     files[name] = filePath === secretPaths[name] && existsSync(filePath)
@@ -54,7 +55,7 @@ function syntheticSecretInventory(config, secretPaths) {
   }
   return {
     directory: { isSymbolicLink: false, isDirectory: true, uid: 0, gid: 0, mode: 0o700 },
-    entries: [...REQUIRED_SECRETS], files, paths,
+    entries: names, files, paths,
   };
 }
 
@@ -68,6 +69,17 @@ test('effective synthetic Compose configuration passes only the offline structur
     assert.deepEqual(config.services.database.cap_drop, ['ALL']);
     assert.deepEqual(config.services.database.cap_add, ['CHOWN', 'DAC_READ_SEARCH', 'SETGID', 'SETUID']);
   });
+});
+
+test('normal runtime profile validates separately and excludes the controlled migration service', () => {
+  localComposeFixture((config, validate) => {
+    assert.deepEqual(validate(config), []);
+    assert.deepEqual(Object.keys(config.services).sort(), ['catalog-api', 'database', 'showcase']);
+    const withMigration = structuredClone(config);
+    withMigration.services.migrate = {};
+    assert.notDeepEqual(validate(withMigration), []);
+    assert.notDeepEqual(validateEffectiveCompose(config, { profile: 'default' }), [], 'default validation without injected metadata must fail closed on temporary test secrets');
+  }, 'default');
 });
 
 test('PostgreSQL capability policy keeps cap_drop ALL and adds only the entrypoint minimum', () => {

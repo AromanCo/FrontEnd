@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aroman.invalid/schemas/clean-checkout-attestation-v1.schema.json",
+  "title": "AROMAN Local Clean Checkout Observation",
+  "description": "Unsigned local observation only. It does not prove source authorization or establish trusted provenance.",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "repository", "commit", "git_tree_sha", "source_tree_sha256", "detached_head", "tracked_index_clean", "untracked_files_clean", "submodules_verified", "observed_at", "result", "signed", "trust_established"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "repository": { "enum": ["AromanCo/FrontEnd", "AromanCo/Backend"] },
+    "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "git_tree_sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "source_tree_sha256": { "anyOf": [{ "type": "string", "pattern": "^[a-f0-9]{64}$" }, { "type": "null" }] },
+    "detached_head": { "const": true }, "tracked_index_clean": { "const": true },
+    "untracked_files_clean": { "const": true }, "submodules_verified": { "const": true },
+    "observed_at": { "type": "string", "format": "date-time" },
+    "result": { "const": "OBSERVED_CLEAN" }, "signed": { "const": false }, "trust_established": { "const": false }
+  }
+}

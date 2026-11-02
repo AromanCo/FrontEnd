@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { backendSha } from './backend-pin.mjs';
 import { verifyCandidate } from './candidate-integrity.mjs';
 import { REQUIRED_TARGET_CONTROLS } from './validate-private-release-record.mjs';
+import { canonicalJson, canonicalSha256 } from './canonical-json.mjs';
 
 export const MANIFEST_FORMAT = 1;
 export const MISSING = 'NOT_CAPTURED';
@@ -21,6 +21,7 @@ const imageNames = ['frontend', 'restricted_catalog_api', 'postgresql'];
 const imageFields = ['status', 'repository', 'digest', 'platform', 'base_image'];
 const evidenceFields = ['status', 'reference'];
 const evidenceStatuses = new Set(['NOT_CAPTURED', 'UNVERIFIED']);
+const observationStatuses = new Set(['NOT_CAPTURED', 'UNVERIFIED', 'OBSERVED_CLEAN', 'STRUCTURALLY_VALID']);
 const evidenceReferencePatterns = Object.freeze({
   'sha256:': /^sha256:[a-f0-9]{64}$/,
 });
@@ -94,16 +95,20 @@ export function validateManifest(manifest, { candidateManifest } = {}) {
       if (frontend.repository !== 'AromanCo/FrontEnd') errors.push('sources.frontend.repository must identify AromanCo/FrontEnd.');
       revisionField(frontend.revision, 'sources.frontend.revision', errors);
       shaField(frontend.source_tree_sha256, 'sources.frontend.source_tree_sha256', errors);
-      validateEvidence(frontend.clean_checkout_attestation, 'sources.frontend.clean_checkout_attestation', errors);
-      if (frontend.clean_checkout_attestation?.status !== 'UNVERIFIED') warnings.push('Clean-checkout attestation is not captured or independently verified.');
+      validateObservation(frontend.clean_checkout_attestation, 'sources.frontend.clean_checkout_attestation', errors);
+      if (frontend.clean_checkout_attestation?.status !== 'STRUCTURALLY_VALID') warnings.push('Clean-checkout observation is not captured or structurally validated; it cannot establish source authorization.');
     }
     const backend = sources.backend;
-    if (exactKeys(backend, ['repository', 'revision', 'authorized_pin'], ['repository', 'revision', 'authorized_pin'], 'sources.backend', errors)) {
+    if (exactKeys(backend, ['repository', 'revision', 'authorized_pin'], ['repository', 'revision', 'authorized_pin', 'clean_checkout_attestation'], 'sources.backend', errors)) {
       if (backend.repository !== 'AromanCo/Backend') errors.push('sources.backend.repository must identify AromanCo/Backend.');
       revisionField(backend.revision, 'sources.backend.revision', errors);
       if (backend.authorized_pin !== backendSha) errors.push(`sources.backend.authorized_pin must equal the configured Backend pin ${backendSha}.`);
       if (backend.revision !== MISSING && backend.revision !== backendSha) errors.push('sources.backend.revision does not match the authorized Backend pin.');
       if (backend.revision === MISSING) warnings.push('Backend source revision is NOT_CAPTURED; only the authorized pin is known.');
+      if (Object.hasOwn(backend, 'clean_checkout_attestation')) {
+        validateObservation(backend.clean_checkout_attestation, 'sources.backend.clean_checkout_attestation', errors);
+        if (backend.clean_checkout_attestation?.status !== 'STRUCTURALLY_VALID') warnings.push('Backend clean-checkout observation is not structurally validated; it cannot establish source authorization.');
+      } else warnings.push('Backend clean-checkout observation is NOT_CAPTURED.');
     }
   }
 
@@ -139,8 +144,9 @@ export function validateManifest(manifest, { candidateManifest } = {}) {
   if (exactKeys(images, imageNames, imageNames, 'images', errors)) for (const name of imageNames) validateImage(images[name], `images.${name}`, errors, warnings);
 
   const runtime = manifest?.runtime_configuration;
-  const runtimeKeys = ['compose_source', 'effective_compose', 'non_secret_reference_ids', 'secret_reference_ids'];
-  if (exactKeys(runtime, runtimeKeys, runtimeKeys, 'runtime_configuration', errors)) {
+  const runtimeRequiredKeys = ['compose_source', 'effective_compose', 'non_secret_reference_ids', 'secret_reference_ids'];
+  const runtimeAllowedKeys = [...runtimeRequiredKeys, 'compose_fingerprints', 'canonicalization_algorithm'];
+  if (exactKeys(runtime, runtimeRequiredKeys, runtimeAllowedKeys, 'runtime_configuration', errors)) {
     const compose = runtime.compose_source;
     const composeKeys = ['revision', 'path', 'sha256'];
     if (exactKeys(compose, composeKeys, composeKeys, 'runtime_configuration.compose_source', errors)) {
@@ -151,7 +157,27 @@ export function validateManifest(manifest, { candidateManifest } = {}) {
     }
     const effective = runtime.effective_compose;
     if (exactKeys(effective, ['status', 'fingerprint_sha256'], ['status', 'fingerprint_sha256'], 'runtime_configuration.effective_compose', errors)) {
-      if (effective.status !== MISSING || effective.fingerprint_sha256 !== MISSING) errors.push('Effective Compose fingerprint must remain NOT_CAPTURED; fingerprinting and approval are outside this milestone.');
+      if (effective.status !== MISSING || effective.fingerprint_sha256 !== MISSING) errors.push('Aggregate effective Compose evidence must remain NOT_CAPTURED; profile-specific fingerprints are recorded separately.');
+    }
+    if (Object.hasOwn(runtime, 'canonicalization_algorithm') && runtime.canonicalization_algorithm !== 'aroman-canonical-json-v1') errors.push('runtime_configuration.canonicalization_algorithm is invalid.');
+    if (!Object.hasOwn(runtime, 'canonicalization_algorithm')) warnings.push('Compose canonicalization algorithm is NOT_CAPTURED.');
+    const profileFingerprints = runtime.compose_fingerprints;
+    if (!Object.hasOwn(runtime, 'compose_fingerprints')) warnings.push('Profile-specific Compose fingerprints are NOT_CAPTURED.');
+    if (Object.hasOwn(runtime, 'compose_fingerprints') && exactKeys(profileFingerprints, ['runtime', 'controlled_migration'], ['runtime', 'controlled_migration'], 'runtime_configuration.compose_fingerprints', errors)) {
+      for (const name of ['runtime', 'controlled_migration']) {
+        const item = profileFingerprints[name];
+        if (exactKeys(item, ['status', 'reference', 'fingerprint_sha256', 'evidence_class'], ['status', 'reference', 'fingerprint_sha256', 'evidence_class'], `runtime_configuration.compose_fingerprints.${name}`, errors)) {
+          if (!['NOT_CAPTURED', 'STRUCTURALLY_VALID'].includes(item.status)) errors.push(`runtime_configuration.compose_fingerprints.${name}.status cannot assert trust or observation.`);
+          if (item.status === MISSING && [item.reference, item.fingerprint_sha256, item.evidence_class].some(value => value !== MISSING)) errors.push(`runtime_configuration.compose_fingerprints.${name} must remain NOT_CAPTURED when status is NOT_CAPTURED.`);
+          if (item.status === 'STRUCTURALLY_VALID') {
+            if (!/^sha256:[a-f0-9]{64}$/.test(item.reference)) errors.push(`runtime_configuration.compose_fingerprints.${name}.reference must be a report digest.`);
+            shaField(item.fingerprint_sha256, `runtime_configuration.compose_fingerprints.${name}.fingerprint_sha256`, errors);
+            if (!['synthetic', 'repository_candidate'].includes(item.evidence_class)) errors.push(`runtime_configuration.compose_fingerprints.${name}.evidence_class is invalid.`);
+            if (item.evidence_class === 'synthetic') warnings.push(`Compose ${name} fingerprint is synthetic and is not release evidence.`);
+            if (item.evidence_class === 'repository_candidate') warnings.push(`Compose ${name} fingerprint is a repository candidate record and is not authenticated or approved.`);
+          }
+        }
+      }
     }
     if (!Array.isArray(runtime.non_secret_reference_ids) || new Set(runtime.non_secret_reference_ids).size !== runtime.non_secret_reference_ids.length || runtime.non_secret_reference_ids.some(id => !runtimeIds.has(id))) errors.push('runtime_configuration.non_secret_reference_ids must contain only unique approved non-secret identifiers.');
     if (!Array.isArray(runtime.secret_reference_ids) || new Set(runtime.secret_reference_ids).size !== runtime.secret_reference_ids.length || runtime.secret_reference_ids.some(id => !secretIds.has(id))) errors.push('runtime_configuration.secret_reference_ids must contain only unique approved secret reference identifiers, never values.');
@@ -199,6 +225,13 @@ export function validateManifest(manifest, { candidateManifest } = {}) {
   };
 }
 
+function validateObservation(value, path, errors) {
+  if (!exactKeys(value, ['status', 'reference'], ['status', 'reference'], path, errors)) return;
+  if (!observationStatuses.has(value.status)) errors.push(`${path}.status must be NOT_CAPTURED, UNVERIFIED, OBSERVED_CLEAN or STRUCTURALLY_VALID; TRUST_ESTABLISHED is prohibited.`);
+  if (value.status === MISSING && value.reference !== MISSING) errors.push(`${path}.reference must be NOT_CAPTURED when status is NOT_CAPTURED.`);
+  if (value.status !== MISSING && !/^sha256:[a-f0-9]{64}$/.test(value.reference)) errors.push(`${path}.reference must be a report digest.`);
+}
+
 export function crossCheckCandidate(manifest, candidate) {
   const errors = [];
   const mismatch = (label, actual, expected) => { if (actual !== expected) errors.push(`${label} does not match the M6-A25 candidate manifest.`); };
@@ -220,19 +253,8 @@ export function crossCheckCandidate(manifest, candidate) {
   return errors;
 }
 
-// Canonical form: recursively sort object keys by JavaScript UTF-16 code-unit order;
-// preserve array order; serialize with JSON.stringify; encode as UTF-8; SHA-256 those bytes.
-// This is a project-specific algorithm and is not claimed to implement RFC 8785.
-export function canonicalJson(value) {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (isObject(value)) return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
-  if (typeof value === 'number' && !Number.isFinite(value)) throw new TypeError('Canonical JSON does not accept non-finite numbers.');
-  if (value === undefined || typeof value === 'bigint' || typeof value === 'function' || typeof value === 'symbol') throw new TypeError('Canonical JSON accepts only JSON values.');
-  return JSON.stringify(value);
-}
-export function manifestFingerprint(manifest) {
-  return createHash('sha256').update(Buffer.from(canonicalJson(manifest), 'utf8')).digest('hex');
-}
+export { canonicalJson };
+export function manifestFingerprint(manifest) { return canonicalSha256(manifest); }
 
 export function runCandidateVerification({ cwd, distDirectory, manifest, candidateManifest, candidateVerifier = verifyCandidate }) {
   const env = {

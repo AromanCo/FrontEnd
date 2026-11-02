@@ -148,6 +148,11 @@ jobs:
           npm run test:candidate-integrity
           npm run test:launch-decisions
 
+      - name: Clean-checkout attestation and Compose fingerprint tests
+        run: |
+          npm run test:clean-checkout-attestation
+          npm run test:private-compose-fingerprint
+
       - name: Offline artifact manifest validation tests
         run: npm run test:offline-artifact-manifest
 

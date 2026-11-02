@@ -18,6 +18,8 @@
     "test:public-release-preflight": "node --test tests/public-release-preflight.check.mjs",
     "test:public-release-offline": "node --test tests/public-release-offline.check.mjs",
     "test:candidate-integrity": "node --test tests/candidate-integrity.check.mjs",
+    "test:clean-checkout-attestation": "node --test tests/clean-checkout-attestation.check.mjs",
+    "test:private-compose-fingerprint": "node --test tests/private-compose-fingerprint.check.mjs",
     "validate:launch-decisions": "node scripts/validate-launch-decisions.mjs",
     "test:launch-decisions": "node --test tests/launch-decisions.check.mjs",
     "screenshots": "node scripts/capture.mjs",
