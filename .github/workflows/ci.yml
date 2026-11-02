@@ -148,6 +148,9 @@ jobs:
           npm run test:candidate-integrity
           npm run test:launch-decisions
 
+      - name: Offline artifact manifest validation tests
+        run: npm run test:offline-artifact-manifest
+
       - name: Offline public release verification
         env:
           AROMAN_RELEASE_SCOPE: public-showcase

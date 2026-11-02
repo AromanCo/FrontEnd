@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aroman.invalid/schemas/offline-artifact-manifest-v1.schema.json",
+  "title": "AROMAN Offline Artifact Manifest",
+  "description": "Offline structural record only. It does not authenticate artifacts, verify signatures, prove deployment state, or authorize release.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "type", "evidence_class", "sources", "frontend_candidate", "dependencies", "images", "runtime_configuration", "provenance", "approvals", "release_safety"],
+  "properties": {
+    "format": { "const": 1 },
+    "type": { "const": "aroman-offline-artifact-manifest" },
+    "evidence_class": { "enum": ["planning_template", "synthetic_fixture", "repository_candidate"] },
+    "sources": {
+      "type": "object", "additionalProperties": false, "required": ["frontend", "backend"],
+      "properties": {
+        "frontend": { "$ref": "#/$defs/frontendSource" },
+        "backend": { "$ref": "#/$defs/backendSource" }
+      }
+    },
+    "frontend_candidate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["release_scope", "browser_api_base", "metadata_format", "configuration_sha256", "compiled_artifact_sha256", "compiled_file_count"],
+      "properties": {
+        "release_scope": { "const": "public-showcase" },
+        "browser_api_base": { "const": "/api/v1" },
+        "metadata_format": { "anyOf": [{ "const": "NOT_CAPTURED" }, { "const": 2 }] },
+        "configuration_sha256": { "$ref": "#/$defs/shaOrMissing" },
+        "compiled_artifact_sha256": { "$ref": "#/$defs/shaOrMissing" },
+        "compiled_file_count": { "anyOf": [{ "const": "NOT_CAPTURED" }, { "type": "integer", "minimum": 1 }] }
+      }
+    },
+    "dependencies": {
+      "type": "object", "additionalProperties": false, "required": ["frontend", "backend"],
+      "properties": {
+        "frontend": {
+          "type": "object", "additionalProperties": false,
+          "required": ["package_lock_sha256", "node_version", "npm_version", "next_version", "platform"],
+          "properties": {
+            "package_lock_sha256": { "$ref": "#/$defs/shaOrMissing" },
+            "node_version": { "$ref": "#/$defs/nonSecretValue" },
+            "npm_version": { "$ref": "#/$defs/nonSecretValue" },
+            "next_version": { "$ref": "#/$defs/nonSecretValue" },
+            "platform": { "$ref": "#/$defs/platformOrMissing" }
+          }
+        },
+        "backend": {
+          "type": "object", "additionalProperties": false,
+          "required": ["lock_status", "lock_reference", "python_version", "pip_version", "build_backend"],
+          "properties": {
+            "lock_status": { "const": "NOT_CAPTURED" },
+            "lock_reference": { "const": "NOT_CAPTURED" },
+            "python_version": { "$ref": "#/$defs/nonSecretValue" },
+            "pip_version": { "$ref": "#/$defs/nonSecretValue" },
+            "build_backend": { "$ref": "#/$defs/nonSecretValue" }
+          }
+        }
+      }
+    },
+    "images": {
+      "type": "object", "additionalProperties": false,
+      "required": ["frontend", "restricted_catalog_api", "postgresql"],
+      "properties": {
+        "frontend": { "$ref": "#/$defs/image" },
+        "restricted_catalog_api": { "$ref": "#/$defs/image" },
+        "postgresql": { "$ref": "#/$defs/image" }
+      }
+    },
+    "runtime_configuration": {
+      "type": "object", "additionalProperties": false,
+      "required": ["compose_source", "effective_compose", "non_secret_reference_ids", "secret_reference_ids"],
+      "properties": {
+        "compose_source": {
+          "type": "object", "additionalProperties": false, "required": ["revision", "path", "sha256"],
+          "properties": {
+            "revision": { "$ref": "#/$defs/revisionOrMissing" },
+            "path": { "const": "deploy/private-preproduction/compose.yaml" },
+            "sha256": { "$ref": "#/$defs/shaOrMissing" }
+          }
+        },
+        "effective_compose": {
+          "type": "object", "additionalProperties": false, "required": ["status", "fingerprint_sha256"],
+          "properties": {
+            "status": { "const": "NOT_CAPTURED" },
+            "fingerprint_sha256": { "const": "NOT_CAPTURED" }
+          }
+        },
+        "non_secret_reference_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": { "enum": ["AROMAN_RELEASE_SCOPE", "NEXT_PUBLIC_AROMAN_API_BASE_URL", "AROMAN_CATALOG_UPSTREAM_URL", "AROMAN_BACKEND_CORS_ORIGINS"] }
+        },
+        "secret_reference_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": { "enum": ["catalog_runtime_database_url", "catalog_migration_database_url", "database_bootstrap_password", "catalog_migration_password", "catalog_runtime_password", "otp_pepper", "session_pepper"] }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["build", "sbom", "signature_verification"],
+      "properties": {
+        "build": { "$ref": "#/$defs/evidenceReference" },
+        "sbom": { "$ref": "#/$defs/evidenceReference" },
+        "signature_verification": { "$ref": "#/$defs/evidenceReference" }
+      }
+    },
+    "approvals": {
+      "type": "object", "additionalProperties": false,
+      "required": ["builder", "operator", "independent_reviewer", "previous_artifact", "rollback"],
+      "properties": {
+        "builder": { "$ref": "#/$defs/evidenceReference" },
+        "operator": { "$ref": "#/$defs/evidenceReference" },
+        "independent_reviewer": { "$ref": "#/$defs/evidenceReference" },
+        "previous_artifact": { "$ref": "#/$defs/evidenceReference" },
+        "rollback": { "$ref": "#/$defs/evidenceReference" }
+      }
+    },
+    "release_safety": {
+      "type": "object", "additionalProperties": false,
+      "required": ["deployable", "production_acceptance_claim", "public_release_disposition", "target_controls"],
+      "properties": {
+        "deployable": { "const": false },
+        "production_acceptance_claim": { "const": false },
+        "public_release_disposition": { "const": "NO-GO" },
+        "target_controls": {
+          "type": "object", "additionalProperties": false,
+          "required": ["domain_dns", "https_tls", "network_isolation", "catalog_target_routing", "catalog_routes", "excluded_capabilities", "database_migrations", "content_provenance", "environment_secrets", "logging", "monitoring_incident", "backup_rollback_recovery", "release_signoff"],
+          "properties": {
+            "domain_dns": { "const": "UNVERIFIED" },
+            "https_tls": { "const": "UNVERIFIED" },
+            "network_isolation": { "const": "UNVERIFIED" },
+            "catalog_target_routing": { "const": "UNVERIFIED" },
+            "catalog_routes": { "const": "UNVERIFIED" },
+            "excluded_capabilities": { "const": "UNVERIFIED" },
+            "database_migrations": { "const": "UNVERIFIED" },
+            "content_provenance": { "const": "UNVERIFIED" },
+            "environment_secrets": { "const": "UNVERIFIED" },
+            "logging": { "const": "UNVERIFIED" },
+            "monitoring_incident": { "const": "UNVERIFIED" },
+            "backup_rollback_recovery": { "const": "UNVERIFIED" },
+            "release_signoff": { "const": "UNVERIFIED" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "missing": { "const": "NOT_CAPTURED" },
+    "revisionOrMissing": { "anyOf": [{ "$ref": "#/$defs/missing" }, { "type": "string", "pattern": "^[a-f0-9]{40}$" }] },
+    "shaOrMissing": { "anyOf": [{ "$ref": "#/$defs/missing" }, { "type": "string", "pattern": "^[a-f0-9]{64}$" }] },
+    "nonSecretValue": { "anyOf": [{ "$ref": "#/$defs/missing" }, { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._+:/-]*$" }] },
+    "platformOrMissing": { "anyOf": [{ "$ref": "#/$defs/missing" }, { "type": "string", "pattern": "^(linux|darwin|win32)/(x64|arm64|arm|ia32)$" }] },
+    "frontendSource": {
+      "type": "object", "additionalProperties": false, "required": ["repository", "revision", "source_tree_sha256", "clean_checkout_attestation"],
+      "properties": {
+        "repository": { "const": "AromanCo/FrontEnd" },
+        "revision": { "$ref": "#/$defs/revisionOrMissing" },
+        "source_tree_sha256": { "$ref": "#/$defs/shaOrMissing" },
+        "clean_checkout_attestation": { "$ref": "#/$defs/evidenceReference" }
+      }
+    },
+    "backendSource": {
+      "type": "object", "additionalProperties": false, "required": ["repository", "revision", "authorized_pin"],
+      "properties": {
+        "repository": { "const": "AromanCo/Backend" },
+        "revision": { "$ref": "#/$defs/revisionOrMissing" },
+        "authorized_pin": { "type": "string", "const": "0be24c4597bd693e70348243c26e550a20a8ad0e" }
+      }
+    },
+    "image": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "repository", "digest", "platform", "base_image"],
+      "properties": {
+        "status": { "enum": ["NOT_CAPTURED", "RECORDED_UNVERIFIED"] },
+        "repository": { "type": "string", "minLength": 1, "maxLength": 255, "pattern": "^(NOT_CAPTURED|[a-z0-9][a-z0-9./_-]*)$" },
+        "digest": { "type": "string", "pattern": "^(NOT_CAPTURED|sha256:[a-f0-9]{64})$" },
+        "platform": { "anyOf": [{ "$ref": "#/$defs/missing" }, { "type": "string", "pattern": "^(linux|darwin|win32)/(x64|arm64|arm|ia32)$" }] },
+        "base_image": { "type": "string", "pattern": "^(NOT_CAPTURED|[a-z0-9][a-z0-9./_-]*@sha256:[a-f0-9]{64})$" }
+      },
+      "allOf": [
+        { "if": { "properties": { "status": { "const": "NOT_CAPTURED" } }, "required": ["status"] }, "then": { "properties": { "repository": { "const": "NOT_CAPTURED" }, "digest": { "const": "NOT_CAPTURED" }, "platform": { "const": "NOT_CAPTURED" }, "base_image": { "const": "NOT_CAPTURED" } } } },
+        { "if": { "properties": { "status": { "const": "RECORDED_UNVERIFIED" } }, "required": ["status"] }, "then": { "properties": { "repository": { "pattern": "^[a-z0-9][a-z0-9./_-]*$" }, "digest": { "pattern": "^sha256:[a-f0-9]{64}$" }, "platform": { "pattern": "^(linux|darwin|win32)/(x64|arm64|arm|ia32)$" }, "base_image": { "pattern": "^[a-z0-9][a-z0-9./_-]*@sha256:[a-f0-9]{64}$" } } } }
+      ]
+    },
+    "evidenceReference": {
+      "type": "object", "additionalProperties": false, "required": ["status", "reference"],
+      "properties": {
+        "status": { "enum": ["NOT_CAPTURED", "UNVERIFIED"] },
+        "reference": { "type": "string", "pattern": "^(NOT_CAPTURED|sha256:[a-f0-9]{64})$" }
+      },
+      "allOf": [
+        { "if": { "properties": { "status": { "const": "NOT_CAPTURED" } }, "required": ["status"] }, "then": { "properties": { "reference": { "const": "NOT_CAPTURED" } } } },
+        { "if": { "properties": { "status": { "const": "UNVERIFIED" } }, "required": ["status"] }, "then": { "properties": { "reference": { "pattern": "^sha256:[a-f0-9]{64}$" } } } }
+      ]
+    }
+  }
+}
