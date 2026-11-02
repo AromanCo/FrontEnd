@@ -1,0 +1,89 @@
+{
+  "format": 1,
+  "type": "aroman-offline-artifact-manifest",
+  "evidence_class": "planning_template",
+  "sources": {
+    "frontend": {
+      "repository": "AromanCo/FrontEnd",
+      "revision": "NOT_CAPTURED",
+      "source_tree_sha256": "NOT_CAPTURED",
+      "clean_checkout_attestation": { "status": "NOT_CAPTURED", "reference": "NOT_CAPTURED" }
+    },
+    "backend": {
+      "repository": "AromanCo/Backend",
+      "revision": "NOT_CAPTURED",
+      "authorized_pin": "0be24c4597bd693e70348243c26e550a20a8ad0e"
+    }
+  },
+  "frontend_candidate": {
+    "release_scope": "public-showcase",
+    "browser_api_base": "/api/v1",
+    "metadata_format": "NOT_CAPTURED",
+    "configuration_sha256": "NOT_CAPTURED",
+    "compiled_artifact_sha256": "NOT_CAPTURED",
+    "compiled_file_count": "NOT_CAPTURED"
+  },
+  "dependencies": {
+    "frontend": {
+      "package_lock_sha256": "NOT_CAPTURED",
+      "node_version": "NOT_CAPTURED",
+      "npm_version": "NOT_CAPTURED",
+      "next_version": "NOT_CAPTURED",
+      "platform": "NOT_CAPTURED"
+    },
+    "backend": {
+      "lock_status": "NOT_CAPTURED",
+      "lock_reference": "NOT_CAPTURED",
+      "python_version": "NOT_CAPTURED",
+      "pip_version": "NOT_CAPTURED",
+      "build_backend": "NOT_CAPTURED"
+    }
+  },
+  "images": {
+    "frontend": { "status": "NOT_CAPTURED", "repository": "NOT_CAPTURED", "digest": "NOT_CAPTURED", "platform": "NOT_CAPTURED", "base_image": "NOT_CAPTURED" },
+    "restricted_catalog_api": { "status": "NOT_CAPTURED", "repository": "NOT_CAPTURED", "digest": "NOT_CAPTURED", "platform": "NOT_CAPTURED", "base_image": "NOT_CAPTURED" },
+    "postgresql": { "status": "NOT_CAPTURED", "repository": "NOT_CAPTURED", "digest": "NOT_CAPTURED", "platform": "NOT_CAPTURED", "base_image": "NOT_CAPTURED" }
+  },
+  "runtime_configuration": {
+    "compose_source": {
+      "revision": "NOT_CAPTURED",
+      "path": "deploy/private-preproduction/compose.yaml",
+      "sha256": "NOT_CAPTURED"
+    },
+    "effective_compose": { "status": "NOT_CAPTURED", "fingerprint_sha256": "NOT_CAPTURED" },
+    "non_secret_reference_ids": ["AROMAN_RELEASE_SCOPE", "NEXT_PUBLIC_AROMAN_API_BASE_URL", "AROMAN_CATALOG_UPSTREAM_URL"],
+    "secret_reference_ids": ["catalog_runtime_database_url", "catalog_migration_database_url", "database_bootstrap_password", "catalog_migration_password", "catalog_runtime_password", "otp_pepper", "session_pepper"]
+  },
+  "provenance": {
+    "build": { "status": "NOT_CAPTURED", "reference": "NOT_CAPTURED" },
+    "sbom": { "status": "NOT_CAPTURED", "reference": "NOT_CAPTURED" },
+    "signature_verification": { "status": "NOT_CAPTURED", "reference": "NOT_CAPTURED" }
+  },
+  "approvals": {
+    "builder": { "status": "NOT_CAPTURED", "reference": "NOT_CAPTURED" },
+    "operator": { "status": "NOT_CAPTURED", "reference": "NOT_CAPTURED" },
+    "independent_reviewer": { "status": "NOT_CAPTURED", "reference": "NOT_CAPTURED" },
+    "previous_artifact": { "status": "NOT_CAPTURED", "reference": "NOT_CAPTURED" },
+    "rollback": { "status": "NOT_CAPTURED", "reference": "NOT_CAPTURED" }
+  },
+  "release_safety": {
+    "deployable": false,
+    "production_acceptance_claim": false,
+    "public_release_disposition": "NO-GO",
+    "target_controls": {
+      "domain_dns": "UNVERIFIED",
+      "https_tls": "UNVERIFIED",
+      "network_isolation": "UNVERIFIED",
+      "catalog_target_routing": "UNVERIFIED",
+      "catalog_routes": "UNVERIFIED",
+      "excluded_capabilities": "UNVERIFIED",
+      "database_migrations": "UNVERIFIED",
+      "content_provenance": "UNVERIFIED",
+      "environment_secrets": "UNVERIFIED",
+      "logging": "UNVERIFIED",
+      "monitoring_incident": "UNVERIFIED",
+      "backup_rollback_recovery": "UNVERIFIED",
+      "release_signoff": "UNVERIFIED"
+    }
+  }
+}

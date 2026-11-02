@@ -48,6 +48,8 @@
     "assess:afra-capacity": "node scripts/assess-afra-capacity.mjs",
     "validate:private-release-record": "node scripts/validate-private-release-record.mjs",
     "prepare:private-candidate": "node scripts/prepare-private-candidate.mjs",
+    "validate:offline-artifact-manifest": "node scripts/validate-offline-artifact-manifest.mjs",
+    "test:offline-artifact-manifest": "node --test tests/offline-artifact-manifest.check.mjs",
     "test:private-preproduction": "node --test tests/private-preproduction.check.mjs tests/private-release-record.check.mjs tests/private-candidate-preparation.check.mjs",
     "test:private-secret-readability": "node scripts/test-private-secret-readability.local.mjs",
     "test:private-postgres-runtime": "node scripts/test-private-postgres-runtime.local.mjs"
