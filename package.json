@@ -55,7 +55,9 @@
     "test:private-preproduction": "node --test tests/private-preproduction.check.mjs tests/private-release-record.check.mjs tests/private-candidate-preparation.check.mjs",
     "test:private-secret-readability": "node scripts/test-private-secret-readability.local.mjs",
     "test:private-postgres-runtime": "node scripts/test-private-postgres-runtime.local.mjs",
-    "test:provenance-attestation": "node --test tests/provenance-attestation.check.mjs"
+    "test:provenance-attestation": "node --test tests/provenance-attestation.check.mjs",
+    "test:backend-dependency-readiness": "node --test tests/backend-dependency-readiness.check.mjs",
+    "audit:backend-dependency-readiness": "node scripts/audit-backend-dependency-readiness.mjs"
   },
   "dependencies": {
     "next": "^16.4.2",
