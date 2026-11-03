@@ -6,6 +6,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { backendSha } from './backend-pin.mjs';
+import { captureTestContainerId, cleanupTestContainer } from './real-stack-container-cleanup.mjs';
 
 const frontend = resolve(import.meta.dirname, '..');
 const mode = process.argv[2] || 'sqlite';
@@ -19,6 +20,7 @@ const tsconfigPath = join(frontend, 'tsconfig.json');
 const originalTsconfig = await readFile(tsconfigPath, 'utf8');
 const children = [];
 let containerId;
+const CLEANUP_COMMAND_TIMEOUT_MS = 5000;
 const python = process.env.AROMAN_TEST_PYTHON || 'python3.12';
 const reservePort = () => new Promise((resolvePort, reject) => {
   const server = createServer();
@@ -63,8 +65,8 @@ function run(command, args, cwd) {
   if (result.error || result.status !== 0) throw new Error(`${command} ${args.join(' ')} failed:\n${result.error?.message || result.stderr || result.stdout}`);
   if (['real-stack-db-check.py', 'postgres-transactions.py'].some(name => args[0].endsWith(name))) console.log(result.stdout.trim());
 }
-function docker(args, allowFailure = false) {
-  const result = spawnSync('docker', args, { cwd: frontend, encoding: 'utf8', timeout: args[0] === 'run' ? 120000 : 30000 });
+function docker(args, allowFailure = false, timeoutMs = args[0] === 'run' ? 120000 : 30000) {
+  const result = spawnSync('docker', args, { cwd: frontend, encoding: 'utf8', timeout: timeoutMs });
   if (!allowFailure && (result.error || result.status !== 0)) {
     throw new Error(`Docker ${args[0]} failed: ${result.error?.message || result.stderr || result.stdout}`);
   }
@@ -75,15 +77,20 @@ async function isolatedPostgres() {
   const user = `aroman_test_${nonce}`;
   const database = `aroman_test_${nonce}`;
   const password = randomBytes(32).toString('hex');
-  containerId = `aroman-real-stack-${nonce}`;
+  const containerName = `aroman-real-stack-${nonce}`;
   try {
-    const startedId = docker(['run', '--detach', '--rm', '--name', containerId,
+    const cidFile = join(temp, 'postgres-container-id');
+    const started = docker(['run', '--detach', '--rm', '--cidfile', cidFile, '--name', containerName,
       '--label', 'aroman.real-stack=test-owned', '--publish', '127.0.0.1::5432',
       '--tmpfs', '/var/lib/postgresql/data:rw,size=256m',
       '--env', `POSTGRES_USER=${user}`, '--env', `POSTGRES_PASSWORD=${password}`,
-      '--env', `POSTGRES_DB=${database}`, 'postgres:17']).stdout.trim();
-    assert.match(startedId, /^[a-f0-9]{64}$/, 'Docker did not return a container ID');
-    containerId = startedId;
+      '--env', `POSTGRES_DB=${database}`, 'postgres:17'], true);
+    let cidFileContents = '';
+    try { cidFileContents = await readFile(cidFile, 'utf8'); } catch { /* stdout may still contain the ID. */ }
+    containerId = captureTestContainerId(started, cidFileContents);
+    if (started.error || started.status !== 0) {
+      throw new Error('Docker run failed after a test container identity was captured.');
+    }
   } catch (error) {
     throw new Error(`Isolated PostgreSQL container unavailable: ${error.message}`);
   }
@@ -138,23 +145,13 @@ async function cleanup() {
     timer.unref();
     child.once('exit', () => { clearTimeout(timer); resolveDone(); });
   })));
-  if (containerId) {
-    const initial = docker(['inspect', containerId], true);
-    if (initial.error) failures.push(`Could not verify test container cleanup: ${initial.error.message}`);
-    else if (initial.status !== 0 && !initial.stderr.toLowerCase().includes('no such object')) {
-      failures.push(`Could not inspect test container during cleanup: ${initial.stderr}`);
-    }
-    if (initial.status === 0) {
-      const stopped = docker(['stop', '--time', '3', containerId], true);
-      if (stopped.status !== 0) {
-        const removed = docker(['rm', '--force', containerId], true);
-        if (removed.status !== 0) failures.push(`Docker cleanup failed: ${stopped.stderr}; ${removed.stderr}`);
-      }
-      const inspection = docker(['inspect', containerId], true);
-      if (inspection.status === 0 || inspection.error || !inspection.stderr.toLowerCase().includes('no such object')) {
-        failures.push(`Test PostgreSQL container removal could not be verified: ${containerId}`);
-      }
-    }
+  try {
+    await cleanupTestContainer({
+      containerId,
+      docker: (args, allowFailure) => docker(args, allowFailure, CLEANUP_COMMAND_TIMEOUT_MS),
+    });
+  } catch (error) {
+    failures.push(error instanceof Error ? error.message : 'Test PostgreSQL container cleanup failed.');
   }
   await rm(temp, { recursive: true, force: true });
   await rm(join(frontend, nextDist), { recursive: true, force: true });
