@@ -57,6 +57,7 @@
     "test:private-postgres-runtime": "node scripts/test-private-postgres-runtime.local.mjs",
     "test:provenance-attestation": "node --test tests/provenance-attestation.check.mjs",
     "test:backend-dependency-readiness": "node --test tests/backend-dependency-readiness.check.mjs",
+    "test:real-stack-container-cleanup": "node --test tests/real-stack-container-cleanup.check.mjs",
     "audit:backend-dependency-readiness": "node scripts/audit-backend-dependency-readiness.mjs"
   },
   "dependencies": {
