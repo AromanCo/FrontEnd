@@ -14,9 +14,9 @@ Complete this section with attributable evidence before treating this record as 
 
 | Field | Record |
 |---|---|
-| Owner full name | **REQUIRED — not recorded** |
+| Owner Mohammadrezaqderi | **REQUIRED — not recorded** |
 | Owner role | Backend owner (authority confirmed; sign-off attribution pending) |
-| Approval date | **REQUIRED — not recorded** |
+| Approval 2026-11-04 | **REQUIRED — not recorded** |
 | Approval evidence/reference | **REQUIRED — not recorded** |
 | Authorization scope | Initial design and implementation direction only, subject to attribution and the limits below; no lock generation or implementation authorization. |
 | Independent reviewer | **REQUIRED — not assigned** |
