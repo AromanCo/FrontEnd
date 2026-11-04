@@ -14,15 +14,15 @@ Complete this section with attributable evidence before treating this record as 
 
 | Field | Record |
 |---|---|
-| Owner full name | Your actual full name |
-| Owner role | Backend owner (authority confirmed; sign-off attribution pending) |
+| Owner full name | mohammadrezaqaderi |
+| Owner role | Backend owner — initial direction sign-off attributed; further authorizations pending |
 | Approval date | 2026-11-04 |
 | Approval evidence/reference | https://github.com/AromanCo/FrontEnd/pull/59#issuecomment-6626864111 |
 | Authorization scope | Initial design and implementation direction only, subject to attribution and the limits below; no lock generation or implementation authorization. |
 | Independent reviewer | **REQUIRED — not assigned** |
 | Outstanding decisions | Exact tool versions; immutable builder and complete target tuple; package source and artifact verification; wheelhouse retention/access and offline contract; security policy; lock maintainer; rollback governance; remaining build and lock scope details. |
 
-The owner’s authority is confirmed, but the full name, dated approval reference, reviewer assignment, and pending decisions below remain to be recorded. This attribution section does not create or imply approval of any pending item.
+The Backend owner’s initial design authorization is attributed to the named owner, dated November 4, 2026, and linked to the GitHub approval comment. Independent reviewer assignment, lock maintainer designation, and the remaining technical decisions are still pending. Dependency-lock generation remains unauthorized. This attribution section does not create or imply approval of any pending item.
 
 ## Acknowledged registry lookup exception
 
