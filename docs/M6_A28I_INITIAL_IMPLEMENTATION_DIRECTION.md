@@ -14,10 +14,10 @@ Complete this section with attributable evidence before treating this record as 
 
 | Field | Record |
 |---|---|
-| Owner Mohammadrezaqderi | **REQUIRED — not recorded** |
+| Owner full name | Your actual full name |
 | Owner role | Backend owner (authority confirmed; sign-off attribution pending) |
-| Approval 2026-11-04 | **REQUIRED — not recorded** |
-| Approval evidence/reference | **REQUIRED — not recorded** |
+| Approval date | 2026-11-04 |
+| Approval evidence/reference | https://github.com/AromanCo/FrontEnd/pull/59#issuecomment-6626864111 |
 | Authorization scope | Initial design and implementation direction only, subject to attribution and the limits below; no lock generation or implementation authorization. |
 | Independent reviewer | **REQUIRED — not assigned** |
 | Outstanding decisions | Exact tool versions; immutable builder and complete target tuple; package source and artifact verification; wheelhouse retention/access and offline contract; security policy; lock maintainer; rollback governance; remaining build and lock scope details. |
