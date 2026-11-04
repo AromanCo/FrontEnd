@@ -15,7 +15,7 @@ Complete this section with attributable evidence before treating this record as 
 | Field | Record |
 |---|---|
 | Owner full name | mohammadrezaqaderi |
-| Owner role | Backend owner (authority confirmed; sign-off attribution pending) |
+| Owner role | Backend owner — initial direction sign-off attributed; further authorizations pending |
 | Approval date | 2026-11-04 |
 | Approval evidence/reference | https://github.com/AromanCo/FrontEnd/pull/59#issuecomment-6626864111 |
 | Authorization scope | Initial design and implementation direction only, subject to attribution and the limits below; no lock generation or implementation authorization. |
