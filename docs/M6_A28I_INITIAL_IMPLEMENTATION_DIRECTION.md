@@ -22,7 +22,7 @@ Complete this section with attributable evidence before treating this record as 
 | Independent reviewer | **REQUIRED — not assigned** |
 | Outstanding decisions | Exact tool versions; immutable builder and complete target tuple; package source and artifact verification; wheelhouse retention/access and offline contract; security policy; lock maintainer; rollback governance; remaining build and lock scope details. |
 
-The owner’s authority is confirmed, but the full name, dated approval reference, reviewer assignment, and pending decisions below remain to be recorded. This attribution section does not create or imply approval of any pending item.
+The Backend owner’s initial design authorization is attributed to the named owner, dated November 4, 2026, and linked to the GitHub approval comment. Independent reviewer assignment, lock maintainer designation, and the remaining technical decisions are still pending. Dependency-lock generation remains unauthorized. This attribution section does not create or imply approval of any pending item.
 
 ## Acknowledged registry lookup exception
 
