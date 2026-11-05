@@ -63,7 +63,7 @@ try {
     assert.equal(await desktopPage.locator(`a[href="${href}"]`).count(), 0, `public page chrome must omit ${href}`);
   }
   await page.goto(new URL('/shop', origin).href);
-  await page.getByRole('heading', { name: 'محصول ساختگی کاتالوگ عمومی' }).waitFor();
+  await page.getByRole('heading', { name: 'باغ آرومان — نمونه' }).waitFor();
   const desktop = desktopPage.getByRole('navigation', { name: 'ناوبری اصلی' });
   for (const href of ['/shop', '/studio/creative', '/studio/guided', '/studio/creative#smart-perfumer']) {
     assert.ok(await desktop.locator(`a[href="${href}"]`).first().isVisible(), `desktop navigation should expose ${href}`);
