@@ -56,7 +56,7 @@ try {
   await screenshot('home-1440');
   await verifyResponsive('home');
 
-  await page.getByRole('link', { name: /کشف عطرها/ }).first().click();
+  await page.getByRole('link', { name: /کشف مجموعه رایحه‌ها/ }).click();
   await page.waitForURL('**/shop');
   await page.getByRole('heading', { name: 'کشف محصولات' }).waitFor();
   await page.getByLabel('خانواده رایحه').selectOption(familyProduct.family_id);
@@ -196,11 +196,11 @@ try {
 
   await page.goto(`${frontendOrigin}/cart`, { waitUntil: 'domcontentloaded' });
   await page.getByRole('heading', { name: 'سبد خرید' }).waitFor();
-  await page.getByText(/در سرور ثبت نمی‌شود/).waitFor();
+  await page.getByText(/هیچ اطلاعاتی ذخیره نمی‌شود/).waitFor();
   await verifyResponsive('cart placeholder');
   await page.goto(`${frontendOrigin}/checkout`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('heading', { name: 'تسویه‌حساب نمایشی' }).waitFor();
-  await page.getByText(/هیچ سفارش یا پرداختی ثبت نمی‌شود/).waitFor();
+  await page.getByRole('heading', { name: 'تسویه‌حساب' }).waitFor();
+  await page.getByText(/اطلاعات پرداخت دریافت نمی‌کنیم و تراکنشی انجام نمی‌شود/).waitFor();
   await verifyResponsive('checkout placeholder');
 
   await runIsolatedAccountJourney(browser, notes[0]);
