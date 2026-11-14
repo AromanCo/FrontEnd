@@ -48,7 +48,7 @@ export default async function Shop({
       <p className="mt-3 text-plum/70">
         محصولات این کاتالوگ نمایشی هستند. قیمت، موجودی و امکان خرید هنوز ارائه نشده‌اند.
       </p>
-      <CatalogControls q={q} brandId={brand_id || ''} familyId={family_id || ''} brands={brands} families={families} />
+      <CatalogControls key={JSON.stringify([q, brand_id, family_id])} q={q} brandId={brand_id || ''} familyId={family_id || ''} brands={brands} families={families} />
 
       {error ? (
         <div role="alert" className="card mt-8 p-8 leading-8">
