@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Brand, Family } from '@/lib/api/client';
 
@@ -28,10 +28,6 @@ export function CatalogControls({ q, brandId, familyId, brands, families }: Prop
   const [brand, setBrand] = useState(brandId);
   const [family, setFamily] = useState(familyId);
 
-  // Next.js can reuse this client component across server-side query navigation.
-  useEffect(() => { setSearch(q); }, [q]);
-  useEffect(() => { setBrand(brandId); }, [brandId]);
-  useEffect(() => { setFamily(familyId); }, [familyId]);
 
   const apply = (nextSearch: string, nextBrand: string, nextFamily: string) => {
     router.push(catalogUrl(nextSearch, nextBrand, nextFamily));
