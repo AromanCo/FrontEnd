@@ -2,7 +2,11 @@ import { spawnSync } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { backendSha } from './backend-pin.mjs';
+import { backendSha as releaseBackendSha } from './backend-pin.mjs';
+import { testBackendSha } from './r3c-b-test-backend-pin.mjs';
+
+// Opt-in applies only to this offline API compatibility check, never to public release metadata.
+const backendSha = process.env.AROMAN_TEST_CATALOG_CANDIDATE === 'r3c-b' ? testBackendSha : releaseBackendSha;
 
 const frontend = resolve(import.meta.dirname, '..');
 const options = {
