@@ -1,4 +1,90 @@
-import {catalog,type Brand,type Family,type Product} from '@/lib/api/client';
-import {ProductCard} from '@/components/catalog/ProductCard';
-import {CatalogControls} from '@/components/catalog/CatalogControls';
-export default async function Shop({searchParams}:{searchParams:Promise<Record<string,string|undefined>>}){const params=await searchParams;const q=(params.q||'').slice(0,100);const brand_id=params.brand_id||undefined;const family_id=params.family_id||undefined;const raw=Number(params.offset||0);const offset=Number.isInteger(raw)&&raw>=0?raw:0;const limit=12;let products:Product[]=[];let brands:Brand[]=[];let families:Family[]=[];let error=false;try{[products,brands,families]=await Promise.all([catalog.products({q,brand_id,family_id,limit,offset},true),catalog.brands('',100,0,true),catalog.families('',100,0,true)])}catch{error=true}return <div className="container section"><p className="eyebrow">THE COLLECTION</p><h1 className="heading mt-3">کشف محصولات</h1><p className="mt-3 text-plum/70">محصولات این کاتالوگ نمایشی هستند. قیمت، موجودی و امکان خرید هنوز ارائه نشده‌اند.</p><CatalogControls q={q} brandId={brand_id||''} familyId={family_id||''} brands={brands} families={families}/>{error?<div role="alert" className="card mt-8 p-8">اتصال به کاتالوگ برقرار نشد. لطفاً بعداً دوباره تلاش کنید.</div>:products.length?<><div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{products.map(p=><ProductCard key={p.id} product={p}/>)}</div><div className="mt-9 flex justify-center gap-3">{offset>0&&<a className="btn btn-secondary" href={`/shop?${new URLSearchParams({...(q?{q}:{}),...(brand_id?{brand_id}:{}),...(family_id?{family_id}:{}),offset:String(Math.max(0,offset-limit))})}`}>قبلی</a>}{products.length===limit&&<a className="btn btn-primary" href={`/shop?${new URLSearchParams({...(q?{q}:{}),...(brand_id?{brand_id}:{}),...(family_id?{family_id}:{}),offset:String(offset+limit)})}`}>نمایش بیشتر</a>}</div></>:<div className="card mt-8 p-8">برای این جستجو محصولی پیدا نشد.</div>}</div>}
+import Link from 'next/link';
+import { catalog, type Brand, type Family, type Product } from '@/lib/api/client';
+import { ProductCard } from '@/components/catalog/ProductCard';
+import { CatalogControls } from '@/components/catalog/CatalogControls';
+
+export default async function Shop({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const params = await searchParams;
+  const q = (params.q || '').slice(0, 100);
+  const brand_id = params.brand_id || undefined;
+  const family_id = params.family_id || undefined;
+  const raw = Number(params.offset || 0);
+  const offset = Number.isInteger(raw) && raw >= 0 ? raw : 0;
+  const limit = 12;
+  let products: Product[] = [];
+  let brands: Brand[] = [];
+  let families: Family[] = [];
+  let error = false;
+
+  try {
+    [products, brands, families] = await Promise.all([
+      catalog.products({ q, brand_id, family_id, limit, offset }, true),
+      catalog.brands('', 100, 0, true),
+      catalog.families('', 100, 0, true),
+    ]);
+  } catch {
+    error = true;
+  }
+
+  const active = Boolean(q || brand_id || family_id);
+  const pageUrl = (nextOffset: number) => {
+    const query = new URLSearchParams({
+      ...(q ? { q } : {}),
+      ...(brand_id ? { brand_id } : {}),
+      ...(family_id ? { family_id } : {}),
+      offset: String(nextOffset),
+    });
+    return `/shop?${query}`;
+  };
+
+  return (
+    <div className="container section">
+      <p className="eyebrow">THE COLLECTION</p>
+      <h1 className="heading mt-3">کشف محصولات</h1>
+      <p className="mt-3 text-plum/70">
+        محصولات این کاتالوگ نمایشی هستند. قیمت، موجودی و امکان خرید هنوز ارائه نشده‌اند.
+      </p>
+      <CatalogControls q={q} brandId={brand_id || ''} familyId={family_id || ''} brands={brands} families={families} />
+
+      {error ? (
+        <div role="alert" className="card mt-8 p-8 leading-8">
+          اتصال به کاتالوگ برقرار نشد. لطفاً بعداً دوباره تلاش کنید.
+        </div>
+      ) : products.length ? (
+        <>
+          <p className="mt-8 text-sm text-plum/70" aria-live="polite">
+            نمایش {products.length.toLocaleString('fa-IR')} محصول در این صفحه
+          </p>
+          <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {products.map(product => <ProductCard key={product.id} product={product} />)}
+          </div>
+          <nav aria-label="صفحه‌بندی محصولات" className="mt-9 flex flex-wrap justify-center gap-3">
+            {offset > 0 && (
+              <Link className="btn btn-secondary" href={pageUrl(Math.max(0, offset - limit))}>قبلی</Link>
+            )}
+            {products.length === limit && (
+              <Link className="btn btn-primary" href={pageUrl(offset + limit)}>نمایش بیشتر</Link>
+            )}
+          </nav>
+        </>
+      ) : (
+        <div className="card mt-8 p-8 text-center sm:p-12">
+          <h2 className="text-xl font-semibold">برای این جستجو محصولی پیدا نشد.</h2>
+          <p className="mt-4 leading-8 text-plum/70">
+            {active
+              ? 'فیلترها را تغییر دهید یا همه را پاک کنید و دوباره جستجو کنید.'
+              : 'در حال حاضر محصول نمایشی دیگری در این صفحه وجود ندارد.'}
+          </p>
+          {active && <Link className="btn btn-primary mt-6" href="/shop">نمایش همه محصولات</Link>}
+          {offset > 0 && (
+            <Link className="btn btn-secondary mt-6" href={pageUrl(0)}>بازگشت به صفحه اول</Link>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
