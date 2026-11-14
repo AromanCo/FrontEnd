@@ -5,7 +5,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
-import { backendSha } from './backend-pin.mjs';
+import { testBackendSha as backendSha } from './r3c-b-test-backend-pin.mjs';
 import { captureTestContainerId, cleanupTestContainer } from './real-stack-container-cleanup.mjs';
 
 const frontend = resolve(import.meta.dirname, '..');
