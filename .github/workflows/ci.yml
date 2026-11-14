@@ -92,6 +92,7 @@ jobs:
         env:
           AROMAN_TEST_BACKEND_DIR: ${{ github.workspace }}/backend-pinned
           AROMAN_TEST_PYTHON: python
+          AROMAN_TEST_CATALOG_CANDIDATE: r3c-b
         run: |
           npm run types:api:check
           npm run test:api-contract
