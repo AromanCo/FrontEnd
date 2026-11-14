@@ -22,7 +22,7 @@ def main():
             assert not tables, f"Disposable database is not empty: {sorted(tables)}"
         else:
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == EXPECTED_MIGRATION
-            expected = {"fragrance_families": 6, "fragrance_notes": 24, "brands": 3, "products": 3, "product_variants": 3, "fragrance_concepts": 0}
+            expected = {"fragrance_families": 6, "fragrance_notes": 24, "brands": 3, "products": 6, "product_variants": 6, "fragrance_concepts": 0}
             for table, count in expected.items():
                 assert connection.scalar(text(f"SELECT count(*) FROM {table}")) == count, f"Unexpected {table} seed count"
             for table in ("fragrance_families", "fragrance_notes", "brands", "products", "product_variants"):
