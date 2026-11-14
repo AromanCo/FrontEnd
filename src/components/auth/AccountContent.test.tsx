@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   duplicate: vi.fn(),
   remove: vi.fn(),
   logout: vi.fn(),
+  user: { id: 'user-1', mobile_e164: '+989990000001', role: 'customer' },
 }));
 
 vi.mock('@/lib/api/client', () => ({
@@ -22,7 +23,7 @@ vi.mock('@/lib/api/client', () => ({
 
 vi.mock('./AuthProvider', () => ({
   useAuth: () => ({
-    user: { id: 'user-1', mobile_e164: '+989990000001', role: 'customer' },
+    user: mocks.user,
     loading: false,
     error: '',
     logout: mocks.logout,
