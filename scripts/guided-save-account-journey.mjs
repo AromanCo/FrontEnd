@@ -128,7 +128,7 @@ try {
     sameConceptRecord(listedConcepts[0], fixture.savedConcept);
   assert.equal(accountContainsSavedRecord, true, 'Account should return the exact in-memory saved concept');
   await page.getByRole('heading', { name: visibleName, exact: true }).waitFor();
-  await page.locator('article').getByText(`${visibleSelections.length} نت`, { exact: true }).waitFor();
+  await page.locator('article').getByText(`${visibleSelections.length.toLocaleString('fa-IR')} نت`, { exact: true }).waitFor();
 
   const conceptId = fixture.savedConcept?.id;
   assert.equal(typeof conceptId, 'string', 'Created concept must have an ID');
