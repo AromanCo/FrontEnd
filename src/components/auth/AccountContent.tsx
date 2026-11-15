@@ -118,6 +118,7 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
   const [items, setItems] = useState<Concept[]>([]);
   const [busy, setBusy] = useState('');
   const actionRef = useRef(false);
+  const activeListRequests = useRef(new Set<AbortController>());
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [offset, setOffset] = useState(0);
@@ -126,25 +127,37 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const loadPage = useCallback(async (nextOffset = 0) => {
+    const controller = new AbortController();
+    activeListRequests.current.add(controller);
     setError('');
     if (nextOffset === 0) setLoadingItems(true);
     else setLoadingMore(true);
     try {
-      const page = await concepts.list(20, nextOffset);
+      const page = await concepts.list(20, nextOffset, controller.signal);
+      if (controller.signal.aborted) return;
       setItems(current => nextOffset ? [...current, ...page] : page);
       setOffset(nextOffset + page.length);
       setHasMore(page.length === 20);
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : 'بارگذاری انجام نشد.');
+      if (!controller.signal.aborted) {
+        setError(cause instanceof ApiError ? cause.message : 'بارگذاری انجام نشد.');
+      }
     } finally {
-      if (nextOffset === 0) setLoadingItems(false);
-      else setLoadingMore(false);
+      activeListRequests.current.delete(controller);
+      if (!controller.signal.aborted) {
+        if (nextOffset === 0) setLoadingItems(false);
+        else setLoadingMore(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => { void loadPage(); }, 0);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      for (const request of activeListRequests.current) request.abort();
+      activeListRequests.current.clear();
+    };
   }, [loadPage]);
 
   const runAction = async (id: string, kind: 'duplicate' | 'delete') => {
