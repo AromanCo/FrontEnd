@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ApiError, concepts, type Concept } from '@/lib/api/client';
+import { ApiError, concepts, type Concept, type User } from '@/lib/api/client';
 import { useAuth } from './AuthProvider';
 
 type Layer = 'top' | 'heart' | 'base';
@@ -95,7 +95,26 @@ function ConceptCard({
 }
 
 export function AccountContent() {
-  const { user, loading, error: authError, logout } = useAuth();
+  const { user, loading, error: authError } = useAuth();
+
+  if (authError && !user) return <p role="status">پس از بررسی دوباره نشست، محتوای حساب نمایش داده می‌شود.</p>;
+  if (loading) return <p role="status">در حال بررسی نشست…</p>;
+  if (!user) return (
+    <div className="card mx-auto max-w-2xl p-8 text-center sm:p-12">
+      <p className="eyebrow">MY AROMAN</p>
+      <h1 className="heading mt-4">حساب من</h1>
+      <p className="my-6 leading-8 text-[#715b72]">برای دیدن و ادامه‌دادن رایحه‌های شخصی خود وارد شوید.</p>
+      <Link className="btn btn-primary" href="/login">ورود</Link>
+    </div>
+  );
+
+  // Each authenticated identity owns a fresh collection and in-flight loading state.
+  // Never render the previous account's saved concepts while another user loads.
+  return <AuthenticatedAccountContent key={user.id} user={user} />;
+}
+
+function AuthenticatedAccountContent({ user }: { user: User }) {
+  const { logout } = useAuth();
   const [items, setItems] = useState<Concept[]>([]);
   const [busy, setBusy] = useState('');
   const actionRef = useRef(false);
@@ -124,10 +143,9 @@ export function AccountContent() {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
     const timer = setTimeout(() => { void loadPage(); }, 0);
     return () => clearTimeout(timer);
-  }, [user, loadPage]);
+  }, [loadPage]);
 
   const runAction = async (id: string, kind: 'duplicate' | 'delete') => {
     if (actionRef.current) return;
@@ -152,17 +170,6 @@ export function AccountContent() {
       setBusy('');
     }
   };
-
-  if (authError && !user) return <p role="status">پس از بررسی دوباره نشست، محتوای حساب نمایش داده می‌شود.</p>;
-  if (loading) return <p role="status">در حال بررسی نشست…</p>;
-  if (!user) return (
-    <div className="card mx-auto max-w-2xl p-8 text-center sm:p-12">
-      <p className="eyebrow">MY AROMAN</p>
-      <h1 className="heading mt-4">حساب من</h1>
-      <p className="my-6 leading-8 text-[#715b72]">برای دیدن و ادامه‌دادن رایحه‌های شخصی خود وارد شوید.</p>
-      <Link className="btn btn-primary" href="/login">ورود</Link>
-    </div>
-  );
 
   return (
     <div dir="rtl">
