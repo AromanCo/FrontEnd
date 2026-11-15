@@ -132,6 +132,9 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: F1 account isolated-runner execution guard (offline only)
+        run: npm run test:f1-account-runner-guard
+
       - name: Local release smoke checker tests
         run: node --test tests/local-release-smoke.check.mjs
 
