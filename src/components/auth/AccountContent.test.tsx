@@ -135,12 +135,28 @@ describe('AccountContent dashboard', () => {
 
     const { rerender } = render(<AccountContent />);
     await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(1));
+    const firstRequestSignal = mocks.list.mock.calls[0][2] as AbortSignal;
+    expect(firstRequestSignal).toBeInstanceOf(AbortSignal);
+    expect(firstRequestSignal.aborted).toBe(false);
+
     mocks.user = { id: 'user-2', mobile_e164: '+989990000002', role: 'customer' };
     rerender(<AccountContent />);
+    expect(firstRequestSignal.aborted).toBe(true);
     expect(await screen.findByRole('heading', { name: 'رایحه باغ' })).toBeTruthy();
 
     await act(async () => { resolveFirst([first]); });
     expect(screen.queryByRole('heading', { name: 'رایحه باران' })).toBeNull();
     expect(screen.getByRole('heading', { name: 'رایحه باغ' })).toBeTruthy();
+  });
+
+  it('cancels an unfinished concept list request when the account page unmounts', async () => {
+    mocks.list.mockReturnValue(new Promise(() => { /* Intentionally pending until unmount. */ }));
+    const { unmount } = render(<AccountContent />);
+    await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(1));
+    const signal = mocks.list.mock.calls[0][2] as AbortSignal;
+    expect(signal.aborted).toBe(false);
+
+    unmount();
+    expect(signal.aborted).toBe(true);
   });
 });
