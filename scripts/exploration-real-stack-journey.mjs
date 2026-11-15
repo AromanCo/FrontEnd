@@ -48,7 +48,16 @@ assert.equal(unrelatedCors.headers.get('access-control-allow-credentials'), null
 const productResponse = await response('GET', '/api/v1/products');
 const products = await productResponse.json();
 assert.equal(productResponse.status, 200);
-assert.equal(products.length, 3);
+assert.equal(products.length, 6, 'Expanded demo catalog should include six products');
+assert.deepEqual(
+  new Set(products.map(item => item.slug)),
+  new Set([
+    'aroman-garden-demo', 'mehr-citrus-demo', 'nava-wood-demo',
+    'nava-amber-demo', 'mehr-fresh-demo', 'nava-gourmand-demo',
+  ]),
+  'All original and added fictional product slugs must be preserved',
+);
+assert.ok(products.every(item => item.is_demo), 'Every expanded product must remain explicitly fictional');
 const product = products.find(item => item.slug === 'aroman-garden-demo');
 assert.ok(product, 'Demonstration product was not returned by the actual catalog API');
 assert.equal(product.is_demo, true);

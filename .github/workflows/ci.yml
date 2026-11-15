@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: AromanCo/Backend
-          ref: 0be24c4597bd693e70348243c26e550a20a8ad0e
+          ref: e82f48b368b4be2b3e035d528d8703d825e048db
           path: backend-pinned
 
       - name: Set up Python 3.12
@@ -67,7 +67,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: AromanCo/Backend
-          ref: 0be24c4597bd693e70348243c26e550a20a8ad0e
+          ref: e82f48b368b4be2b3e035d528d8703d825e048db
           path: backend-pinned
 
       - name: Set up Python 3.12
@@ -92,6 +92,7 @@ jobs:
         env:
           AROMAN_TEST_BACKEND_DIR: ${{ github.workspace }}/backend-pinned
           AROMAN_TEST_PYTHON: python
+          AROMAN_TEST_CATALOG_CANDIDATE: r3c-b
         run: |
           npm run types:api:check
           npm run test:api-contract
@@ -341,7 +342,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: AromanCo/Backend
-          ref: 0be24c4597bd693e70348243c26e550a20a8ad0e
+          ref: e82f48b368b4be2b3e035d528d8703d825e048db
           path: backend-pinned
 
       - name: Set up Python 3.12
