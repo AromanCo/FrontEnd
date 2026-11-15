@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ApiError, concepts, type Concept } from '@/lib/api/client';
+import { ApiError, concepts, type Concept, type User } from '@/lib/api/client';
 import { useAuth } from './AuthProvider';
 
 type Layer = 'top' | 'heart' | 'base';
@@ -95,10 +95,30 @@ function ConceptCard({
 }
 
 export function AccountContent() {
-  const { user, loading, error: authError, logout } = useAuth();
+  const { user, loading, error: authError } = useAuth();
+
+  if (authError && !user) return <p role="status">پس از بررسی دوباره نشست، محتوای حساب نمایش داده می‌شود.</p>;
+  if (loading) return <p role="status">در حال بررسی نشست…</p>;
+  if (!user) return (
+    <div className="card mx-auto max-w-2xl p-8 text-center sm:p-12">
+      <p className="eyebrow">MY AROMAN</p>
+      <h1 className="heading mt-4">حساب من</h1>
+      <p className="my-6 leading-8 text-[#715b72]">برای دیدن و ادامه‌دادن رایحه‌های شخصی خود وارد شوید.</p>
+      <Link className="btn btn-primary" href="/login">ورود</Link>
+    </div>
+  );
+
+  // Each authenticated identity owns a fresh collection and in-flight loading state.
+  // Never render the previous account's saved concepts while another user loads.
+  return <AuthenticatedAccountContent key={user.id} user={user} />;
+}
+
+function AuthenticatedAccountContent({ user }: { user: User }) {
+  const { logout } = useAuth();
   const [items, setItems] = useState<Concept[]>([]);
   const [busy, setBusy] = useState('');
   const actionRef = useRef(false);
+  const activeListRequests = useRef(new Set<AbortController>());
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [offset, setOffset] = useState(0);
@@ -107,27 +127,38 @@ export function AccountContent() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const loadPage = useCallback(async (nextOffset = 0) => {
+    const controller = new AbortController();
+    activeListRequests.current.add(controller);
     setError('');
     if (nextOffset === 0) setLoadingItems(true);
     else setLoadingMore(true);
     try {
-      const page = await concepts.list(20, nextOffset);
+      const page = await concepts.list(20, nextOffset, controller.signal);
+      if (controller.signal.aborted) return;
       setItems(current => nextOffset ? [...current, ...page] : page);
       setOffset(nextOffset + page.length);
       setHasMore(page.length === 20);
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : 'بارگذاری انجام نشد.');
+      if (!controller.signal.aborted) {
+        setError(cause instanceof ApiError ? cause.message : 'بارگذاری انجام نشد.');
+      }
     } finally {
-      if (nextOffset === 0) setLoadingItems(false);
-      else setLoadingMore(false);
+      activeListRequests.current.delete(controller);
+      if (!controller.signal.aborted) {
+        if (nextOffset === 0) setLoadingItems(false);
+        else setLoadingMore(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    if (!user) return;
     const timer = setTimeout(() => { void loadPage(); }, 0);
-    return () => clearTimeout(timer);
-  }, [user, loadPage]);
+    return () => {
+      clearTimeout(timer);
+      for (const request of activeListRequests.current) request.abort();
+      activeListRequests.current.clear();
+    };
+  }, [loadPage]);
 
   const runAction = async (id: string, kind: 'duplicate' | 'delete') => {
     if (actionRef.current) return;
@@ -152,17 +183,6 @@ export function AccountContent() {
       setBusy('');
     }
   };
-
-  if (authError && !user) return <p role="status">پس از بررسی دوباره نشست، محتوای حساب نمایش داده می‌شود.</p>;
-  if (loading) return <p role="status">در حال بررسی نشست…</p>;
-  if (!user) return (
-    <div className="card mx-auto max-w-2xl p-8 text-center sm:p-12">
-      <p className="eyebrow">MY AROMAN</p>
-      <h1 className="heading mt-4">حساب من</h1>
-      <p className="my-6 leading-8 text-[#715b72]">برای دیدن و ادامه‌دادن رایحه‌های شخصی خود وارد شوید.</p>
-      <Link className="btn btn-primary" href="/login">ورود</Link>
-    </div>
-  );
 
   return (
     <div dir="rtl">

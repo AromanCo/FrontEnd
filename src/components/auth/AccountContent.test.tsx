@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { AccountContent } from './AccountContent';
 
 const mocks = vi.hoisted(() => ({
@@ -50,6 +50,7 @@ const second = {
 describe('AccountContent dashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.user = { id: 'user-1', mobile_e164: '+989990000001', role: 'customer' };
   });
 
   afterEach(() => {
@@ -102,5 +103,60 @@ describe('AccountContent dashboard', () => {
     await waitFor(() => expect(mocks.duplicate).toHaveBeenCalledWith('concept-1'));
     expect(await screen.findByRole('heading', { name: 'رایحه باغ' })).toBeTruthy();
     expect(screen.getByRole('status').textContent).toContain('مفهوم کپی شد.');
+  });
+
+  it('does not show account A concepts or actions while account B is loading', async () => {
+    let resolveSecond!: (items: typeof second[]) => void;
+    mocks.list.mockResolvedValueOnce([first]).mockImplementationOnce(() =>
+      new Promise(resolve => { resolveSecond = resolve; }),
+    );
+    const { rerender } = render(<AccountContent />);
+    expect(await screen.findByRole('heading', { name: 'رایحه باران' })).toBeTruthy();
+
+    mocks.user = { id: 'user-2', mobile_e164: '+989990000002', role: 'customer' };
+    rerender(<AccountContent />);
+
+    expect(screen.queryByRole('heading', { name: 'رایحه باران' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'باز کردن و ویرایش' })).toBeNull();
+    expect(screen.getByText('+989990000002')).toBeTruthy();
+    expect(screen.getByRole('status').textContent?.includes('در حال بارگذاری مفاهیم شما')).toBe(true);
+
+    await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(2));
+    await act(async () => { resolveSecond([second]); });
+    expect(await screen.findByRole('heading', { name: 'رایحه باغ' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'رایحه باران' })).toBeNull();
+  });
+
+  it('ignores a late account A list response after account B has loaded', async () => {
+    let resolveFirst!: (items: typeof first[]) => void;
+    mocks.list.mockImplementationOnce(() =>
+      new Promise(resolve => { resolveFirst = resolve; }),
+    ).mockResolvedValueOnce([second]);
+
+    const { rerender } = render(<AccountContent />);
+    await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(1));
+    const firstRequestSignal = mocks.list.mock.calls[0][2] as AbortSignal;
+    expect(firstRequestSignal).toBeInstanceOf(AbortSignal);
+    expect(firstRequestSignal.aborted).toBe(false);
+
+    mocks.user = { id: 'user-2', mobile_e164: '+989990000002', role: 'customer' };
+    rerender(<AccountContent />);
+    expect(firstRequestSignal.aborted).toBe(true);
+    expect(await screen.findByRole('heading', { name: 'رایحه باغ' })).toBeTruthy();
+
+    await act(async () => { resolveFirst([first]); });
+    expect(screen.queryByRole('heading', { name: 'رایحه باران' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'رایحه باغ' })).toBeTruthy();
+  });
+
+  it('cancels an unfinished concept list request when the account page unmounts', async () => {
+    mocks.list.mockReturnValue(new Promise(() => { /* Intentionally pending until unmount. */ }));
+    const { unmount } = render(<AccountContent />);
+    await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(1));
+    const signal = mocks.list.mock.calls[0][2] as AbortSignal;
+    expect(signal.aborted).toBe(false);
+
+    unmount();
+    expect(signal.aborted).toBe(true);
   });
 });
