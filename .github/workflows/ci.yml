@@ -313,8 +313,16 @@ jobs:
           fi
           echo "$output" | grep -F "requires a production build created with AROMAN_RELEASE_SCOPE=public-showcase"
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Detect system Chrome
+        run: |
+          set -euo pipefail
+          chrome_bin="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          if [ -z "$chrome_bin" ]; then
+            echo "System Chrome was not found on the ubuntu-24.04 runner." >&2
+            exit 1
+          fi
+          echo "CHROME_BIN=$chrome_bin" >> "$GITHUB_ENV"
+          echo "Using system Chrome at $chrome_bin"
 
       - name: Run compiled Next.js exploration acceptance journey
         run: node scripts/exploration-release-journey.mjs
