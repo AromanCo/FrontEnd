@@ -184,8 +184,20 @@ try {
   await openLink.click();
   await page.waitForURL(`${frontendOrigin}/studio/creative?concept=${created.id}`);
   await page.locator('#studio-panel-0[data-note-status="ready"]').waitFor();
-  const nameField = page.getByLabel('نام مفهوم');
+  // The 390px Studio layout shows one tab at a time. The name field exists in
+  // the Composition panel but is hidden while the default Notes tab is active.
+  const compositionTab = page.getByRole('tablist', { name: 'گام‌های استودیو' })
+    .getByRole('tab', { name: /ترکیب/ });
+  await compositionTab.click();
+  assert.equal(await compositionTab.getAttribute('aria-selected'), 'true');
+  const compositionPanel = page.locator('#studio-panel-1[data-active="true"]');
+  await compositionPanel.waitFor({ state: 'visible' });
+  const nameField = compositionPanel.getByRole('textbox', { name: 'نام مفهوم', exact: true });
   await nameField.waitFor();
+  await page.waitForFunction(
+    expected => document.querySelector('#studio-panel-1 input[aria-label="نام مفهوم"]')?.value === expected,
+    guidedName,
+  );
   assert.equal(await nameField.inputValue(), guidedName);
   const editedName = `${guidedName.slice(0, 35)} — بازبینی‌شده`;
   await nameField.fill(editedName);
