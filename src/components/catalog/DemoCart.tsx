@@ -110,6 +110,7 @@ export function DemoCart() {
           <h2 className="font-semibold">سفارش آزمایشی ثبت شد.</h2>
           <p className="mt-2">شمارهٔ سفارش <bdi>{receipt.id}</bdi></p>
           <p>مبلغ سفارش {number.format(receipt.subtotal)} ریال</p>
+          <Link className="text-link mt-3" href="/account#demo-orders">مشاهدهٔ سفارش‌های آزمایشی</Link>
         </section>
       )}
       {!items && !storageError && <p role="status" className="mt-4">در حال خواندن سبد…</p>}

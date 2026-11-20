@@ -10,10 +10,15 @@ export type DemoCartItem = CartLine & { name: string };
 type DemoQuote = {
   mode: 'demo';
   currency: 'IRR';
-  items: (CartLine & { unit_price: number; line_total: number })[];
+  items: (CartLine & {
+    product_name: string;
+    variant_label: string;
+    unit_price: number;
+    line_total: number;
+  })[];
   subtotal: number;
 };
-type DemoOrderReceipt = DemoQuote & { id: string; status: 'placed' };
+export type DemoOrderReceipt = DemoQuote & { id: string; status: 'placed'; created_at: string };
 type StoredAttempt = { cart: string; id: string; subtotal: number };
 
 function cartLines(items: DemoCartItem[]): CartLine[] {
@@ -81,4 +86,8 @@ export async function submitDemoOrder(userId: string, items: DemoCartItem[], sub
 export function clearPlacedCart(userId: string) {
   writeDemoCart([]);
   sessionStorage.removeItem(`${storageKey}:order:${userId}`);
+}
+
+export function listDemoOrders(signal: AbortSignal) {
+  return request<DemoOrderReceipt[]>('/demo-checkout/orders', { signal });
 }

@@ -2,13 +2,14 @@ name: MVP local preview
 
 on:
   pull_request:
-    branches: [develop, feat/local-mvp-preview, feat/local-demo-cart]
+    branches: [develop, feat/local-mvp-preview, feat/local-demo-cart, feat/local-demo-orders]
     paths:
       - '.github/workflows/mvp-local-preview.yml'
       - 'scripts/real-stack-runner.mjs'
       - 'scripts/real-stack-api.py'
       - 'src/components/catalog/**'
       - 'src/app/cart/**'
+      - 'src/app/account/**'
       - 'src/app/shop/**'
       - 'src/lib/demo-cart.ts'
       - 'src/lib/release-scope.ts'
@@ -25,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: AromanCo/Backend
-          ref: ffb96f30630887cc53779b73e2ba5dda7787316f
+          ref: 3291949221be83f01aca91ca95875b64044d7ab0
           path: backend-preview
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -107,9 +108,16 @@ jobs:
             const receipt = page.getByRole('status', { name: 'رسید سفارش آزمایشی' });
             await receipt.getByText('سفارش آزمایشی ثبت شد.').waitFor();
             await receipt.getByText('مبلغ سفارش ۱٬۲۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
-            assert.match(await receipt.locator('bdi').innerText(), /^[a-f0-9-]{36}$/i);
+            const orderId = await receipt.locator('bdi').innerText();
+            assert.match(orderId, /^[a-f0-9-]{36}$/i);
             await page.getByText('سبد آزمایشی خالی است.', { exact: true }).waitFor();
-            console.log('Demo order PASS: catalog, server totals, FakeSMS login, order receipt and cart reset');
+            await receipt.getByRole('link', { name: 'مشاهدهٔ سفارش‌های آزمایشی' }).click();
+            const history = page.getByRole('region', { name: 'سفارش‌های آزمایشی' });
+            await history.getByText(orderId, { exact: true }).waitFor();
+            await history.getByText('مبلغ سفارش ۱٬۲۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
+            await page.reload();
+            await history.getByText(orderId, { exact: true }).waitFor();
+            console.log('Demo order PASS: receipt and account history after reload');
           } finally {
             await browser.close();
           }
