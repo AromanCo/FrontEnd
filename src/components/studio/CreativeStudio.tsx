@@ -53,11 +53,20 @@ function resolveSavedConceptSelection(concept: Concept, catalogNotes: readonly N
     .map(item => ({ note: catalogById.get(item.note_id.toLowerCase())!, layer: item.layer }));
 }
 
-export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = false, fromAdvisor = false }: { conceptId?: string; fromGuided?: boolean; fromAdvisor?: boolean }) {
+type CreativeStudioProps = { conceptId?: string; fromGuided?: boolean; fromAdvisor?: boolean };
+
+export function CreativeStudio({ conceptId: requestedConceptId, ...props }: CreativeStudioProps) {
+  const { user, authEnabled } = useAuth();
+  const conceptId = authEnabled ? requestedConceptId : undefined;
+  const editorKey = conceptId ? JSON.stringify([conceptId, user?.id ?? null]) : 'draft';
+  return <CreativeStudioEditor key={editorKey} conceptId={conceptId} {...props} />;
+}
+
+function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = false }: CreativeStudioProps) {
   const router = useRouter();
   const { user, loading: authLoading, authEnabled } = useAuth();
+  const userId = user?.id;
   const explorationOnly = !authEnabled;
-  const conceptId = explorationOnly ? undefined : requestedConceptId;
   const { pending: guidedDraft, navigationIntentId, isCurrent: isCurrentStudioDraft, consume: consumeStudioDraft, createAdvisorFork } = useStudioDraft();
   const [name, setName] = useState('رایحه من');
   const [selected, setSelected] = useState<SelectedNote[]>([]);
@@ -173,7 +182,7 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
     setAdvisorUndo(null);
   }, [setAdvisorState]);
   const changeName = (value: string) => {
-    if (editorLocked) return;
+    if (editorLocked || savingRef.current) return;
     if (nameRef.current === value) return;
     nameRef.current = value;
     revisionRef.current += 1;
@@ -181,7 +190,7 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
     setName(value);
   };
   const changeSelected = (update: SelectedNote[] | ((current: SelectedNote[]) => SelectedNote[])) => {
-    if (editorLocked) return;
+    if (editorLocked || savingRef.current) return;
     const current = selectedRef.current;
     const next = typeof update === 'function' ? update(current) : update;
     if (next === current) return;
@@ -428,9 +437,10 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
   }, [loadNotes]);
 
   useEffect(() => {
-    if (explorationOnly || !conceptId || authLoading || !user) return;
+    if (explorationOnly || !conceptId || authLoading || !userId) return;
     const savedRouteIntent = routeIntentRef.current;
-    let cancelled = false;
+    const controller = new AbortController();
+    const isCurrent = () => !controller.signal.aborted && routeIntentRef.current === savedRouteIntent;
     if (loadedConceptIdRef.current !== conceptId) {
       loadedConceptIdRef.current = null;
       changeSavedTarget('');
@@ -438,12 +448,16 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
     }
     void (async () => {
       try {
-        const concept = await concepts.get(conceptId);
+        const concept = await concepts.get(conceptId, controller.signal);
+        if (!isCurrent()) return;
+        if (concept.id.toLowerCase() !== conceptId.toLowerCase()) {
+          throw new SavedConceptLoadError('invalid-concept');
+        }
         let all: Note[] = [];
         let page = 0;
         for (;;) {
           const chunk = await catalog.notes({ limit: 100, offset: page });
-          if (cancelled || routeIntentRef.current !== savedRouteIntent) return;
+          if (!isCurrent()) return;
           if (chunk.length > 100) throw new SavedConceptLoadError('catalog-conflict');
           const pageIds = new Set<string>();
           for (const note of chunk) {
@@ -457,7 +471,7 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
           if (chunk.length < 100) break;
           page += 100;
         }
-        if (cancelled || routeIntentRef.current !== savedRouteIntent) return;
+        if (!isCurrent()) return;
         const loadedSelection = resolveSavedConceptSelection(concept, all);
         replaceComposition(concept.name, loadedSelection);
         changeSavedTarget(concept.id);
@@ -466,7 +480,7 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
         setLoadedConceptId(conceptId);
         setFailedConceptId(null);
       } catch (cause) {
-        if (!cancelled && routeIntentRef.current === savedRouteIntent) {
+        if (isCurrent()) {
           const message = cause instanceof SavedConceptLoadError
             ? cause.problem === 'missing-notes'
               ? 'مفهوم ذخیره‌شده کامل بارگذاری نشد؛ برخی نت‌های آن در کاتالوگ فعلی پیدا نشدند. نسخهٔ اصلی روی سرور محفوظ است. می‌توانید دوباره تلاش کنید.'
@@ -482,8 +496,8 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
         }
       }
     })();
-    return () => { cancelled = true; };
-  }, [conceptId, authLoading, user, explorationOnly, replaceComposition, changeSavedTarget, savedConceptAttempt]);
+    return () => controller.abort();
+  }, [conceptId, authLoading, userId, explorationOnly, replaceComposition, changeSavedTarget, savedConceptAttempt]);
 
   const commitGuidedDraft = (transferId: string, resolution: Extract<DraftResolution, { status: 'ready' | 'missing' }>) => {
     if (!isCurrentStudioDraft(transferId) || initializedTransferIds.current.has(transferId) || conceptId) return;
@@ -696,6 +710,7 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
     busyRef.current = true;
     setBusy(true);
     setError('');
+    setNotice('');
     const saveContext = {
       compositionIdentity: compositionIdentityRef.current,
       routeIntent: routeIntentRef.current,
@@ -720,6 +735,10 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
       const body = payload(name, selected);
       const result: Concept = savedId ? await concepts.update(savedId, body) : await concepts.create(body);
       if (!saveContextIsCurrent()) return;
+      if (savedId && result.id.toLowerCase() !== savedId.toLowerCase()) {
+        setError('پاسخ ذخیره با مفهوم بازشده هم‌خوان نیست. برای بررسی نتیجه، مفهوم را از حساب خود دوباره باز کنید.');
+        return;
+      }
       changeSavedTarget(result.id);
       setNotice('مفهوم رایحه با موفقیت ذخیره شد.');
     } catch (cause) {
@@ -849,7 +868,7 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
       {conceptId && savedConceptLoadFailed && guidedDraft && <p className="studio-global-notice" role="status">{guidedDraft.origin === 'advisor-fork' ? 'نسخهٔ مستقل در حافظه حفظ شده است؛ بارگذاری ناموفق مفهوم ذخیره‌شده باعث جایگزینی یا حذف آن نمی‌شود.' : 'پیش‌نویس هدایت‌شده حفظ شده است؛ ابتدا مفهوم ذخیره‌شده را دوباره بارگذاری کنید.'}</p>}
       {conceptId && savedConceptLoaded && guidedDraft?.origin === 'advisor-fork' && <p className="studio-global-notice" role="status">مفهوم ذخیره‌شدهٔ این نشانی اولویت دارد؛ نسخهٔ مستقل در حافظه محفوظ است و تا جداشدن صریح نشانی بارگذاری نمی‌شود.</p>}
       {conceptId && !savedConceptLoaded && !savedConceptLoadFailed && (authLoading || user) && <p className="studio-global-notice" role="status">{authLoading ? 'در حال بررسی نشست و بارگذاری مفهوم ذخیره‌شده…' : 'در حال بارگذاری کامل مفهوم ذخیره‌شده…'}</p>}
-      {conceptId && !savedConceptLoaded && !savedConceptLoadFailed && !authLoading && !user && <div className="studio-global-error" role="alert"><p>برای بارگذاری کامل این مفهوم ذخیره‌شده وارد حساب خود شوید. ترکیب تا آن زمان قابل ویرایش یا ذخیره نیست.</p><Link href="/login">ورود برای بارگذاری مفهوم</Link></div>}
+      {conceptId && !savedConceptLoaded && !savedConceptLoadFailed && !authLoading && !user && <div className="studio-global-error" role="alert"><p>برای باز کردن این مفهوم ذخیره‌شده وارد حساب خود شوید.</p><button type="button" className="guided-button-secondary" onClick={() => setLoginOpen(true)}>ورود برای بارگذاری مفهوم</button></div>}
       <nav className="studio-mobile-tabs" role="tablist" aria-label="گام‌های استودیو">
         {tabs.map((label, index) => <button type="button" role="tab" aria-selected={tab === index} aria-controls={`studio-panel-${index}`} id={`studio-tab-${index}`} tabIndex={tab === index ? 0 : -1} key={label}
           onKeyDown={event => {
@@ -859,14 +878,14 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
       </nav>
 
       {notice && <p role="status" className="studio-global-notice">{notice}</p>}
-      {error && <div role="alert" className="studio-global-error"><p>{error}</p>{conceptId && savedConceptLoadFailed && <button type="button" className="guided-button-secondary" onClick={retrySavedConceptLoad} disabled={busy}>تلاش دوباره برای بارگذاری مفهوم</button>}</div>}
+      {error && <div role="alert" className="studio-global-error"><p>{error}</p>{conceptId && savedConceptLoadFailed && <div className="flex flex-wrap gap-3"><button type="button" className="guided-button-secondary" onClick={retrySavedConceptLoad} disabled={busy}>تلاش دوباره برای بارگذاری مفهوم</button><Link className="guided-button-secondary" href="/account">بازگشت به مفاهیم من</Link></div>}</div>}
 
-      <div className="studio-grid" inert={editorLocked} aria-busy={Boolean(editorLocked || guidedImportState === 'loading')}>
+      <div className="studio-grid" inert={editorLocked || busy} aria-busy={Boolean(editorLocked || busy || guidedImportState === 'loading')}>
         <NoteLibrary notes={notes} families={families} selectedIds={selectedIds} count={selected.length} query={query} familyId={family} loading={loading} noteError={noteError} familyError={familyError} hasMore={hasMore} active={tab === 0}
           onQuery={updateQuery} onFamily={updateFamily} onSelect={select} onRetry={() => void loadNotes(failedOffset)} onRetryFamilies={loadFamilies} onMore={() => void loadNotes(offset)} onContinue={() => setTab(1)} />
         <CompositionWorkspace selected={selected} name={name} active={tab === 1} onName={changeName}
           onLayer={(id, layer) => changeSelected(current => moveNote(current, id, layer))}
-          onRemove={id => { changeSelected(current => current.filter(item => item.note.id !== id)); setNotice(''); }}
+          onRemove={id => { if (!savingRef.current) { changeSelected(current => current.filter(item => item.note.id !== id)); setNotice(''); } }}
           onReorder={(id, direction) => changeSelected(current => reorder(current, id, direction))}
           advisor={<BlendAdvisor result={advisorResult} loading={advisorLoading} accepted={advisorAccepted} canUndo={Boolean(advisorUndo)} busy={busy || advisorForkBusy}
             open={advisorOpen} focusRequest={advisorFocusRequest} onOpenChange={setAdvisorOpen}
@@ -876,7 +895,7 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
       </div>
     </div>
 
-    {authEnabled && loginOpen && <Dialog title="ورود برای ذخیره" onClose={() => setLoginOpen(false)}><LoginForm onSuccess={() => { setLoginOpen(false); setNotice('وارد شدید. برای تکمیل ذخیره، دکمه ذخیره مفهوم را بزنید.'); }} /></Dialog>}
+    {authEnabled && loginOpen && <Dialog title={conceptId ? 'ورود برای بارگذاری مفهوم' : 'ورود برای ذخیره'} onClose={() => setLoginOpen(false)}><LoginForm onSuccess={() => { setLoginOpen(false); if (!conceptId) setNotice('وارد شدید. برای تکمیل ذخیره، دکمه ذخیره مفهوم را بزنید.'); }} /></Dialog>}
     {authEnabled && advisorForkOpen && <Dialog title="ساخت نسخهٔ مستقل" onClose={() => { setAdvisorForkOpen(false); setAdvisorForkError(''); }}>
       <div className="space-y-4">
         <h2 className="text-xl font-semibold">یک نسخهٔ جداگانه بسازیم؟</h2>
