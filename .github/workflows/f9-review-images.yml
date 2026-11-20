@@ -1,0 +1,136 @@
+name: F9 review images
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - '.github/workflows/f9-review-images.yml'
+      - 'deploy/private-preproduction/Dockerfile.frontend'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  review-images:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      F9_FRONTEND_REVISION: 37d18450f4a641c40bb68386ba7c59e4cdd020aa
+      F9_BACKEND_REVISION: 0be24c4597bd693e70348243c26e550a20a8ad0e
+      AROMAN_RELEASE_SCOPE: public-showcase
+      NEXT_PUBLIC_AROMAN_API_BASE_URL: /api/v1
+      F9_NODE_TAG: docker.io/library/node:22-bookworm-slim
+      F9_POSTGRES_TAG: docker.io/library/postgres:16.14-alpine
+    steps:
+      - name: Check out the pinned compiled source
+        uses: actions/checkout@v4
+        with:
+          ref: 37d18450f4a641c40bb68386ba7c59e4cdd020aa
+          path: frontend
+          persist-credentials: false
+
+      - name: Check out the reviewed image recipes
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: review
+          persist-credentials: false
+
+      - name: Restore the verified F9 build package
+        uses: actions/download-artifact@v4
+        with:
+          name: aroman-f9-frontend-review-candidate
+          run-id: 44753872117
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/aroman-f9-compiled
+
+      - name: Set up the candidate verifier toolchain
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.5
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Reverify the compiled candidate before packaging
+        working-directory: frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$F9_FRONTEND_REVISION"
+          compiled="$RUNNER_TEMP/aroman-f9-compiled"
+          (cd "$compiled" && sha256sum -c SHA256SUMS)
+          tar -xzf "$compiled/aroman-f9-frontend-next.tar.gz"
+          npm ci
+          output="$RUNNER_TEMP/aroman-f9-review-images"
+          install -d -m 0700 "$output"
+          node scripts/prepare-private-candidate.mjs .next > "$output/frontend-preparation.json"
+          node --input-type=module - "$output/frontend-preparation.json" <<'F9_VERIFY'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const { candidate, preparationRecord: record } = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+          assert.deepEqual(candidate.failed, []);
+          assert.equal(record.slots.frontend_source_revision, process.env.F9_FRONTEND_REVISION);
+          assert.equal(record.slots.backend_source_revision, process.env.F9_BACKEND_REVISION);
+          assert.equal(record.public_release_disposition, 'NO-GO');
+          assert.equal(record.deployable_claim, false);
+          F9_VERIFY
+
+      - name: Resolve official bases and build review images
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/aroman-f9-review-images"
+          resolve_base() {
+            local tag="$1" digest
+            docker pull --platform linux/amd64 "$tag" >&2
+            test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$tag")" = linux/amd64
+            digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$tag")"
+            [[ "$digest" =~ @sha256:[a-f0-9]{64}$ ]] || return 1
+            printf '%s\n' "$digest"
+          }
+          node_base="$(resolve_base "$F9_NODE_TAG")"
+          postgres_base="$(resolve_base "$F9_POSTGRES_TAG")"
+          {
+            printf 'platform=linux/amd64\nnode_base=%s\npostgres_base=%s\n' "$node_base" "$postgres_base"
+            printf 'recipe_revision=%s\n' "$(git -C review rev-parse HEAD)"
+          } | tee "$output/image-identities.txt"
+
+          recipes="$GITHUB_WORKSPACE/review/deploy/private-preproduction"
+          docker build --platform linux/amd64 --file "$recipes/Dockerfile.frontend" \
+            --build-arg "NODE_RUNTIME_IMAGE=$node_base" --tag aroman-f9-frontend:review frontend
+          docker build --platform linux/amd64 --file "$recipes/Dockerfile.database" \
+            --build-arg "POSTGRES_BASE_IMAGE=$postgres_base" --tag aroman-f9-postgres:review review
+
+      - name: Verify image startup inputs and export checksummed archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/aroman-f9-review-images"
+          test "$(docker image inspect --format '{{.Config.User}}' aroman-f9-frontend:review)" = 10001:10001
+          docker run --rm --network none --entrypoint node \
+            -e AROMAN_RELEASE_SCOPE=public-showcase -e NEXT_PUBLIC_AROMAN_API_BASE_URL=/api/v1 \
+            -e AROMAN_CATALOG_UPSTREAM_URL=http://catalog-api:8000/api/v1 \
+            aroman-f9-frontend:review scripts/public-showcase-start.mjs --help > "$output/frontend-start-help.txt"
+          grep -F 'next start' "$output/frontend-start-help.txt"
+          docker run --rm --network none --entrypoint postgres aroman-f9-postgres:review --version \
+            | tee "$output/postgres-version.txt"
+          docker run --rm --network none --entrypoint id aroman-f9-postgres:review -G postgres \
+            | grep -w 10001
+          docker image inspect --format '{{join .RepoTags ","}} {{.Id}}' \
+            aroman-f9-frontend:review aroman-f9-postgres:review | tee -a "$output/image-identities.txt"
+          docker image save aroman-f9-frontend:review | gzip -1 > "$output/aroman-f9-frontend-image.tar.gz"
+          docker image save aroman-f9-postgres:review | gzip -1 > "$output/aroman-f9-postgres-image.tar.gz"
+          (
+            cd "$output"
+            sha256sum aroman-f9-frontend-image.tar.gz aroman-f9-postgres-image.tar.gz > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+
+      - name: Retain local image archives and verification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: aroman-f9-review-images
+          path: ${{ runner.temp }}/aroman-f9-review-images/
+          if-no-files-found: error
+          retention-days: 14
