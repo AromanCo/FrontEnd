@@ -185,6 +185,16 @@ describe('saved concept editor', () => {
 
   afterEach(() => { authState.user = null; });
 
+  it('sends just one saved concept request on a Strict Mode mount', async () => {
+    render(
+      <React.StrictMode>
+        <StudioDraftProvider><CreativeStudio conceptId={saved.id} /></StudioDraftProvider>
+      </React.StrictMode>,
+    );
+    expect(await screen.findByDisplayValue(saved.name)).toBeInTheDocument();
+    expect(mocks.conceptGet).toHaveBeenCalledExactlyOnceWith(saved.id, expect.any(AbortSignal));
+  });
+
   it('offers in-place sign-in and loads the original URL after sign-in', async () => {
     authState.user = null;
     const editor = <StudioDraftProvider><CreativeStudio conceptId={saved.id} /></StudioDraftProvider>;

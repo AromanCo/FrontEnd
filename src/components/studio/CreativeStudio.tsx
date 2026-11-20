@@ -446,7 +446,7 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
       changeSavedTarget('');
       replaceComposition('رایحه من', []);
     }
-    void (async () => {
+    const loadSavedConcept = async () => {
       try {
         const concept = await concepts.get(conceptId, controller.signal);
         if (!isCurrent()) return;
@@ -495,8 +495,13 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
           setFailedConceptId(conceptId);
         }
       }
-    })();
-    return () => controller.abort();
+    };
+    // Defer the request until the editor's effect has settled in Strict Mode.
+    const timer = window.setTimeout(() => { void loadSavedConcept(); }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
   }, [conceptId, authLoading, userId, explorationOnly, replaceComposition, changeSavedTarget, savedConceptAttempt]);
 
   const commitGuidedDraft = (transferId: string, resolution: Extract<DraftResolution, { status: 'ready' | 'missing' }>) => {
