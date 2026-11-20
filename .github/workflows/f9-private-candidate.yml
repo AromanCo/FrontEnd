@@ -1,0 +1,94 @@
+name: F9 private preview candidate
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - '.github/workflows/f9-private-candidate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      F9_FRONTEND_REVISION: 37d18450f4a641c40bb68386ba7c59e4cdd020aa
+      F9_BACKEND_REVISION: 0be24c4597bd693e70348243c26e550a20a8ad0e
+      AROMAN_RELEASE_SCOPE: public-showcase
+      NEXT_PUBLIC_AROMAN_API_BASE_URL: /api/v1
+    steps:
+      - name: Check out the approved Frontend source
+        uses: actions/checkout@v4
+        with:
+          ref: 37d18450f4a641c40bb68386ba7c59e4cdd020aa
+          persist-credentials: false
+
+      - name: Set up the Node version used for F8 verification
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.5
+          cache: npm
+
+      - name: Verify source and lockfile inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$F9_FRONTEND_REVISION"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import { backendSha } from "./scripts/backend-pin.mjs";
+            assert.equal(backendSha, process.env.F9_BACKEND_REVISION);
+          '
+          output="$RUNNER_TEMP/aroman-f9-candidate"
+          install -d -m 0700 "$output"
+          node scripts/attest-clean-checkout.mjs \
+            --repo "$PWD" --expected-commit "$F9_FRONTEND_REVISION" \
+            --repository-id AromanCo/FrontEnd --output "$output/frontend-checkout.json"
+          {
+            node --version
+            npm --version
+            uname -sm
+            sha256sum package-lock.json
+          } > "$output/build-inputs.txt"
+
+      - name: Build the locked Frontend candidate
+        run: |
+          npm ci
+          npm run build
+
+      - name: Verify and package the review candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/aroman-f9-candidate"
+          node scripts/prepare-private-candidate.mjs .next > "$output/preparation.json"
+          node --input-type=module - "$output/preparation.json" <<'F9_VERIFY'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const { candidate, preparationRecord: record } = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+          assert.deepEqual(candidate.failed, []);
+          assert.equal(record.evidence_kind, 'repository-candidate');
+          assert.equal(record.slots.frontend_source_revision, process.env.F9_FRONTEND_REVISION);
+          assert.equal(record.slots.backend_source_revision, process.env.F9_BACKEND_REVISION);
+          assert.equal(record.public_release_disposition, 'NO-GO');
+          assert.equal(record.deployable_claim, false);
+          assert.equal(record.production_acceptance_claim, false);
+          F9_VERIFY
+          cp .next/release-candidate.json "$output/release-candidate.json"
+          tar -czf "$output/aroman-f9-frontend-next.tar.gz" .next
+          (
+            cd "$output"
+            sha256sum aroman-f9-frontend-next.tar.gz > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+
+      - name: Retain the compiled candidate and evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: aroman-f9-frontend-review-candidate
+          path: ${{ runner.temp }}/aroman-f9-candidate/
+          if-no-files-found: error
+          retention-days: 14
