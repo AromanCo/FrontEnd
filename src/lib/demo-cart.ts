@@ -18,7 +18,7 @@ type DemoQuote = {
   })[];
   subtotal: number;
 };
-export type DemoOrderStatus = 'placed' | 'paid' | 'cancelled';
+export type DemoOrderStatus = 'placed' | 'paid' | 'cancelled' | 'preparing' | 'shipped' | 'delivered';
 
 export type DemoOrderReceipt = DemoQuote & {
   id: string;
@@ -26,7 +26,8 @@ export type DemoOrderReceipt = DemoQuote & {
   created_at: string;
   events: { status: DemoOrderStatus; occurred_at: string | null }[];
 };
-export type DemoOrderAction = 'simulate-payment' | 'cancel';
+export type DemoOrderAction = 'simulate-payment' | 'cancel'
+  | 'simulate-preparation' | 'simulate-shipping' | 'simulate-delivery';
 type StoredAttempt = { cart: string; id: string; subtotal: number };
 
 function cartLines(items: DemoCartItem[]): CartLine[] {

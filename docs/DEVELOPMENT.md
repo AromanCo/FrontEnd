@@ -28,8 +28,8 @@ python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.connect(sys.ar
 
 Use the returned code in the login form. FakeSMS is local test tooling.
 
-For the demo cart and orders, check out Backend `54506d34dee833a1a6ead431aa7ab7e412076986`
-from [Backend PR #33](https://github.com/AromanCo/Backend/pull/33) in a separate
+For the demo cart and orders, check out Backend `02a29f8e13f1513b963e3dd4228ef4e2f36883aa`
+from [Backend PR #34](https://github.com/AromanCo/Backend/pull/34) in a separate
 workspace. Use that checkout and its Python environment with
 `npm run preview:checkout:local` in place of the regular preview command. Add a
 demo variant from its product page to see server-calculated totals. The browser
@@ -41,6 +41,8 @@ stored in a SQLite file in the preview directory, which the runner removes
 when you stop the full preview. The demo does not collect payment.
 Open an order's timeline to see when it was placed, paid in the simulation,
 or cancelled. Older receipts retain their original placement time.
+After simulated payment, use the next action on the order to simulate
+preparation, shipping and delivery. Each transition appears in the timeline.
 
 To retain the test catalog, accounts, concepts and orders between runs, set
 `AROMAN_DEMO_CHECKOUT_DIR` for the checkout preview, for example

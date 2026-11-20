@@ -2,7 +2,7 @@ name: MVP local preview
 
 on:
   pull_request:
-    branches: [develop, feat/local-mvp-preview, feat/local-demo-cart, feat/local-demo-orders, feat/local-demo-order-history, feat/local-demo-order-actions, feat/local-demo-order-persistence, feat/local-demo-checkout-resume]
+    branches: [develop, feat/local-mvp-preview, feat/local-demo-cart, feat/local-demo-orders, feat/local-demo-order-history, feat/local-demo-order-actions, feat/local-demo-order-persistence, feat/local-demo-checkout-resume, feat/local-demo-order-timeline]
     paths:
       - '.github/workflows/mvp-local-preview.yml'
       - 'scripts/real-stack-runner.mjs'
@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: AromanCo/Backend
-          ref: 54506d34dee833a1a6ead431aa7ab7e412076986
+          ref: 02a29f8e13f1513b963e3dd4228ef4e2f36883aa
           path: backend-preview
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -123,6 +123,14 @@ jobs:
             await history.getByText(orderId, { exact: true }).waitFor();
             await history.getByRole('button', { name: 'شبیه‌سازی پرداخت' }).click();
             await history.getByText('پرداخت آزمایشی تأیید شد', { exact: true }).waitFor();
+            for (const [action, status] of [
+              ['شبیه‌سازی آماده‌سازی', 'در حال آماده‌سازی آزمایشی'],
+              ['شبیه‌سازی ارسال', 'ارسال آزمایشی ثبت شد'],
+              ['شبیه‌سازی تحویل', 'تحویل آزمایشی ثبت شد'],
+            ]) {
+              await history.getByRole('button', { name: action, exact: true }).click();
+              await history.getByText(status, { exact: true }).waitFor();
+            }
 
             await page.goto(`/shop/${garden.id}`);
             await page.getByRole('button', { name: 'افزودن به سبد آزمایشی' }).click();
@@ -132,19 +140,19 @@ jobs:
             await history.getByRole('button', { name: 'لغو سفارش آزمایشی' }).click();
             await history.getByText('سفارش لغو شد', { exact: true }).waitFor();
             await page.reload();
-            await history.getByText('پرداخت آزمایشی تأیید شد', { exact: true }).waitFor();
+            await history.getByText('تحویل آزمایشی ثبت شد', { exact: true }).waitFor();
             await history.getByText('سفارش لغو شد', { exact: true }).waitFor();
             assert.equal(await history.getByRole('button', { name: 'شبیه‌سازی پرداخت' }).count(), 0);
             assert.equal(await history.getByRole('button', { name: 'لغو سفارش آزمایشی' }).count(), 0);
-            for (const [status, event] of [
-              ['پرداخت آزمایشی تأیید شد', 'تأیید پرداخت آزمایشی'],
-              ['سفارش لغو شد', 'لغو سفارش'],
+            for (const [status, events] of [
+              ['تحویل آزمایشی ثبت شد', ['تأیید پرداخت آزمایشی', 'شروع آماده‌سازی', 'ارسال سفارش', 'تحویل سفارش']],
+              ['سفارش لغو شد', ['لغو سفارش']],
             ]) {
               const card = history.locator('li.card').filter({ hasText: status });
               await card.getByText('خط زمانی سفارش', { exact: true }).click();
               await card.getByText('ثبت سفارش', { exact: true }).waitFor();
-              await card.getByText(event, { exact: true }).waitFor();
-              assert.equal(await card.locator('ol time').count(), 2);
+              for (const event of events) await card.getByText(event, { exact: true }).waitFor();
+              assert.equal(await card.locator('ol time').count(), events.length + 1);
             }
             console.log('Demo orders PASS: receipt, simulated payment, cancellation and history after reload');
           } finally {
@@ -187,10 +195,14 @@ jobs:
                   code = json.loads(source.readline())["code"]
           request("/auth/verify", {"mobile": mobile, "code": code})
           orders = request("/demo-checkout/orders")
-          assert [order["status"] for order in orders] == ["cancelled", "paid"]
+          assert [order["status"] for order in orders] == ["cancelled", "delivered"]
           assert all(order["subtotal"] == 1_200_000 for order in orders)
-          for order in orders:
-              assert [event["status"] for event in order["events"]] == ["placed", order["status"]]
+          expected = [
+              ["placed", "cancelled"],
+              ["placed", "paid", "preparing", "shipped", "delivered"],
+          ]
+          for order, timeline in zip(orders, expected, strict=True):
+              assert [event["status"] for event in order["events"]] == timeline
               assert all(event["occurred_at"] for event in order["events"])
-          print("Full preview restart PASS: existing customer saw paid and cancelled orders")
+          print("Full preview restart PASS: existing customer saw delivered and cancelled orders")
           PY

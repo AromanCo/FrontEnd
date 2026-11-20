@@ -12,11 +12,22 @@ const statusLabels: Record<DemoOrderReceipt['status'], string> = {
   placed: 'در انتظار پرداخت آزمایشی',
   paid: 'پرداخت آزمایشی تأیید شد',
   cancelled: 'سفارش لغو شد',
+  preparing: 'در حال آماده‌سازی آزمایشی',
+  shipped: 'ارسال آزمایشی ثبت شد',
+  delivered: 'تحویل آزمایشی ثبت شد',
 };
 const eventLabels: Record<DemoOrderReceipt['status'], string> = {
   placed: 'ثبت سفارش',
   paid: 'تأیید پرداخت آزمایشی',
   cancelled: 'لغو سفارش',
+  preparing: 'شروع آماده‌سازی',
+  shipped: 'ارسال سفارش',
+  delivered: 'تحویل سفارش',
+};
+const nextSimulation: Partial<Record<DemoOrderReceipt['status'], [DemoOrderAction, string]>> = {
+  paid: ['simulate-preparation', 'شبیه‌سازی آماده‌سازی'],
+  preparing: ['simulate-shipping', 'شبیه‌سازی ارسال'],
+  shipped: ['simulate-delivery', 'شبیه‌سازی تحویل'],
 };
 
 export function DemoOrderHistory() {
@@ -84,38 +95,44 @@ function OrderHistory() {
       )}
       {history.status === 'ready' && (history.orders.length ? (
         <ul className="mt-4 space-y-3">
-          {history.orders.map(order => (
-            <li className="card p-4" key={order.id}>
-              <p className="break-all font-semibold">شمارهٔ سفارش <bdi>{order.id}</bdi></p>
-              <time className="mt-1 block text-sm" dateTime={order.created_at}>{date.format(new Date(order.created_at))}</time>
-              <ul className="mt-3 space-y-1">
-                {order.items.map(item => (
-                  <li key={item.variant_id}>{item.product_name} · {item.variant_label} · {number.format(item.quantity)} عدد</li>
-                ))}
-              </ul>
-              <p className="mt-3 font-semibold">مبلغ سفارش {number.format(order.subtotal)} ریال</p>
-              <p className="mt-2" role="status">{pendingOrder === order.id ? 'در حال تغییر وضعیت…' : statusLabels[order.status]}</p>
-              <details className="mt-3">
-                <summary className="cursor-pointer font-medium">خط زمانی سفارش</summary>
-                <ol className="mt-2 space-y-2 border-s-2 border-plum/20 ps-4 text-sm">
-                  {order.events.map(event => (
-                    <li key={event.status}>
-                      <p>{eventLabels[event.status]}</p>
-                      {event.occurred_at ? (
-                        <time dateTime={event.occurred_at}>{date.format(new Date(event.occurred_at))}</time>
-                      ) : <p>زمان این تغییر ثبت نشده بود.</p>}
-                    </li>
+          {history.orders.map(order => {
+            const simulation = nextSimulation[order.status];
+            return (
+              <li className="card p-4" key={order.id}>
+                <p className="break-all font-semibold">شمارهٔ سفارش <bdi>{order.id}</bdi></p>
+                <time className="mt-1 block text-sm" dateTime={order.created_at}>{date.format(new Date(order.created_at))}</time>
+                <ul className="mt-3 space-y-1">
+                  {order.items.map(item => (
+                    <li key={item.variant_id}>{item.product_name} · {item.variant_label} · {number.format(item.quantity)} عدد</li>
                   ))}
-                </ol>
-              </details>
-              {order.status === 'placed' && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" className="btn btn-primary" disabled={pendingOrder !== null} onClick={() => void actOnOrder(order.id, 'simulate-payment')}>شبیه‌سازی پرداخت</button>
-                  <button type="button" className="btn btn-secondary" disabled={pendingOrder !== null} onClick={() => void actOnOrder(order.id, 'cancel')}>لغو سفارش آزمایشی</button>
-                </div>
-              )}
-            </li>
-          ))}
+                </ul>
+                <p className="mt-3 font-semibold">مبلغ سفارش {number.format(order.subtotal)} ریال</p>
+                <p className="mt-2" role="status">{pendingOrder === order.id ? 'در حال تغییر وضعیت…' : statusLabels[order.status]}</p>
+                <details className="mt-3">
+                  <summary className="cursor-pointer font-medium">خط زمانی سفارش</summary>
+                  <ol className="mt-2 space-y-2 border-s-2 border-plum/20 ps-4 text-sm">
+                    {order.events.map(event => (
+                      <li key={event.status}>
+                        <p>{eventLabels[event.status]}</p>
+                        {event.occurred_at ? (
+                          <time dateTime={event.occurred_at}>{date.format(new Date(event.occurred_at))}</time>
+                        ) : <p>زمان این تغییر ثبت نشده بود.</p>}
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+                {order.status === 'placed' && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" className="btn btn-primary" disabled={pendingOrder !== null} onClick={() => void actOnOrder(order.id, 'simulate-payment')}>شبیه‌سازی پرداخت</button>
+                    <button type="button" className="btn btn-secondary" disabled={pendingOrder !== null} onClick={() => void actOnOrder(order.id, 'cancel')}>لغو سفارش آزمایشی</button>
+                  </div>
+                )}
+                {simulation && (
+                  <button type="button" className="btn btn-secondary mt-3" disabled={pendingOrder !== null} onClick={() => void actOnOrder(order.id, simulation[0])}>{simulation[1]}</button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       ) : <p className="mt-4">هنوز سفارش آزمایشی ثبت نکرده‌ای.</p>)}
     </section>
