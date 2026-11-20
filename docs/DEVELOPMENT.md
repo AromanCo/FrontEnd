@@ -28,13 +28,14 @@ python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.connect(sys.ar
 
 Use the returned code in the login form. FakeSMS is local test tooling.
 
-For the demo cart, check out Backend `38955edde9f32371f7bdc3e00eb449c456ccefba`
-from [Backend PR #28](https://github.com/AromanCo/Backend/pull/28) in a separate
+For the demo cart and orders, check out Backend `ffb96f30630887cc53779b73e2ba5dda7787316f`
+from [Backend PR #29](https://github.com/AromanCo/Backend/pull/29) in a separate
 workspace. Use that checkout and its Python environment with
 `npm run preview:checkout:local` in place of the regular preview command. Add a
 demo variant from its product page to see server-calculated totals. The browser
-keeps the cart in the current tab's session storage. The demo stops before
-creating an order or collecting payment.
+keeps the cart in the current tab's session storage. Sign in from the cart
+using FakeSMS and confirm the demo order to see its receipt. Orders live in
+the running API's memory. The demo does not collect payment.
 
 1. In Backend, copy `.env.example` to `.env`. Set strong, different OTP and session peppers, `CORS_ORIGINS=http://localhost:3000`, and `COOKIE_SECURE=false` for local HTTP. Keep `SMS_PROVIDER=unconfigured` for ordinary development. Run `docker compose up --build` and confirm `http://localhost:8000/health/ready` returns 200. Seed data is managed by the backend.
 2. In FrontEnd, copy `.env.example` to `.env.local`, run `npm ci`, then `npm run dev`. Open `http://localhost:3000`. Both hosts must be `localhost`.

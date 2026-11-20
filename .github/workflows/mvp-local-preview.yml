@@ -2,7 +2,7 @@ name: MVP local preview
 
 on:
   pull_request:
-    branches: [develop, feat/local-mvp-preview]
+    branches: [develop, feat/local-mvp-preview, feat/local-demo-cart]
     paths:
       - '.github/workflows/mvp-local-preview.yml'
       - 'scripts/real-stack-runner.mjs'
@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: AromanCo/Backend
-          ref: 38955edde9f32371f7bdc3e00eb449c456ccefba
+          ref: ffb96f30630887cc53779b73e2ba5dda7787316f
           path: backend-preview
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -37,7 +37,7 @@ jobs:
           python-version: '3.12'
       - run: npm ci
       - run: python -m pip install ./backend-preview
-      - name: Start the local preview and verify the demo cart
+      - name: Start the local preview and verify the demo order
         env:
           AROMAN_TEST_BACKEND_DIR: ${{ github.workspace }}/backend-preview
           AROMAN_TEST_PYTHON: python
@@ -57,8 +57,9 @@ jobs:
           test -n "$web" && test -n "$api" && test -S "$socket"
           test "$(stat -c '%a' "$socket")" = 600
           curl --fail --silent --show-error --max-time 20 "$web/shop" -o /dev/null
-          WEB_ORIGIN="$web" API_BASE="$api" node --input-type=module <<'JS'
+          WEB_ORIGIN="$web" API_BASE="$api" OTP_SOCKET="$socket" node --input-type=module <<'JS'
           import assert from 'node:assert/strict';
+          import { createConnection } from 'node:net';
           import { chromium } from 'playwright';
 
           const response = await fetch(`${process.env.API_BASE}/products?limit=20`);
@@ -80,7 +81,35 @@ jobs:
             await page.getByText('جمع سبد ۲٬۴۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
             await page.getByRole('button', { name: /حذف/ }).click();
             await page.getByText('سبد آزمایشی خالی است.', { exact: true }).waitFor();
-            console.log('Demo cart PASS: add, server totals, change quantity, reload and remove');
+
+            await page.goto(`/shop/${garden.id}`);
+            await page.getByRole('button', { name: 'افزودن به سبد آزمایشی' }).click();
+            await page.getByRole('link', { name: 'مشاهدهٔ سبد آزمایشی' }).click();
+            await page.getByRole('button', { name: 'ورود برای ثبت سفارش آزمایشی' }).click();
+            const login = page.getByRole('dialog', { name: 'ورود برای سفارش آزمایشی' });
+            await login.getByLabel('شماره موبایل').fill('09990000001');
+            await login.getByRole('button', { name: 'دریافت کد' }).click();
+            await login.getByLabel('کد شش رقمی').waitFor();
+            const code = await new Promise((resolve, reject) => {
+              const socket = createConnection(process.env.OTP_SOCKET);
+              let message = '';
+              socket.setEncoding('utf8');
+              socket.on('connect', () => socket.write('+989990000001\n'));
+              socket.on('data', chunk => { message += chunk; });
+              socket.on('error', reject);
+              socket.on('end', () => resolve(JSON.parse(message).code));
+              socket.setTimeout(5_000, () => socket.destroy(new Error('FakeSMS read timed out')));
+            });
+            assert.match(code, /^\d{6}$/);
+            await login.getByLabel('کد شش رقمی').fill(code);
+            await login.getByRole('button', { name: 'تأیید و ورود' }).click();
+            await page.getByRole('button', { name: 'ثبت سفارش آزمایشی', exact: true }).click();
+            const receipt = page.getByRole('status', { name: 'رسید سفارش آزمایشی' });
+            await receipt.getByText('سفارش آزمایشی ثبت شد.').waitFor();
+            await receipt.getByText('مبلغ سفارش ۱٬۲۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
+            assert.match(await receipt.locator('bdi').innerText(), /^[a-f0-9-]{36}$/i);
+            await page.getByText('سبد آزمایشی خالی است.', { exact: true }).waitFor();
+            console.log('Demo order PASS: catalog, server totals, FakeSMS login, order receipt and cart reset');
           } finally {
             await browser.close();
           }
