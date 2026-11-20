@@ -60,11 +60,14 @@ jobs:
           test "$(git rev-parse HEAD)" = "$F9_FRONTEND_REVISION"
           compiled="$RUNNER_TEMP/aroman-f9-compiled"
           (cd "$compiled" && sha256sum -c SHA256SUMS)
-          tar -xzf "$compiled/aroman-f9-frontend-next.tar.gz"
+          tar --same-permissions -xzf "$compiled/aroman-f9-frontend-next.tar.gz"
           npm ci
           output="$RUNNER_TEMP/aroman-f9-review-images"
           install -d -m 0700 "$output"
-          node scripts/prepare-private-candidate.mjs .next > "$output/frontend-preparation.json"
+          if ! node scripts/prepare-private-candidate.mjs .next > "$output/frontend-preparation.json"; then
+            cat "$output/frontend-preparation.json" >&2
+            exit 1
+          fi
           node --input-type=module - "$output/frontend-preparation.json" <<'F9_VERIFY'
           import assert from 'node:assert/strict';
           import { readFileSync } from 'node:fs';
