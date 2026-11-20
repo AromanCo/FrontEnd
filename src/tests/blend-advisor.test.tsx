@@ -473,6 +473,72 @@ describe('BlendAdvisor Creative Studio integration', () => {
     expect(mocks.conceptUpdate).not.toHaveBeenCalled();
   });
 
+  it('preserves a multi-layer saved source while a reordered advisor fork is explicitly created', async () => {
+    mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
+    const noteD = { ...noteA, id: '00000000-0000-4000-8000-000000000004', slug: 'synthetic-d', name: 'نت آزمایشی ت' };
+    mocks.notes.mockResolvedValue([noteA, noteB, noteC, noteD]);
+    const original = {
+      id: 'saved-1',
+      name: 'منبع چهار نتی',
+      notes: [
+        { note_id: noteA.id, layer: 'top', position: 0 },
+        { note_id: noteB.id, layer: 'heart', position: 0 },
+        { note_id: noteC.id, layer: 'heart', position: 1 },
+        { note_id: noteD.id, layer: 'base', position: 0 },
+      ],
+    };
+    const sourceBefore = structuredClone(original);
+    mocks.conceptGet.mockImplementation(async () => structuredClone(original));
+    mocks.conceptCreate.mockImplementation(async body => ({ id: 'fork-1', ...body }));
+
+    function StudioRoute({ stage }: { stage: 'source' | 'fork' | 'verify-source' }) {
+      return <CreativeStudio key={stage} conceptId={stage === 'fork' ? undefined : original.id} fromAdvisor={stage === 'fork'} />;
+    }
+    const view = render(<StudioDraftProvider><StudioRoute stage="source" /></StudioDraftProvider>);
+    await screen.findByDisplayValue(original.name);
+    fireEvent.click(screen.getByRole('tab', { name: /ترکیب/ }));
+    expect(screen.getByLabelText(`لایه ${noteB.name}`)).toHaveValue('heart');
+    expect(screen.getByLabelText(`لایه ${noteC.name}`)).toHaveValue('heart');
+    fireEvent.click(screen.getByText('پیشنهاد خلاق آرومان'));
+    await requestSuggestion();
+    expect(screen.getByRole('region', { name: 'ترکیب فعلی' })).toHaveTextContent(noteB.name);
+    expect(screen.getByRole('region', { name: 'پیشنهاد برای کاوش' })).toHaveTextContent(noteC.name);
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'ساخت نسخهٔ مستقل' })).getByRole('button', { name: 'ساخت نسخهٔ مستقل' }));
+    view.rerender(<StudioDraftProvider><StudioRoute stage="fork" /></StudioDraftProvider>);
+    await screen.findByText(/نسخهٔ مستقل برای ویرایش آماده است/);
+    expect(screen.getByLabelText('نام مفهوم')).toHaveValue(original.name);
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'ذخیره مفهوم' })[0]);
+    await waitFor(() => expect(mocks.conceptCreate).toHaveBeenCalledTimes(1));
+    expect(mocks.conceptCreate).toHaveBeenCalledWith({
+      name: original.name,
+      notes: [
+        { note_id: noteA.id, layer: 'top', position: 0 },
+        { note_id: noteC.id, layer: 'heart', position: 0 },
+        { note_id: noteB.id, layer: 'heart', position: 1 },
+        { note_id: noteD.id, layer: 'base', position: 0 },
+      ],
+    });
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+    expect(original).toEqual(sourceBefore);
+
+    view.rerender(<StudioDraftProvider><StudioRoute stage="verify-source" /></StudioDraftProvider>);
+    await screen.findByDisplayValue(original.name);
+    expect(screen.getByLabelText(`لایه ${noteA.name}`)).toHaveValue('top');
+    expect(screen.getByLabelText(`لایه ${noteB.name}`)).toHaveValue('heart');
+    expect(screen.getByLabelText(`لایه ${noteC.name}`)).toHaveValue('heart');
+    expect(screen.getByLabelText(`لایه ${noteD.name}`)).toHaveValue('base');
+    expect(mocks.conceptGet).toHaveBeenCalledTimes(2);
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+    expect(original).toEqual(sourceBefore);
+  });
+
   it('blocks advisor forks while a Guided transfer occupies the one pending slot', async () => {
     mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
     function GuidedPendingHarness() {
