@@ -35,6 +35,8 @@
     "test:browser:real-stack:postgres": "node scripts/real-stack-runner.mjs postgres",
     "test:browser:f1-account:postgres": "node scripts/real-stack-runner.mjs f1-account",
     "test:f1-account-runner-guard": "node --test tests/f1-account-runner-guard.check.mjs",
+    "test:browser:f2-concepts:postgres": "node scripts/real-stack-runner.mjs f2-concepts",
+    "test:f2-concept-runner-guard": "node --test tests/f2-concept-runner-guard.check.mjs",
     "test:browser:exploration-real-stack": "node scripts/exploration-real-stack-runner.mjs",
     "test:postgres:transactions": "node scripts/real-stack-runner.mjs transactions",
     "test:browser:guided-save": "node scripts/guided-save-account-journey.mjs",
