@@ -1,0 +1,55 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import test from 'node:test';
+
+const frontend = resolve(import.meta.dirname, '..');
+const runner = resolve(frontend, 'scripts/real-stack-runner.mjs');
+const source = readFileSync(runner, 'utf8');
+const expectedAck = 'f2-isolated-postgres-fakesms-only';
+
+for (const acknowledgment of [undefined, 'yes', 'isolated-postgres-fakesms-only', 'postgres', 'f2-isolated-postgres-fakesms']) {
+  test(`F2 runner refuses unapproved execution acknowledgment ${JSON.stringify(acknowledgment)}`, () => {
+    const env = { ...process.env };
+    delete env.AROMAN_F2_CONCEPT_EPHEMERAL_ACK;
+    delete env.AROMAN_F1_ACCOUNT_EPHEMERAL_ACK;
+    if (acknowledgment !== undefined) env.AROMAN_F2_CONCEPT_EPHEMERAL_ACK = acknowledgment;
+    const result = spawnSync(process.execPath, [runner, 'f2-concepts'], {
+      cwd: frontend,
+      env,
+      encoding: 'utf8',
+      timeout: 5000,
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr + result.stdout, /F2 saved-concept rehearsal is separately approval-gated/);
+    assert.doesNotMatch(result.stderr + result.stdout, /Docker run|Backend checkout unavailable/);
+  });
+}
+
+test('F2 runner is pinned to disposable PostgreSQL, private FakeSMS and a distinct approval gate', () => {
+  assert.match(source, /mode === 'f2-concepts'/);
+  assert.ok(source.includes(expectedAck));
+  assert.ok(source.includes('f2ConceptBackendSha'));
+  assert.ok(source.includes("'./f2-concept-journey.mjs'"));
+  assert.ok(source.includes("'postgres:17'"));
+  assert.ok(source.includes("'--tmpfs', '/var/lib/postgresql/data:rw,size=256m'"));
+  assert.ok(source.includes("'--publish', '127.0.0.1::5432'"));
+  assert.ok(source.includes("'--label', 'aroman.real-stack=test-owned'"));
+});
+
+test('F2 acknowledgment cannot bypass exact Backend revision verification', () => {
+  const result = spawnSync(process.execPath, [runner, 'f2-concepts'], {
+    cwd: frontend,
+    env: {
+      ...process.env,
+      AROMAN_F2_CONCEPT_EPHEMERAL_ACK: expectedAck,
+      AROMAN_TEST_BACKEND_DIR: frontend, // Valid Git checkout, deliberately wrong project SHA.
+    },
+    encoding: 'utf8',
+    timeout: 5000,
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr + result.stdout, /Backend checkout must be at the pinned SHA/);
+  assert.doesNotMatch(result.stderr + result.stdout, /Docker run/);
+});
