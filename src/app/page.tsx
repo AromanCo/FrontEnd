@@ -19,20 +19,17 @@ export default async function Home() {
     <section className="atelier-hero">
       <div className="atelier-hero-inner container">
         <div className="atelier-hero-copy">
-          <p className="eyebrow"><span className="hero-kicker-mark">✳</span> آتلیه‌ی رایحه‌ی آرومان</p>
+          <p className="eyebrow"><span className="hero-kicker-mark" aria-hidden="true">✳</span> آتلیه‌ی رایحه‌ی آرومان</p>
           <h1>رایحه‌ای که<br /><em>از شما آغاز می‌شود.</em></h1>
-          <p className="atelier-hero-lede">راه خودتان را میان کشف عطرها و ساخت یک مفهوم شخصی پیدا کنید؛ هر انتخاب، بخشی از روایت شماست.</p>
-          <div className="atelier-hero-actions">
-            <Link className="btn btn-primary" href="/shop">کشف مجموعه رایحه‌ها <span aria-hidden="true">←</span></Link>
-            <Link className="btn btn-atelier-outline" href="/studio/creative">ساخت مفهوم رایحه <span aria-hidden="true">✳</span></Link>
-          </div>
-          <div className="hero-pathways" aria-label="دو مسیر آرومان">
-            <span><i>۰۱</i> کشف مجموعه</span><span><i>۰۲</i> ساخت روایت</span>
-          </div>
+          <p className="atelier-hero-lede">با چند پرسش از سلیقه‌تان شروع کنید، نت‌های دلخواهتان را بچینید یا مجموعهٔ نمایشی رایحه‌ها را ببینید.</p>
+          <nav className="atelier-hero-actions" aria-label="مسیرهای شروع آرومان">
+            <Link className="btn btn-primary" href="/studio/guided">شروع کشف با راهنما <span aria-hidden="true">←</span></Link>
+            <Link className="btn btn-atelier-outline" href="/studio/creative">ساخت مفهوم رایحه</Link>
+            <Link className="btn btn-atelier-outline" href="/shop">کشف مجموعه رایحه‌ها</Link>
+          </nav>
         </div>
         <AtelierHeroArtwork />
       </div>
-      <div className="atelier-hero-foot container"><span>PERFUME · MEMORY · YOU</span><span aria-hidden="true">↓</span><span>از تجربه‌ی رایحه آغاز کنید</span></div>
     </section>
 
     <section className="home-discovery section" id="discover">
@@ -42,7 +39,7 @@ export default async function Home() {
           <Link className="text-link" href="/shop">دیدن مجموعه رایحه‌ها <span aria-hidden="true">←</span></Link>
         </header>
         {unavailable ? <p className="catalog-state" role="status">کاتالوگ در دسترس نیست. لطفاً کمی بعد دوباره سر بزنید.</p> : products.length ? <div className="home-product-grid">{products.map(product => <ProductCard key={product.id} product={product} />)}</div> : <p className="catalog-state">هنوز محصولی در کاتالوگ ثبت نشده است.</p>}
-        <p className="demo-data-note">تصویرها، تصویرسازی مفهومی هستند؛ جزئیات واقعی هر محصول را در صفحه‌ی آن ببینید.</p>
+        <p className="demo-data-note">تصویرها مفهومی‌اند و نمای واقعی محصولات را نشان نمی‌دهند.</p>
       </div>
     </section>
 
