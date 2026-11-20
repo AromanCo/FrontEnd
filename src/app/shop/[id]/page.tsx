@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { catalog, type Product, type Variant } from '@/lib/api/client';
+import { getReleaseScope } from '@/lib/release-scope';
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -41,6 +42,11 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           {product.is_demo && <p className="eyebrow">محصول نمایشی</p>}
           <h1 className="heading mt-2">{product.name}</h1>
           <p className="mt-4 leading-8">{product.description || 'توضیحی برای این محصول ثبت نشده است.'}</p>
+          {getReleaseScope() === 'exploration' && (
+            <p className="mt-4 text-sm leading-7 text-plum/70">
+              این ورودی برای کاوش در کاتالوگ است و دسترسی به محصول واقعی را نشان نمی‌دهد.
+            </p>
+          )}
 
           <h2 className="mt-7 text-xl font-semibold">گونه‌ها</h2>
           {variants.length ? (
