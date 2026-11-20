@@ -55,6 +55,7 @@ describe('AccountContent dashboard', () => {
 
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
   });
 
   it('shows real concept note-layer counts and preserved edit action', async () => {
@@ -103,6 +104,82 @@ describe('AccountContent dashboard', () => {
     await waitFor(() => expect(mocks.duplicate).toHaveBeenCalledWith('concept-1'));
     expect(await screen.findByRole('heading', { name: 'رایحه باغ' })).toBeTruthy();
     expect(screen.getByRole('status').textContent).toContain('مفهوم کپی شد.');
+  });
+
+  it('does not send a second duplicate request while the first is unresolved', async () => {
+    let rejectDuplicate!: (error: Error) => void;
+    mocks.list.mockResolvedValue([first]);
+    mocks.duplicate.mockReturnValue(new Promise((_resolve, reject) => { rejectDuplicate = reject; }));
+    render(<AccountContent />);
+
+    await screen.findByRole('heading', { name: 'رایحه باران' });
+    const duplicate = screen.getByRole('button', { name: 'کپی' });
+    fireEvent.click(duplicate);
+    fireEvent.click(duplicate);
+    expect(mocks.duplicate).toHaveBeenCalledTimes(1);
+    expect(duplicate.hasAttribute('disabled')).toBe(true);
+
+    await act(async () => { rejectDuplicate(new Error('uncertain network response')); });
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.queryByText('مفهوم کپی شد.')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'رایحه باران' })).toBeTruthy();
+    expect(mocks.duplicate).toHaveBeenCalledTimes(1);
+    expect(mocks.list).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires delete confirmation and does not replay an uncertain delete', async () => {
+    const confirmation = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    mocks.list.mockResolvedValue([first]);
+    mocks.remove.mockRejectedValueOnce(new Error('uncertain network response'));
+    render(<AccountContent />);
+
+    await screen.findByRole('heading', { name: 'رایحه باران' });
+    fireEvent.click(screen.getByRole('button', { name: 'حذف' }));
+    expect(confirmation).toHaveBeenCalledTimes(1);
+    expect(mocks.remove).not.toHaveBeenCalled();
+
+    confirmation.mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button', { name: 'حذف' }));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(mocks.remove).toHaveBeenCalledTimes(1);
+    expect(mocks.remove).toHaveBeenCalledWith('concept-1');
+    expect(mocks.list).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('heading', { name: 'رایحه باران' })).toBeTruthy();
+    expect(screen.queryByText('مفهوم حذف شد.')).toBeNull();
+  });
+
+  it('keeps loaded concepts during a failed next page and retries only on explicit action', async () => {
+    const firstPage = Array.from({ length: 20 }, (_, index) => ({ ...first, id: `concept-${index + 1}` }));
+    mocks.list.mockResolvedValueOnce(firstPage)
+      .mockRejectedValueOnce(new Error('next page unavailable'))
+      .mockResolvedValueOnce([second]);
+    render(<AccountContent />);
+
+    await screen.findAllByRole('heading', { name: 'رایحه باران' });
+    fireEvent.click(screen.getByRole('button', { name: 'نمایش بیشتر' }));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getAllByRole('heading', { name: 'رایحه باران' })).toHaveLength(20);
+    expect(mocks.list).toHaveBeenCalledTimes(2);
+    expect(mocks.list.mock.calls[1].slice(0, 2)).toEqual([20, 20]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'نمایش بیشتر' }));
+    expect(await screen.findByRole('heading', { name: 'رایحه باغ' })).toBeTruthy();
+    expect(mocks.list).toHaveBeenCalledTimes(3);
+    expect(mocks.list.mock.calls[2].slice(0, 2)).toEqual([20, 20]);
+    expect(screen.getAllByRole('heading', { name: 'رایحه باران' })).toHaveLength(20);
+  });
+
+  it('requests saved concepts again after a same-account logout and remount', async () => {
+    mocks.list.mockResolvedValue([first]);
+    const firstMount = render(<AccountContent />);
+    await screen.findByRole('heading', { name: 'رایحه باران' });
+    firstMount.unmount();
+
+    render(<AccountContent />);
+    expect(await screen.findByRole('heading', { name: 'رایحه باران' })).toBeTruthy();
+    expect(mocks.list).toHaveBeenCalledTimes(2);
+    expect(mocks.list.mock.calls[0][1]).toBe(0);
+    expect(mocks.list.mock.calls[1][1]).toBe(0);
   });
 
   it('does not show account A concepts or actions while account B is loading', async () => {
