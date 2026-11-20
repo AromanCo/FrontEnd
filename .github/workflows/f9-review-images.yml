@@ -120,8 +120,11 @@ jobs:
             | tee "$output/postgres-version.txt"
           docker run --rm --network none --entrypoint id aroman-f9-postgres:review -G postgres \
             | grep -w 10001
-          docker image inspect --format '{{join .RepoTags ","}} {{.Id}}' \
-            aroman-f9-frontend:review aroman-f9-postgres:review | tee -a "$output/image-identities.txt"
+          for image in aroman-f9-frontend:review aroman-f9-postgres:review; do
+            image_id="$(docker image inspect --format '{{.Id}}' "$image")"
+            [[ "$image_id" =~ ^sha256:[a-f0-9]{64}$ ]]
+            printf '%s %s\n' "$image" "$image_id"
+          done | tee -a "$output/image-identities.txt"
           docker image save aroman-f9-frontend:review | gzip -1 > "$output/aroman-f9-frontend-image.tar.gz"
           docker image save aroman-f9-postgres:review | gzip -1 > "$output/aroman-f9-postgres-image.tar.gz"
           (
