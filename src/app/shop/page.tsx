@@ -3,17 +3,21 @@ import { catalog, type Brand, type Family, type Product } from '@/lib/api/client
 import { ProductCard } from '@/components/catalog/ProductCard';
 import { CatalogControls } from '@/components/catalog/CatalogControls';
 
+function firstQueryValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 export default async function Shop({
   searchParams,
 }: {
-  searchParams: Promise<Record<string, string | undefined>>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const q = (params.q || '').slice(0, 100);
-  const brand_id = params.brand_id || undefined;
-  const family_id = params.family_id || undefined;
-  const raw = Number(params.offset || 0);
-  const offset = Number.isInteger(raw) && raw >= 0 ? raw : 0;
+  const q = (firstQueryValue(params.q) || '').slice(0, 100);
+  const brand_id = firstQueryValue(params.brand_id) || undefined;
+  const family_id = firstQueryValue(params.family_id) || undefined;
+  const raw = Number(firstQueryValue(params.offset) || 0);
+  const offset = Number.isSafeInteger(raw) && raw >= 0 ? raw : 0;
   const limit = 12;
   let products: Product[] = [];
   let brands: Brand[] = [];
