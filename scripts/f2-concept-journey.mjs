@@ -103,7 +103,9 @@ try {
 
   await selectOption('radio', /آرام و آسوده/);
   await continueStep('جهان‌های رایحه');
-  await page.getByRole('checkbox', { name: /گلی/ }).check({ force: true });
+  // The checkbox input is visually clipped; interact with its visible label
+  // card, as we do for the other Guided choices, and assert React state.
+  await selectOption('checkbox', /گلی/);
   await continueStep('دمای حسی');
   await selectOption('radio', /نرم و متعادل/);
   await continueStep('یک تصویر برای خیال');
