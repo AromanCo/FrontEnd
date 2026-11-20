@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
+import { isExpectedAbortedSessionGet, watchPage } from '../scripts/browser-utils.mjs';
 
 const frontend = resolve(import.meta.dirname, '..');
 const runner = resolve(frontend, 'scripts/real-stack-runner.mjs');
@@ -75,4 +77,29 @@ test('F2 Guided family selection clicks the visible label card rather than its c
   assert.match(selection, /await selectOption\('checkbox', \/گلی\/\);/);
   assert.doesNotMatch(selection, /\.check\(\{\s*force:\s*true\s*\}\)/);
   assert.match(journey, /control\.locator\('xpath=\.\.'\)\.click\(\)/);
+});
+
+test('F2 only tolerates an aborted GET to this run\'s exact auth-session URL', () => {
+  const api = 'http://localhost:48912/api/v1';
+  const page = new EventEmitter();
+  const report = watchPage(page, () => false,
+    (request, reason) => isExpectedAbortedSessionGet(request, reason, api));
+  const fail = (url, method, errorText) => page.emit('requestfailed', {
+    url: () => url,
+    method: () => method,
+    failure: () => ({ errorText }),
+  });
+
+  fail(`${api}/auth/session`, 'GET', 'net::ERR_ABORTED');
+  assert.deepEqual(report.errors, [], 'Only the exact cancelled session read may be tolerated');
+
+  fail(`${api}/auth/session`, 'POST', 'net::ERR_ABORTED');
+  fail(`${api}/users/me`, 'GET', 'net::ERR_ABORTED');
+  fail(`${api}/auth/session`, 'GET', 'net::ERR_CONNECTION_RESET');
+  fail('http://localhost:48913/api/v1/auth/session', 'GET', 'net::ERR_ABORTED');
+  page.emit('response', { url: () => `${api}/auth/session`, status: () => 500 });
+  assert.equal(report.errors.length, 5, 'Mutations, other paths/origins, network errors and HTTP 500 stay fatal');
+  assert.match(report.errors[0], /Request failed \(net::ERR_ABORTED\)/);
+  assert.match(report.errors[4], /HTTP 500/);
+  assert.match(journey, /isExpectedAbortedSessionGet\(request, reason, apiBase\)/);
 });

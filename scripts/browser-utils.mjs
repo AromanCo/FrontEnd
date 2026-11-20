@@ -17,7 +17,14 @@ export function openBrowser() {
   throw new Error(`Unsupported BROWSER_ENGINE "${browserEngine}"; expected chromium, firefox, or webkit`);
 }
 
-export function watchPage(page, allowedHttp = () => false) {
+export function isExpectedAbortedSessionGet(request, reason, apiBase) {
+  // Navigation can cancel an in-flight AuthProvider session probe. Only that
+  // exact read, against this run's private API, is an expected cancellation.
+  return reason === 'net::ERR_ABORTED' && request.method() === 'GET' &&
+    request.url() === `${apiBase}/auth/session`;
+}
+
+export function watchPage(page, allowedHttp = () => false, allowedRequestFailure = () => false) {
   const errors = [];
   const apiResponses = [];
   page.on('pageerror', error => errors.push(`Page error: ${error.message}`));
@@ -36,6 +43,7 @@ export function watchPage(page, allowedHttp = () => false) {
   });
   page.on('requestfailed', request => {
     const reason = request.failure()?.errorText || 'unknown';
+    if (allowedRequestFailure(request, reason)) return;
     if (request.url().includes('/api/v1/') || reason !== 'net::ERR_ABORTED') {
       errors.push(`Request failed (${reason}): ${request.url()}`);
     }
