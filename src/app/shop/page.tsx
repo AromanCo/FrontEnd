@@ -47,17 +47,25 @@ export default async function Shop({
 
   return (
     <div className="container section">
-      <p className="eyebrow">THE COLLECTION</p>
-      <h1 className="heading mt-3">کشف محصولات</h1>
-      <p className="mt-3 text-plum/70">
-        محصولات این کاتالوگ نمایشی هستند. قیمت، موجودی و امکان خرید هنوز ارائه نشده‌اند.
-      </p>
+      <header className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <div>
+          <h1 className="heading">کشف محصولات</h1>
+          <p className="mt-3 text-plum/70">مجموعه‌ای نمایشی برای آشنایی با خانواده‌های رایحه.</p>
+        </div>
+        <Link className="btn btn-atelier-outline justify-self-start" href="/studio/guided">
+          شروع کشف با راهنما
+        </Link>
+      </header>
       <CatalogControls key={JSON.stringify([q, brand_id, family_id])} q={q} brandId={brand_id || ''} familyId={family_id || ''} brands={brands} families={families} />
 
       {error ? (
-        <div role="alert" className="card mt-8 p-8 leading-8">
-          اتصال به کاتالوگ برقرار نشد. لطفاً بعداً دوباره تلاش کنید.
-        </div>
+        <section className="card mt-8 p-6 sm:p-8" aria-label="بازیابی کاتالوگ">
+          <p role="alert" className="leading-8">اتصال به کاتالوگ برقرار نشد. لطفاً بعداً دوباره تلاش کنید.</p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <a className="btn btn-primary" href={pageUrl(offset)}>تلاش دوباره</a>
+            {active && <Link className="btn btn-secondary" href="/shop">نمایش همه محصولات</Link>}
+          </div>
+        </section>
       ) : products.length ? (
         <>
           <p className="mt-8 text-sm text-plum/70" aria-live="polite">

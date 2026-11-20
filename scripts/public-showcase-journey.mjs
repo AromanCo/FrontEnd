@@ -79,6 +79,21 @@ try {
   }
   await page.goto(new URL('/shop', origin).href);
   await page.getByRole('heading', { name: 'محصول ساختگی کاتالوگ عمومی' }).waitFor();
+  const shopMain = page.locator('#main');
+  const catalogGuidedLink = shopMain.getByRole('link', { name: 'شروع کشف با راهنما', exact: true });
+  await catalogGuidedLink.waitFor({ state: 'visible' });
+  assert.equal(await catalogGuidedLink.getAttribute('href'), '/studio/guided');
+  const filters = shopMain.getByRole('search', { name: 'جستجو و فیلتر محصولات' });
+  await filters.getByLabel('برند', { exact: true }).waitFor({ state: 'visible' });
+  await filters.getByLabel('خانواده رایحه', { exact: true }).waitFor({ state: 'visible' });
+  await shopMain.locator('.product-detail-link').first().click();
+  await page.waitForURL(url => /^\/shop\/[^/]+$/.test(url.pathname));
+  const returnToCatalog = shopMain.getByRole('link', { name: 'بازگشت به مجموعه', exact: true });
+  await returnToCatalog.waitFor({ state: 'visible' });
+  assert.equal(await returnToCatalog.getAttribute('href'), '/shop');
+  const nextStep = shopMain.getByRole('region', { name: 'ادامهٔ کشف رایحه' });
+  await nextStep.getByRole('link', { name: 'شروع کشف با راهنما', exact: true }).click();
+  await page.waitForURL(url => url.pathname === '/studio/guided');
   const desktop = desktopPage.getByRole('navigation', { name: 'ناوبری اصلی' });
   for (const href of ['/shop', '/studio/creative', '/studio/guided', '/studio/creative#smart-perfumer']) {
     assert.ok(await desktop.locator(`a[href="${href}"]`).first().isVisible(), `desktop navigation should expose ${href}`);

@@ -123,9 +123,14 @@ try {
   const guidedSnapshot = { name: guidedName, selections: guidedSelections };
   assertValidSnapshot(guidedSnapshot, 'Guided result');
 
-  await page.getByRole('button', { name: 'رفتن به استودیوی خلاق', exact: true }).click();
+  const nextStep = page.getByRole('region', { name: 'ادامه در استودیوی خلاق' });
+  const creativeLink = nextStep.getByRole('button', { name: 'رفتن به استودیوی خلاق', exact: true });
+  assert.equal(await creativeLink.getAttribute('aria-describedby'), 'guided-transfer-description');
+  await creativeLink.click();
   await page.waitForURL(`${frontendOrigin}/studio/creative?from=guided`);
   await page.getByText('پیشنهاد استودیوی هدایت‌شده برای ویرایش وارد شد.').waitFor();
+  await page.locator('#studio-save-help').waitFor({ state: 'visible' });
+  assert.equal(await page.locator('.studio-save-top').getAttribute('aria-describedby'), 'studio-save-help');
   await page.locator('#studio-panel-0[data-note-status="ready"]').waitFor();
   await page.locator('#studio-panel-1').waitFor({ state: 'visible' });
   const importedSnapshot = await readComposition();
