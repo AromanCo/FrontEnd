@@ -66,3 +66,13 @@ test('F2 mobile Creative reopen reveals Composition and waits for loaded name be
   assert.match(journey.slice(tab, edit), /aria-selected/);
   assert.match(journey.slice(name, edit), /#studio-panel-1 input\[aria-label="نام مفهوم"\]/);
 });
+
+test('F2 Guided family selection clicks the visible label card rather than its clipped checkbox', () => {
+  const familyStep = journey.indexOf("await continueStep('جهان‌های رایحه');");
+  const nextStep = journey.indexOf("await continueStep('دمای حسی');", familyStep);
+  assert.ok(familyStep >= 0 && nextStep > familyStep);
+  const selection = journey.slice(familyStep, nextStep);
+  assert.match(selection, /await selectOption\('checkbox', \/گلی\/\);/);
+  assert.doesNotMatch(selection, /\.check\(\{\s*force:\s*true\s*\}\)/);
+  assert.match(journey, /control\.locator\('xpath=\.\.'\)\.click\(\)/);
+});
