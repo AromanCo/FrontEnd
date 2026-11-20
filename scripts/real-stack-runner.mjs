@@ -13,9 +13,10 @@ import { captureTestContainerId, cleanupTestContainer } from './real-stack-conta
 const frontend = resolve(import.meta.dirname, '..');
 const mode = process.argv[2] || 'sqlite';
 const isF5Mvp = mode === 'f5-mvp';
-const isMvpPreview = mode === 'mvp-preview';
+const isMvpCheckout = mode === 'mvp-checkout';
+const isMvpPreview = mode === 'mvp-preview' || isMvpCheckout;
 const usesSqlite = mode === 'sqlite' || isMvpPreview;
-assert.ok(['sqlite', 'postgres', 'transactions', 'f1-account', 'f2-concepts', 'f3-continuity', 'f5-mvp', 'mvp-preview'].includes(mode) && process.argv.length <= 3, 'Usage: real-stack-runner.mjs [sqlite|postgres|transactions|f1-account|f2-concepts|f3-continuity|f5-mvp|mvp-preview]');
+assert.ok(['sqlite', 'postgres', 'transactions', 'f1-account', 'f2-concepts', 'f3-continuity', 'f5-mvp', 'mvp-preview', 'mvp-checkout'].includes(mode) && process.argv.length <= 3, 'Usage: real-stack-runner.mjs [sqlite|postgres|transactions|f1-account|f2-concepts|f3-continuity|f5-mvp|mvp-preview|mvp-checkout]');
 if (mode === 'f1-account') {
   assert.equal(
     process.env.AROMAN_F1_ACCOUNT_EPHEMERAL_ACK,
@@ -47,10 +48,11 @@ if (isF5Mvp) {
 const backend = resolve(process.env.AROMAN_TEST_BACKEND_DIR || join(frontend, '..', 'Backend'));
 const revision = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: backend, encoding: 'utf8' });
 assert.equal(revision.status, 0, `Backend checkout unavailable: ${revision.stderr}`);
+const demoCheckoutBackendSha = '38955edde9f32371f7bdc3e00eb449c456ccefba';
 const expectedBackend = mode === 'f1-account'
   ? f1AccountBackendSha
   : isF5Mvp || isMvpPreview || ['f2-concepts', 'f3-continuity'].includes(mode) ? f2ConceptBackendSha : backendSha;
-assert.equal(revision.stdout.trim(), expectedBackend, 'Backend checkout must be at the pinned SHA');
+assert.equal(revision.stdout.trim(), isMvpCheckout ? demoCheckoutBackendSha : expectedBackend, 'Backend checkout must be at the pinned SHA');
 
 const tsconfigPath = join(frontend, 'tsconfig.json');
 const originalTsconfig = await readFile(tsconfigPath, 'utf8');
@@ -74,6 +76,8 @@ function makeEnv(apiPort, frontendPort, databaseUrl, postgres = null) {
   const frontendOrigin = `http://localhost:${frontendPort}`;
   return {
     ...process.env,
+    DEMO_CHECKOUT_ENABLED: String(isMvpCheckout),
+    AROMAN_DEMO_CHECKOUT_ENABLED: String(isMvpCheckout),
     ...(isF5Mvp || isMvpPreview || ['f1-account', 'f2-concepts', 'f3-continuity'].includes(mode) ? { AROMAN_RELEASE_SCOPE: 'full' } : {}),
     ENVIRONMENT: 'test',
     DATABASE_URL: databaseUrl,

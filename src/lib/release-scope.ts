@@ -32,3 +32,8 @@ export function isExplorationOnlyPath(pathname: string): boolean {
 export function isExcludedPathForScope(scope: ReleaseScope, pathname: string): boolean {
   return scope !== 'full' && isExplorationOnlyPath(pathname);
 }
+
+export function isDemoCheckoutEnabled(scope: ReleaseScope): boolean {
+  return scope === 'full' && process.env.NODE_ENV === 'development'
+    && process.env.AROMAN_DEMO_CHECKOUT_ENABLED === 'true';
+}
