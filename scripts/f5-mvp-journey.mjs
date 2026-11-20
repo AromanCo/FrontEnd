@@ -98,10 +98,11 @@ async function checkCatalog(page, context) {
   await page.getByRole('heading', { name: target.name, exact: true }).waitFor();
   await checkLayout(page, 'F5 catalog at 390px');
 
-  await page.getByRole('search', { name: 'جستجو و فیلتر محصولات' }).getByRole('searchbox').fill(target.name);
-  await page.getByLabel('برند', { exact: true }).selectOption(target.brand_id);
-  await page.getByLabel('خانواده رایحه', { exact: true }).selectOption(target.family_id);
-  await page.getByRole('button', { name: 'اعمال فیلتر' }).click();
+  const filters = page.getByRole('search', { name: 'جستجو و فیلتر محصولات' });
+  await filters.getByRole('searchbox').fill(target.name);
+  await filters.getByLabel('برند').selectOption(target.brand_id);
+  await filters.getByLabel('خانواده رایحه').selectOption(target.family_id);
+  await filters.getByRole('button', { name: 'اعمال فیلتر' }).click();
   await page.waitForURL(url => url.pathname === '/shop' && url.searchParams.get('q') === target.name &&
     url.searchParams.get('brand_id') === target.brand_id && url.searchParams.get('family_id') === target.family_id);
   await page.getByRole('button', { name: 'پاک کردن همه فیلترها' }).waitFor();
