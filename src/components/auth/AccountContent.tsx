@@ -118,7 +118,8 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
   const [items, setItems] = useState<Concept[]>([]);
   const [busy, setBusy] = useState('');
   const actionRef = useRef(false);
-  const activeListRequests = useRef(new Set<AbortController>());
+  const activeListRequest = useRef<AbortController | null>(null);
+  const mounted = useRef(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [offset, setOffset] = useState(0);
@@ -127,8 +128,9 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const loadPage = useCallback(async (nextOffset = 0) => {
+    if (!mounted.current || activeListRequest.current) return;
     const controller = new AbortController();
-    activeListRequests.current.add(controller);
+    activeListRequest.current = controller;
     setError('');
     if (nextOffset === 0) setLoadingItems(true);
     else setLoadingMore(true);
@@ -143,8 +145,8 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
         setError(cause instanceof ApiError ? cause.message : 'بارگذاری انجام نشد.');
       }
     } finally {
-      activeListRequests.current.delete(controller);
       if (!controller.signal.aborted) {
+        activeListRequest.current = null;
         if (nextOffset === 0) setLoadingItems(false);
         else setLoadingMore(false);
       }
@@ -152,16 +154,18 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
   }, []);
 
   useEffect(() => {
+    mounted.current = true;
     const timer = setTimeout(() => { void loadPage(); }, 0);
     return () => {
+      mounted.current = false;
       clearTimeout(timer);
-      for (const request of activeListRequests.current) request.abort();
-      activeListRequests.current.clear();
+      activeListRequest.current?.abort();
+      activeListRequest.current = null;
     };
   }, [loadPage]);
 
   const runAction = async (id: string, kind: 'duplicate' | 'delete') => {
-    if (actionRef.current) return;
+    if (actionRef.current || activeListRequest.current) return;
     if (kind === 'delete' && !window.confirm('این مفهوم حذف شود؟')) return;
     actionRef.current = true;
     setBusy(id);
@@ -170,11 +174,14 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
     try {
       if (kind === 'duplicate') {
         await concepts.duplicate(id);
-        setMessage('مفهوم کپی شد.');
       } else {
         await concepts.remove(id);
-        setMessage('مفهوم حذف شد.');
       }
+      if (!mounted.current) return;
+      setMessage(kind === 'duplicate' ? 'مفهوم کپی شد.' : 'مفهوم حذف شد.');
+      setItems([]);
+      setOffset(0);
+      setHasMore(false);
       await loadPage();
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'درخواست انجام نشد.');
@@ -265,7 +272,7 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
                 key={item.id}
                 concept={item}
                 position={index + 1}
-                busy={Boolean(busy)}
+                busy={Boolean(busy) || loadingItems || loadingMore}
                 onAction={(id, kind) => void runAction(id, kind)}
               />
             ))}
@@ -274,7 +281,9 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
 
         {hasMore && (
           <div className="mt-8 flex justify-center">
-            <button type="button" className="btn btn-secondary" disabled={loadingMore || Boolean(busy)} onClick={() => void loadPage(offset)}>
+            <button type="button" className="btn btn-secondary" disabled={loadingItems || loadingMore || Boolean(busy)} onClick={() => {
+              if (!actionRef.current) void loadPage(offset);
+            }}>
               {loadingMore ? 'در حال بارگذاری…' : 'نمایش بیشتر'}
             </button>
           </div>
