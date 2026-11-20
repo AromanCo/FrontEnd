@@ -2,7 +2,7 @@
 // This file never provisions resources; real-stack-runner.mjs owns the guard.
 import assert from 'node:assert/strict';
 import { createConnection } from 'node:net';
-import { openBrowser, watchPage, assertNoBrowserErrors, checkLayout } from './browser-utils.mjs';
+import { openBrowser, watchPage, assertNoBrowserErrors, checkLayout, isExpectedAbortedSessionGet } from './browser-utils.mjs';
 
 const frontendOrigin = process.env.FRONTEND_ORIGIN;
 const apiBase = process.env.NEXT_PUBLIC_AROMAN_API_BASE_URL;
@@ -78,7 +78,7 @@ const report = watchPage(page, (status, url) => {
   const path = new URL(url).pathname;
   return (status === 401 && ['/api/v1/auth/session', '/api/v1/users/me'].includes(path)) ||
     (status === 403 && path === '/api/v1/auth/session');
-});
+}, (request, reason) => isExpectedAbortedSessionGet(request, reason, apiBase));
 const conceptCreates = [];
 page.on('request', request => {
   if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/v1/fragrance-concepts') {
