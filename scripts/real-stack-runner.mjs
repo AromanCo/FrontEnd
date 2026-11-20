@@ -7,11 +7,12 @@ import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { testBackendSha as backendSha } from './r3c-b-test-backend-pin.mjs';
 import { f1AccountBackendSha } from './f1-account-backend-pin.mjs';
+import { f2ConceptBackendSha } from './f2-concept-backend-pin.mjs';
 import { captureTestContainerId, cleanupTestContainer } from './real-stack-container-cleanup.mjs';
 
 const frontend = resolve(import.meta.dirname, '..');
 const mode = process.argv[2] || 'sqlite';
-assert.ok(['sqlite', 'postgres', 'transactions', 'f1-account'].includes(mode) && process.argv.length <= 3, 'Usage: real-stack-runner.mjs [sqlite|postgres|transactions|f1-account]');
+assert.ok(['sqlite', 'postgres', 'transactions', 'f1-account', 'f2-concepts'].includes(mode) && process.argv.length <= 3, 'Usage: real-stack-runner.mjs [sqlite|postgres|transactions|f1-account|f2-concepts]');
 if (mode === 'f1-account') {
   assert.equal(
     process.env.AROMAN_F1_ACCOUNT_EPHEMERAL_ACK,
@@ -19,10 +20,17 @@ if (mode === 'f1-account') {
     'F1 account rehearsal is separately approval-gated: set AROMAN_F1_ACCOUNT_EPHEMERAL_ACK=isolated-postgres-fakesms-only only after owner approval and exact resource preflight',
   );
 }
+if (mode === 'f2-concepts') {
+  assert.equal(
+    process.env.AROMAN_F2_CONCEPT_EPHEMERAL_ACK,
+    'f2-isolated-postgres-fakesms-only',
+    'F2 saved-concept rehearsal is separately approval-gated: set AROMAN_F2_CONCEPT_EPHEMERAL_ACK=f2-isolated-postgres-fakesms-only only after fresh owner approval and exact resource preflight',
+  );
+}
 const backend = resolve(process.env.AROMAN_TEST_BACKEND_DIR || join(frontend, '..', 'Backend'));
 const revision = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: backend, encoding: 'utf8' });
 assert.equal(revision.status, 0, `Backend checkout unavailable: ${revision.stderr}`);
-assert.equal(revision.stdout.trim(), mode === 'f1-account' ? f1AccountBackendSha : backendSha, 'Backend checkout must be at the pinned SHA');
+assert.equal(revision.stdout.trim(), mode === 'f1-account' ? f1AccountBackendSha : mode === 'f2-concepts' ? f2ConceptBackendSha : backendSha, 'Backend checkout must be at the pinned SHA');
 
 const tsconfigPath = join(frontend, 'tsconfig.json');
 const originalTsconfig = await readFile(tsconfigPath, 'utf8');
@@ -46,7 +54,7 @@ function makeEnv(apiPort, frontendPort, databaseUrl, postgres = null) {
   const frontendOrigin = `http://localhost:${frontendPort}`;
   return {
     ...process.env,
-    ...(mode === 'f1-account' ? { AROMAN_RELEASE_SCOPE: 'full' } : {}),
+    ...(['f1-account', 'f2-concepts'].includes(mode) ? { AROMAN_RELEASE_SCOPE: 'full' } : {}),
     ENVIRONMENT: 'test',
     DATABASE_URL: databaseUrl,
     OTP_PEPPER: randomBytes(32).toString('hex'),
@@ -63,7 +71,7 @@ function makeEnv(apiPort, frontendPort, databaseUrl, postgres = null) {
     AROMAN_BROWSER_API_BASE_URL: `${apiOrigin}/api/v1`,
     PYTHONPATH: backend,
     AROMAN_TEST_NEXT_DIST_DIR: nextDist,
-    AROMAN_TEST_DB_MODE: mode === 'f1-account' ? 'postgres' : mode,
+    AROMAN_TEST_DB_MODE: ['f1-account', 'f2-concepts'].includes(mode) ? 'postgres' : mode,
     AROMAN_TEST_DB_USER: postgres?.user || '',
     AROMAN_TEST_DB_NAME: postgres?.database || '',
   };
@@ -200,6 +208,7 @@ try {
     await ready(`http://127.0.0.1:${frontendPort}/studio/guided`, next);
     Object.assign(process.env, env);
     if (mode === 'f1-account') await import('./f1-account-journey.mjs');
+    else if (mode === 'f2-concepts') await import('./f2-concept-journey.mjs');
     else await import('./real-stack-journey.mjs');
   }
 } catch (error) {
