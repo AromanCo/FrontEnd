@@ -81,8 +81,10 @@ async function composition(page) {
 }
 
 async function showComposition(page) {
-  await page.locator('#studio-panel-0[data-note-status="ready"]').waitFor();
-  await page.getByRole('tablist', { name: 'گام‌های استودیو' }).getByRole('tab', { name: /ترکیب/ }).click();
+  // Guided imports already activate Composition, which hides the loaded Notes panel on mobile.
+  await page.locator('#studio-panel-0[data-note-status="ready"]').waitFor({ state: 'attached' });
+  const tab = page.getByRole('tablist', { name: 'گام‌های استودیو' }).getByRole('tab', { name: /ترکیب/ });
+  if (await tab.getAttribute('aria-selected') !== 'true') await tab.click();
   await page.locator('#studio-panel-1[data-active="true"]').waitFor({ state: 'visible' });
 }
 
