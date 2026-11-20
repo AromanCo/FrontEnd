@@ -18,7 +18,12 @@ type DemoQuote = {
   })[];
   subtotal: number;
 };
-export type DemoOrderReceipt = DemoQuote & { id: string; status: 'placed'; created_at: string };
+export type DemoOrderReceipt = DemoQuote & {
+  id: string;
+  status: 'placed' | 'paid' | 'cancelled';
+  created_at: string;
+};
+export type DemoOrderAction = 'simulate-payment' | 'cancel';
 type StoredAttempt = { cart: string; id: string; subtotal: number };
 
 function cartLines(items: DemoCartItem[]): CartLine[] {
@@ -90,4 +95,11 @@ export function clearPlacedCart(userId: string) {
 
 export function listDemoOrders(signal: AbortSignal) {
   return request<DemoOrderReceipt[]>('/demo-checkout/orders', { signal });
+}
+
+export function updateDemoOrder(orderId: string, action: DemoOrderAction) {
+  return authenticated<DemoOrderReceipt>(
+    `/demo-checkout/orders/${encodeURIComponent(orderId)}/actions/${action}`,
+    'POST',
+  );
 }

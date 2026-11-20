@@ -48,7 +48,7 @@ if (isF5Mvp) {
 const backend = resolve(process.env.AROMAN_TEST_BACKEND_DIR || join(frontend, '..', 'Backend'));
 const revision = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: backend, encoding: 'utf8' });
 assert.equal(revision.status, 0, `Backend checkout unavailable: ${revision.stderr}`);
-const demoCheckoutBackendSha = '3291949221be83f01aca91ca95875b64044d7ab0';
+const demoCheckoutBackendSha = '6904a81e47f69add887b83852239dbe08061e113';
 const expectedBackend = mode === 'f1-account'
   ? f1AccountBackendSha
   : isF5Mvp || isMvpPreview || ['f2-concepts', 'f3-continuity'].includes(mode) ? f2ConceptBackendSha : backendSha;
