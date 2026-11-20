@@ -59,6 +59,21 @@ try {
   }
   await page.goto(new URL('/', origin).href);
   await desktopPage.goto(new URL('/', origin).href, { waitUntil: 'domcontentloaded' });
+  for (const [homePage, viewport] of [[page, 'mobile'], [desktopPage, 'desktop']]) {
+    const paths = homePage.getByRole('navigation', { name: 'مسیرهای شروع آرومان' });
+    const destinations = [
+      ['شروع کشف با راهنما', '/studio/guided'],
+      ['ساخت مفهوم رایحه', '/studio/creative'],
+      ['کشف مجموعه رایحه‌ها', '/shop'],
+    ];
+    for (const [name, href] of destinations) {
+      const link = paths.getByRole('link', { name, exact: true });
+      await link.waitFor({ state: 'visible' });
+      assert.equal(await link.getAttribute('href'), href, `${viewport} homepage entry should link to ${href}`);
+    }
+    const primary = paths.getByRole('link').first();
+    assert.equal(await primary.getAttribute('href'), '/studio/guided');
+  }
   for (const href of ['/login', '/account', '/cart', '/checkout']) {
     assert.equal(await desktopPage.locator(`a[href="${href}"]`).count(), 0, `public page chrome must omit ${href}`);
   }
