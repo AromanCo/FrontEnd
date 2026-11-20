@@ -85,8 +85,17 @@ jobs:
         run: |
           npm ci
           python -m pip install 'fastapi>=0.115,<1' 'uvicorn>=0.34,<1' 'pydantic-settings>=2.7,<3' 'sqlalchemy>=2.0,<3' 'alembic>=1.14,<2'
-          npx playwright install --with-deps chromium
-          echo "CHROME_BIN=$(node -e 'process.stdout.write(require("playwright").chromium.executablePath())')" >> "$GITHUB_ENV"
+
+      - name: Detect system Chrome
+        run: |
+          set -euo pipefail
+          chrome_bin="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          if [ -z "$chrome_bin" ]; then
+            echo "System Chrome was not found on the ubuntu-24.04 runner." >&2
+            exit 1
+          fi
+          echo "CHROME_BIN=$chrome_bin" >> "$GITHUB_ENV"
+          echo "Using system Chrome at $chrome_bin"
 
       - name: Check pinned Backend OpenAPI contract and drift detection
         env:

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Brand, Family } from '@/lib/api/client';
 
@@ -24,10 +24,10 @@ function catalogUrl(q: string, brandId: string, familyId: string) {
 
 export function CatalogControls({ q, brandId, familyId, brands, families }: Props) {
   const router = useRouter();
+  const fieldId = useId();
   const [search, setSearch] = useState(q);
   const [brand, setBrand] = useState(brandId);
   const [family, setFamily] = useState(familyId);
-
 
   const apply = (nextSearch: string, nextBrand: string, nextFamily: string) => {
     router.push(catalogUrl(nextSearch, nextBrand, nextFamily));
@@ -59,15 +59,16 @@ export function CatalogControls({ q, brandId, familyId, brands, families }: Prop
       <form
         role="search"
         aria-label="جستجو و فیلتر محصولات"
-        className="card grid gap-4 p-5 md:grid-cols-[1fr_1fr_1fr_auto]"
+        className="card grid gap-4 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
         onSubmit={event => {
           event.preventDefault();
           apply(search, brand, family);
         }}
       >
-        <label className="space-y-2">
-          <span className="text-sm">جستجوی نام</span>
+        <div className="grid min-w-0 gap-2 sm:col-span-2 lg:col-span-1">
+          <label className="text-sm" htmlFor={`${fieldId}-search`}>جستجوی نام</label>
           <input
+            id={`${fieldId}-search`}
             className="input"
             type="search"
             maxLength={100}
@@ -75,22 +76,22 @@ export function CatalogControls({ q, brandId, familyId, brands, families }: Prop
             onChange={event => setSearch(event.target.value)}
             placeholder="نام محصول"
           />
-        </label>
-        <label className="space-y-2">
-          <span className="text-sm">برند</span>
-          <select className="input" value={brand} onChange={event => setBrand(event.target.value)}>
+        </div>
+        <div className="grid min-w-0 gap-2">
+          <label className="text-sm" htmlFor={`${fieldId}-brand`}>برند</label>
+          <select className="input" id={`${fieldId}-brand`} value={brand} onChange={event => setBrand(event.target.value)}>
             <option value="">همه برندها</option>
             {brands.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-        </label>
-        <label className="space-y-2">
-          <span className="text-sm">خانواده رایحه</span>
-          <select className="input" value={family} onChange={event => setFamily(event.target.value)}>
+        </div>
+        <div className="grid min-w-0 gap-2">
+          <label className="text-sm" htmlFor={`${fieldId}-family`}>خانواده رایحه</label>
+          <select className="input" id={`${fieldId}-family`} value={family} onChange={event => setFamily(event.target.value)}>
             <option value="">همه خانواده‌ها</option>
             {families.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-        </label>
-        <button type="submit" className="btn btn-primary self-end">اعمال فیلتر</button>
+        </div>
+        <button type="submit" className="btn btn-primary self-end sm:col-span-2 lg:col-span-1">اعمال فیلتر</button>
       </form>
 
       {activeFilters.length > 0 && (

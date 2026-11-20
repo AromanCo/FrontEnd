@@ -813,12 +813,29 @@ export function CreativeStudio({ conceptId: requestedConceptId, fromGuided = fal
   return <div className="studio-page">
     <header className="studio-intro">
       <div className="container studio-intro-inner">
-        <div><p className="eyebrow">{explorationOnly ? 'AROMAN · کاوش مفهومی' : 'AROMAN · کارگاه ساخت رایحه'}</p><h1>روایت رایحه‌ی شما</h1><p>نت‌ها را برگزینید، در سه لایه بچینید و حال‌وهوای مفهوم خود را تماشا کنید.</p></div>
-        <div className="studio-intro-actions"><p className="studio-count-badge" role="status" aria-live="polite" aria-label={`${selected.length} از ۶ نت انتخاب شده`}><strong aria-hidden="true">{selected.length}</strong><span aria-hidden="true">از ۶ نت</span></p>{!explorationOnly && <button type="button" className="studio-save-top" onClick={() => void save()} disabled={busy || editorLocked}>{busy ? 'در حال ذخیره…' : savedId ? 'ذخیره تغییرات' : 'ذخیره مفهوم'}</button>}</div>
+        <div>
+          <h1>روایت رایحه‌ی شما</h1>
+          <p>نت‌ها را انتخاب کنید، در سه لایه بچینید و پیش‌نمایش ترکیب را ببینید.</p>
+        </div>
+        <div className="studio-intro-actions">
+          <p className="studio-count-badge" role="status" aria-live="polite" aria-label={`${selected.length} از ۶ نت انتخاب شده`}>
+            <strong aria-hidden="true">{selected.length}</strong><span aria-hidden="true">از ۶ نت</span>
+          </p>
+          {!explorationOnly && (
+            <button type="button" className="studio-save-top" aria-describedby="studio-save-help" onClick={() => void save()} disabled={busy || editorLocked}>
+              {busy ? 'در حال ذخیره…' : savedId ? 'ذخیره تغییرات' : 'ذخیره مفهوم'}
+            </button>
+          )}
+        </div>
       </div>
     </header>
 
     <div className="container studio-workspace">
+      {!explorationOnly && (
+        <p className="studio-save-help" id="studio-save-help">
+          برای ثبت ترکیب یا تغییرات در حساب خود، دکمهٔ ذخیره را بزنید.
+        </p>
+      )}
       {(guidedImportError || guidedImportState === 'loading' || guidedImportState === 'invalid' || guidedDraftExpired || advisorDraftExpired || (advisorImportLocked && guidedDraft?.origin === 'advisor-fork' && guidedImportState === 'idle')) && <div className={guidedImportState === 'loading' || (advisorImportLocked && guidedDraft?.origin === 'advisor-fork' && guidedImportState === 'idle' && !advisorDraftExpired) ? 'studio-global-notice' : 'studio-global-error'} role={guidedImportState === 'loading' || (advisorImportLocked && guidedDraft?.origin === 'advisor-fork' && guidedImportState === 'idle' && !advisorDraftExpired) ? 'status' : 'alert'}>
         <p>{guidedImportState === 'loading' ? 'پیش‌نویس در حال بررسی با کاتالوگ فعلی است…' : advisorImportLocked && guidedDraft?.origin === 'advisor-fork' && guidedImportState === 'idle' && !advisorDraftExpired ? 'پیش‌نویس مستقل در حال بررسی است؛ تا تأیید کامل کاتالوگ، ترکیب و ذخیره مسدود می‌ماند.' : advisorDraftExpired ? 'انتقال نسخهٔ مستقل در حافظهٔ این برگه پیدا نشد یا با این نشانی هم‌خوان نیست؛ احتمالاً صفحه تازه‌سازی شده است. مفهوم ذخیره‌شده حذف نشده است.' : guidedDraftExpired ? 'پیش‌نویس انتقال در حافظه پیدا نشد؛ احتمالاً صفحه تازه‌سازی شده است. پیشنهاد را دوباره بسازید.' : guidedImportError}</p>
         {guidedImportState === 'error' && guidedDraft && (!fromAdvisor || (guidedDraft.origin === 'advisor-fork' && navigationIntentId === guidedDraft.transferId && isCurrentStudioDraft(guidedDraft.transferId))) && <button type="button" onClick={() => void inspectGuidedDraft(fromGuided)} disabled={busy}>تلاش دوباره برای دریافت نت‌ها</button>}
