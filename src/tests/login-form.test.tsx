@@ -62,9 +62,13 @@ it('advances to code entry after a successful challenge', async () => {
   expect(mocks.challenge).toHaveBeenCalledWith('09121234567');
 });
 
-it('keeps the verification step available for retry after an invalid or expired code', async () => {
+it.each([
+  [400, 'کد نامعتبر یا منقضی شده است.'],
+  [429, 'درخواست‌های زیادی ثبت شده است. کمی صبر کنید.'],
+  [503, 'این سرویس در حال حاضر در دسترس نیست.'],
+])('keeps the verification step retryable after HTTP %i without authenticating', async (status, message) => {
   mocks.challenge.mockResolvedValue({ message: 'accepted' });
-  mocks.verify.mockRejectedValue(new ApiError(400, 'کد نامعتبر یا منقضی شده است.'));
+  mocks.verify.mockRejectedValue(new ApiError(status, message));
   render(<LoginForm />);
   enterMobileAndSubmit();
 
@@ -72,9 +76,50 @@ it('keeps the verification step available for retry after an invalid or expired 
   fireEvent.change(codeInput, { target: { value: '123456' } });
   fireEvent.submit(codeInput.closest('form')!);
 
-  expect(await screen.findByRole('alert')).toHaveTextContent('کد نامعتبر یا منقضی شده است.');
+  expect(await screen.findByRole('alert')).toHaveTextContent(message);
   expect(screen.getByLabelText('کد شش رقمی')).toBeTruthy();
   expect(screen.getByLabelText('شماره موبایل')).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'تأیید و ورود' })).toBeEnabled();
+  expect(mocks.verify).toHaveBeenCalledOnce();
+  expect(mocks.refresh).not.toHaveBeenCalled();
+  expect(mocks.push).not.toHaveBeenCalled();
+});
+
+it('retries verification after a transient outage without requesting another code', async () => {
+  mocks.challenge.mockResolvedValue({ message: 'accepted' });
+  mocks.verify
+    .mockRejectedValueOnce(new ApiError(503, 'این سرویس در حال حاضر در دسترس نیست.'))
+    .mockResolvedValueOnce({ user_id: 'user-1' });
+  render(<LoginForm />);
+  enterMobileAndSubmit();
+
+  const codeInput = await screen.findByLabelText('کد شش رقمی');
+  fireEvent.change(codeInput, { target: { value: '123456' } });
+  fireEvent.submit(codeInput.closest('form')!);
+  expect(await screen.findByRole('alert')).toHaveTextContent('این سرویس در حال حاضر در دسترس نیست.');
+  fireEvent.submit(codeInput.closest('form')!);
+
+  await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/account'));
+  expect(mocks.challenge).toHaveBeenCalledOnce();
+  expect(mocks.verify).toHaveBeenCalledTimes(2);
+  expect(mocks.refresh).toHaveBeenCalledOnce();
+});
+
+it('normalizes Persian and Arabic digits in the mobile and OTP, without changing the displayed input', async () => {
+  mocks.challenge.mockResolvedValue({ message: 'accepted' });
+  mocks.verify.mockResolvedValue({ user_id: 'user-1' });
+  render(<LoginForm />);
+  fireEvent.change(screen.getByLabelText('شماره موبایل'), { target: { value: '۰۹۱۲١٢٣٤٥٦٧' } });
+  fireEvent.submit(screen.getByRole('button', { name: 'دریافت کد' }).closest('form')!);
+
+  const codeInput = await screen.findByLabelText('کد شش رقمی');
+  fireEvent.change(codeInput, { target: { value: '۱۲٣٤٥۶' } });
+  fireEvent.submit(codeInput.closest('form')!);
+
+  await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/account'));
+  expect(mocks.challenge).toHaveBeenCalledWith('09121234567');
+  expect(mocks.verify).toHaveBeenCalledWith('09121234567', '123456');
+  expect(mocks.refresh).toHaveBeenCalledOnce();
 });
 
 it('ignores duplicate submissions while a request is pending', async () => {
@@ -152,6 +197,36 @@ it('clears a previously entered code after successful resend', async () => {
 
   expect(mocks.challenge).toHaveBeenCalledTimes(2);
   expect(screen.getByLabelText('کد شش رقمی')).toHaveValue('');
+});
+
+it('retains the code step on failed resend and allows another request without attempting login', async () => {
+  vi.useFakeTimers();
+  mocks.challenge.mockResolvedValueOnce({ message: 'accepted' })
+    .mockRejectedValueOnce(new ApiError(503, 'این سرویس در حال حاضر در دسترس نیست.'))
+    .mockResolvedValueOnce({ message: 'accepted' });
+  render(<LoginForm />);
+  fireEvent.change(screen.getByLabelText('شماره موبایل'), { target: { value: '09121234567' } });
+  await act(async () => {
+    fireEvent.submit(screen.getByRole('button', { name: 'دریافت کد' }).closest('form')!);
+    await Promise.resolve();
+  });
+  const codeInput = screen.getByLabelText('کد شش رقمی');
+  fireEvent.change(codeInput, { target: { value: '123456' } });
+
+  for (let second = 0; second < 60; second += 1) {
+    await act(async () => { vi.advanceTimersByTime(1_000); await Promise.resolve(); });
+  }
+  const resend = screen.getByRole('button', { name: 'ارسال دوباره کد' });
+  await act(async () => { fireEvent.click(resend); await Promise.resolve(); });
+
+  expect(screen.getByRole('alert')).toHaveTextContent('این سرویس در حال حاضر در دسترس نیست.');
+  expect(screen.getByLabelText('کد شش رقمی')).toHaveValue('123456');
+  expect(resend).toBeEnabled();
+  expect(mocks.verify).not.toHaveBeenCalled();
+  await act(async () => { fireEvent.click(resend); await Promise.resolve(); });
+  expect(mocks.challenge).toHaveBeenCalledTimes(3);
+  expect(screen.getByLabelText('کد شش رقمی')).toHaveValue('');
+  expect(mocks.refresh).not.toHaveBeenCalled();
 });
 
 it('refreshes authentication and navigates to the account after successful verification', async () => {

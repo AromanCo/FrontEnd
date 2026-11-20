@@ -169,4 +169,27 @@ describe('API transport', () => {
     await expect(auth.verify('09121234567', '000000')).rejects.toBeInstanceOf(ApiError);
     expect(getCsrf()).toBeNull();
   });
+
+  it.each([
+    [429, 'درخواست‌های زیادی ثبت شده است. کمی صبر کنید.'],
+    [503, 'این سرویس در حال حاضر در دسترس نیست.'],
+  ])('does not automatically replay an OTP verification on HTTP %i', async (status, message) => {
+    const fetch = vi.fn().mockResolvedValue(response(status, { detail: 'private provider response', code: 'internal' }));
+    vi.stubGlobal('fetch', fetch);
+
+    await expect(auth.verify('09121234567', '123456')).rejects.toMatchObject({ status, message });
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(String(fetch.mock.calls[0][0])).toContain('/auth/verify');
+    expect(getCsrf()).toBeNull();
+  });
+
+  it.each([429, 503])('does not automatically resend a challenge on HTTP %i', async status => {
+    const fetch = vi.fn().mockResolvedValue(response(status, { detail: 'private SMS provider response' }));
+    vi.stubGlobal('fetch', fetch);
+
+    await expect(auth.challenge('09121234567')).rejects.toMatchObject({ status });
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(String(fetch.mock.calls[0][0])).toContain('/auth/challenges');
+    expect(getCsrf()).toBeNull();
+  });
 });

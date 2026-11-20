@@ -27,7 +27,7 @@ function Probe() {
     <span data-testid="user">{current?.id ?? 'none'}</span>
     <span data-testid="error">{error}</span>
     <button onClick={() => void refresh().catch(() => {})}>Refresh</button>
-    <button onClick={() => void logout()}>خروج</button>
+    <button onClick={() => void logout().catch(() => {})}>خروج</button>
   </div>;
 }
 
@@ -114,6 +114,29 @@ it('clears a known user on session expiry and logs out through the backend', asy
   fireEvent.click(screen.getByRole('button', { name: 'خروج' }));
   await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('guest'));
   expect(mocks.logout).toHaveBeenCalledOnce();
+});
+
+it('preserves a known account when logout fails with an outage, rather than claiming revocation', async () => {
+  render(<AuthProvider scope="full"><Probe /></AuthProvider>);
+  await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('signed-in'));
+  mocks.logout.mockRejectedValueOnce(new ApiError(503, 'این سرویس در حال حاضر در دسترس نیست.'));
+
+  fireEvent.click(screen.getByRole('button', { name: 'خروج' }));
+  await waitFor(() => expect(mocks.logout).toHaveBeenCalledOnce());
+  expect(screen.getByTestId('auth-state')).toHaveTextContent('signed-in');
+  expect(screen.getByTestId('user')).toHaveTextContent('id');
+  expect(mocks.setCsrf).not.toHaveBeenCalledWith(null);
+});
+
+it('treats a 401 logout as already revoked and clears only local authentication state', async () => {
+  render(<AuthProvider scope="full"><Probe /></AuthProvider>);
+  await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('signed-in'));
+  mocks.logout.mockRejectedValueOnce(new ApiError(401, 'برای ادامه وارد حساب شوید.'));
+
+  fireEvent.click(screen.getByRole('button', { name: 'خروج' }));
+  await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('guest'));
+  expect(mocks.logout).toHaveBeenCalledOnce();
+  expect(mocks.setCsrf).toHaveBeenCalledWith(null);
 });
 
 it('keeps a ready guest context and makes no authentication calls in exploration mode', async () => {
