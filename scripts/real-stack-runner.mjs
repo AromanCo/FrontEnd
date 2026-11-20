@@ -12,7 +12,8 @@ import { captureTestContainerId, cleanupTestContainer } from './real-stack-conta
 
 const frontend = resolve(import.meta.dirname, '..');
 const mode = process.argv[2] || 'sqlite';
-assert.ok(['sqlite', 'postgres', 'transactions', 'f1-account', 'f2-concepts', 'f3-continuity'].includes(mode) && process.argv.length <= 3, 'Usage: real-stack-runner.mjs [sqlite|postgres|transactions|f1-account|f2-concepts|f3-continuity]');
+const isF5Mvp = mode === 'f5-mvp';
+assert.ok(['sqlite', 'postgres', 'transactions', 'f1-account', 'f2-concepts', 'f3-continuity', 'f5-mvp'].includes(mode) && process.argv.length <= 3, 'Usage: real-stack-runner.mjs [sqlite|postgres|transactions|f1-account|f2-concepts|f3-continuity|f5-mvp]');
 if (mode === 'f1-account') {
   assert.equal(
     process.env.AROMAN_F1_ACCOUNT_EPHEMERAL_ACK,
@@ -34,10 +35,17 @@ if (mode === 'f3-continuity') {
     'F3 saved-source rehearsal is separately approval-gated: set AROMAN_F3_CONTINUITY_EPHEMERAL_ACK=f3-isolated-postgres-fakesms-only only after fresh owner approval and exact resource preflight',
   );
 }
+if (isF5Mvp) {
+  assert.equal(
+    process.env.AROMAN_F5_MVP_EPHEMERAL_ACK,
+    'f5-isolated-postgres-fakesms-only',
+    'F5 MVP rehearsal is separately approval-gated: set AROMAN_F5_MVP_EPHEMERAL_ACK=f5-isolated-postgres-fakesms-only only after fresh owner approval and exact resource preflight',
+  );
+}
 const backend = resolve(process.env.AROMAN_TEST_BACKEND_DIR || join(frontend, '..', 'Backend'));
 const revision = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: backend, encoding: 'utf8' });
 assert.equal(revision.status, 0, `Backend checkout unavailable: ${revision.stderr}`);
-assert.equal(revision.stdout.trim(), mode === 'f1-account' ? f1AccountBackendSha : ['f2-concepts', 'f3-continuity'].includes(mode) ? f2ConceptBackendSha : backendSha, 'Backend checkout must be at the pinned SHA');
+assert.equal(revision.stdout.trim(), mode === 'f1-account' ? f1AccountBackendSha : isF5Mvp || ['f2-concepts', 'f3-continuity'].includes(mode) ? f2ConceptBackendSha : backendSha, 'Backend checkout must be at the pinned SHA');
 
 const tsconfigPath = join(frontend, 'tsconfig.json');
 const originalTsconfig = await readFile(tsconfigPath, 'utf8');
@@ -61,7 +69,7 @@ function makeEnv(apiPort, frontendPort, databaseUrl, postgres = null) {
   const frontendOrigin = `http://localhost:${frontendPort}`;
   return {
     ...process.env,
-    ...(['f1-account', 'f2-concepts', 'f3-continuity'].includes(mode) ? { AROMAN_RELEASE_SCOPE: 'full' } : {}),
+    ...(isF5Mvp || ['f1-account', 'f2-concepts', 'f3-continuity'].includes(mode) ? { AROMAN_RELEASE_SCOPE: 'full' } : {}),
     ENVIRONMENT: 'test',
     DATABASE_URL: databaseUrl,
     OTP_PEPPER: randomBytes(32).toString('hex'),
@@ -78,7 +86,7 @@ function makeEnv(apiPort, frontendPort, databaseUrl, postgres = null) {
     AROMAN_BROWSER_API_BASE_URL: `${apiOrigin}/api/v1`,
     PYTHONPATH: backend,
     AROMAN_TEST_NEXT_DIST_DIR: nextDist,
-    AROMAN_TEST_DB_MODE: ['f1-account', 'f2-concepts', 'f3-continuity'].includes(mode) ? 'postgres' : mode,
+    AROMAN_TEST_DB_MODE: isF5Mvp || ['f1-account', 'f2-concepts', 'f3-continuity'].includes(mode) ? 'postgres' : mode,
     AROMAN_TEST_DB_USER: postgres?.user || '',
     AROMAN_TEST_DB_NAME: postgres?.database || '',
   };
@@ -217,6 +225,7 @@ try {
     if (mode === 'f1-account') await import('./f1-account-journey.mjs');
     else if (mode === 'f2-concepts') await import('./f2-concept-journey.mjs');
     else if (mode === 'f3-continuity') await import('./f3-continuity-journey.mjs');
+    else if (isF5Mvp) await import('./f5-mvp-journey.mjs');
     else await import('./real-stack-journey.mjs');
   }
 } catch (error) {

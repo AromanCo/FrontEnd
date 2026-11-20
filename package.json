@@ -39,6 +39,8 @@
     "test:f2-concept-runner-guard": "node --test tests/f2-concept-runner-guard.check.mjs",
     "test:browser:f3-continuity:postgres": "node scripts/real-stack-runner.mjs f3-continuity",
     "test:f3-continuity-runner-guard": "node --test tests/f3-continuity-runner-guard.check.mjs",
+    "test:browser:f5-mvp:postgres": "node scripts/real-stack-runner.mjs f5-mvp",
+    "test:f5-mvp-runner-guard": "node --test tests/f5-mvp-runner-guard.check.mjs",
     "test:browser:exploration-real-stack": "node scripts/exploration-real-stack-runner.mjs",
     "test:postgres:transactions": "node scripts/real-stack-runner.mjs transactions",
     "test:browser:guided-save": "node scripts/guided-save-account-journey.mjs",
