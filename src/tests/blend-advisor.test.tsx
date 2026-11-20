@@ -265,6 +265,48 @@ describe('BlendAdvisor Creative Studio integration', () => {
     expect(screen.queryByRole('button', { name: 'ساخت نسخهٔ پیشنهادی' })).not.toBeInTheDocument();
   });
 
+  it('keeps a Guided import intact through Advisor Reject, Apply, Undo and explicit Save', async () => {
+    mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
+    const guidedName = 'روایت هدایت‌شدهٔ آزمون';
+    function GuidedImportHarness() {
+      const { createDraft } = useStudioDraft();
+      React.useEffect(() => {
+        createDraft(guidedName, [{ noteId: noteA.id, layer: 'heart', position: 0 }]);
+      }, [createDraft]);
+      return <CreativeStudio fromGuided />;
+    }
+
+    render(<StudioDraftProvider><GuidedImportHarness /></StudioDraftProvider>);
+    expect(await screen.findByText('پیشنهاد استودیوی هدایت‌شده برای ویرایش وارد شد.')).toBeInTheDocument();
+    expect(screen.getByLabelText('نام مفهوم')).toHaveValue(guidedName);
+    expect(screen.getByLabelText(`لایه ${noteA.name}`)).toHaveValue('heart');
+
+    fireEvent.click(screen.getByText('پیشنهاد خلاق آرومان'));
+    await requestSuggestion();
+    fireEvent.click(screen.getByRole('button', { name: 'ترکیب فعلی را نگه می‌دارم' }));
+    expect(screen.getByLabelText(`لایه ${noteA.name}`)).toHaveValue('heart');
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+
+    await requestSuggestion();
+    fireEvent.click(screen.getByRole('button', { name: 'ساخت نسخهٔ پیشنهادی' }));
+    expect(screen.getByLabelText(`لایه ${noteA.name}`)).toHaveValue('top');
+    expect(screen.getByLabelText('نام مفهوم')).toHaveValue(guidedName);
+    fireEvent.click(await screen.findByRole('button', { name: 'بازگشت به ترکیب قبلی' }));
+    expect(screen.getByLabelText(`لایه ${noteA.name}`)).toHaveValue('heart');
+    expect(screen.getByLabelText('نام مفهوم')).toHaveValue(guidedName);
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'ذخیره مفهوم' })[0]);
+    await waitFor(() => expect(mocks.conceptCreate).toHaveBeenCalledTimes(1));
+    expect(mocks.conceptCreate).toHaveBeenCalledWith({
+      name: guidedName,
+      notes: [{ note_id: noteA.id, layer: 'heart', position: 0 }],
+    });
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+  });
+
   it('offers an independent version for a loaded saved concept and blocks unresolved saved routes', async () => {
     mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
     const view = renderStudio({ conceptId: 'saved-1' });
