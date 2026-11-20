@@ -119,7 +119,9 @@ try {
   assert.equal((await privateMutation(context, 'DELETE', `/fragrance-concepts/${duplicate.id}`, aCsrf)).status(), 204);
 
   await page.getByRole('button', { name: 'خروج' }).click();
-  await page.getByRole('link', { name: 'ورود', exact: true }).waitFor();
+  // The header and logged-out account both expose a "ورود" link.
+  // Wait specifically for the account's login action after logout.
+  await page.locator('#main').getByRole('link', { name: 'ورود', exact: true }).waitFor();
   assert.equal((await context.request.get(`${apiBase}/auth/session`)).status(), 401, 'Logout must revoke the server session');
   assert.equal((await context.cookies(`${apiBase}/auth/session`)).some(item => item.name === 'aroman_session'), false);
 

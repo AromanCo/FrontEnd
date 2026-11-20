@@ -1,9 +1,16 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { resolve } from 'node:path';
 
 const frontend = resolve(import.meta.dirname, '..');
+
+test('F1 logout waits for the account login link, not the duplicated header link', () => {
+  const journey = readFileSync(resolve(frontend, 'scripts/f1-account-journey.mjs'), 'utf8');
+  assert.match(journey, /page\.locator\('#main'\)\.getByRole\('link', \{ name: 'ورود', exact: true \}\)\.waitFor\(\)/);
+  assert.doesNotMatch(journey, /page\.getByRole\('link', \{ name: 'ورود', exact: true \}\)\.waitFor\(\)/);
+});
 
 for (const supplied of [undefined, 'yes', 'postgres', 'isolated-postgres-fakesms']) {
   test(`F1 account runner refuses unapproved execution acknowledgment ${JSON.stringify(supplied)}`, () => {
