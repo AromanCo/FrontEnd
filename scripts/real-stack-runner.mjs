@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
@@ -14,6 +14,8 @@ const frontend = resolve(import.meta.dirname, '..');
 const mode = process.argv[2] || 'sqlite';
 const isF5Mvp = mode === 'f5-mvp';
 const isMvpCheckout = mode === 'mvp-checkout';
+const demoDataPath = process.env.AROMAN_DEMO_CHECKOUT_DIR;
+assert.ok(!demoDataPath || isMvpCheckout, 'AROMAN_DEMO_CHECKOUT_DIR is only supported by mvp-checkout');
 const isMvpPreview = mode === 'mvp-preview' || isMvpCheckout;
 const usesSqlite = mode === 'sqlite' || isMvpPreview;
 assert.ok(['sqlite', 'postgres', 'transactions', 'f1-account', 'f2-concepts', 'f3-continuity', 'f5-mvp', 'mvp-preview', 'mvp-checkout'].includes(mode) && process.argv.length <= 3, 'Usage: real-stack-runner.mjs [sqlite|postgres|transactions|f1-account|f2-concepts|f3-continuity|f5-mvp|mvp-preview|mvp-checkout]');
@@ -71,6 +73,42 @@ const reservePort = () => new Promise((resolvePort, reject) => {
 const temp = await mkdtemp(join(tmpdir(), 'aroman-real-stack-'));
 const nextDist = `.next-real-stack-${randomBytes(6).toString('hex')}`;
 let env;
+let demoDataLock;
+
+async function openDemoData(path) {
+  const directory = resolve(path);
+  assert.ok(!/[?#%]/.test(directory), 'The demo data path cannot contain ?, # or %');
+  try { await mkdir(directory, { mode: 0o700 }); }
+  catch (error) { if (error.code !== 'EEXIST') throw error; }
+  const info = await lstat(directory);
+  assert.ok(info.isDirectory() && (info.mode & 0o077) === 0,
+    'Set AROMAN_DEMO_CHECKOUT_DIR to a new or private (0700) directory');
+  const lock = join(directory, '.preview.lock');
+  try { await mkdir(lock, { mode: 0o700 }); }
+  catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+    throw new Error('This demo data directory is already locked by a preview');
+  }
+  demoDataLock = lock;
+  const marker = '.aroman-checkout';
+  const entries = (await readdir(directory)).filter(entry => entry !== '.preview.lock');
+  if (entries.length === 0) {
+    await writeFile(join(directory, marker), 'aroman-demo-checkout-v1\n', { mode: 0o600, flag: 'wx' });
+    return { directory, reuse: false };
+  }
+  assert.ok(entries.includes(marker), 'Choose an empty folder or an existing Aroman demo data folder');
+  for (const entry of entries) {
+    assert.ok(entry === marker || /^test\.sqlite3(?:\.orders)?(?:-(?:journal|wal|shm))?$/.test(entry),
+      'Unexpected files in demo data directory');
+    const file = await lstat(join(directory, entry));
+    assert.ok(file.isFile() && file.nlink === 1, 'Demo data files must be regular files');
+  }
+  assert.equal(await readFile(join(directory, marker), 'utf8'), 'aroman-demo-checkout-v1\n');
+  assert.ok(!entries.includes('test.sqlite3.orders') || entries.includes('test.sqlite3'),
+    'The demo catalog database is missing');
+  return { directory, reuse: entries.includes('test.sqlite3') };
+}
+
 function makeEnv(apiPort, frontendPort, databaseUrl, postgres = null) {
   const apiOrigin = `http://localhost:${apiPort}`;
   const frontendOrigin = `http://localhost:${frontendPort}`;
@@ -78,6 +116,7 @@ function makeEnv(apiPort, frontendPort, databaseUrl, postgres = null) {
     ...process.env,
     DEMO_CHECKOUT_ENABLED: String(isMvpCheckout),
     AROMAN_DEMO_CHECKOUT_ENABLED: String(isMvpCheckout),
+    AROMAN_TEST_REUSE_DEMO_DB: 'false',
     ...(isF5Mvp || isMvpPreview || ['f1-account', 'f2-concepts', 'f3-continuity'].includes(mode) ? { AROMAN_RELEASE_SCOPE: 'full' } : {}),
     ENVIRONMENT: 'test',
     DATABASE_URL: databaseUrl,
@@ -194,6 +233,10 @@ async function cleanup() {
   } catch (error) {
     failures.push(error instanceof Error ? error.message : 'Test PostgreSQL container cleanup failed.');
   }
+  if (demoDataLock) {
+    try { await rmdir(demoDataLock); }
+    catch (error) { failures.push(error.message); }
+  }
   await rm(temp, { recursive: true, force: true });
   await rm(join(frontend, nextDist), { recursive: true, force: true });
   const currentTsconfig = await readFile(tsconfigPath, 'utf8');
@@ -215,13 +258,18 @@ for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {
 });
 
 try {
+  const demoData = demoDataPath ? await openDemoData(demoDataPath) : null;
   const apiPort = await reservePort();
   const frontendPort = await reservePort();
   const postgres = usesSqlite ? null : await isolatedPostgres();
-  env = makeEnv(apiPort, frontendPort, postgres?.url || `sqlite:///${join(temp, 'test.sqlite3')}`, postgres);
-  run(python, [join(frontend, 'scripts', 'real-stack-db-check.py'), 'before'], backend);
-  run(python, ['-m', 'alembic', 'upgrade', 'head'], backend);
-  run(python, ['-m', 'aroman.seed'], backend);
+  const sqlitePath = join(demoData?.directory ?? temp, 'test.sqlite3');
+  env = makeEnv(apiPort, frontendPort, postgres?.url || `sqlite:///${sqlitePath}`, postgres);
+  env.AROMAN_TEST_REUSE_DEMO_DB = String(demoData?.reuse === true);
+  if (!demoData?.reuse) {
+    run(python, [join(frontend, 'scripts', 'real-stack-db-check.py'), 'before'], backend);
+    run(python, ['-m', 'alembic', 'upgrade', 'head'], backend);
+    run(python, ['-m', 'aroman.seed'], backend);
+  }
   run(python, [join(frontend, 'scripts', 'real-stack-db-check.py'), 'after'], backend);
   if (mode === 'transactions') {
     run(python, [join(frontend, 'scripts', 'postgres-transactions.py')], backend);
@@ -235,7 +283,8 @@ try {
       console.log(`AROMAN MVP: ${env.FRONTEND_ORIGIN}`);
       console.log(`AROMAN API: ${env.AROMAN_API_BASE_URL}`);
       console.log(`Local FakeSMS socket: ${env.AROMAN_TEST_OTP_SOCKET}`);
-      console.log('The preview stays up until Ctrl+C. Its demo data is temporary.');
+      if (demoData) console.log(`AROMAN retained demo data: ${demoData.directory}`);
+      else console.log('The preview stays up until Ctrl+C. Its demo data is temporary.');
       await new Promise((_, reject) => {
         for (const service of [api, next]) {
           const exited = () => reject(new Error(`Preview service exited:\n${service.diagnostics()}`));

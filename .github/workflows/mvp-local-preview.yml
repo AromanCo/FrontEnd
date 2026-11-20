@@ -2,7 +2,7 @@ name: MVP local preview
 
 on:
   pull_request:
-    branches: [develop, feat/local-mvp-preview, feat/local-demo-cart, feat/local-demo-orders, feat/local-demo-order-history, feat/local-demo-order-actions]
+    branches: [develop, feat/local-mvp-preview, feat/local-demo-cart, feat/local-demo-orders, feat/local-demo-order-history, feat/local-demo-order-actions, feat/local-demo-order-persistence]
     paths:
       - '.github/workflows/mvp-local-preview.yml'
       - 'scripts/real-stack-runner.mjs'
@@ -44,19 +44,23 @@ jobs:
           AROMAN_TEST_PYTHON: python
         run: |
           log="$RUNNER_TEMP/aroman-preview.log"
-          node scripts/real-stack-runner.mjs mvp-checkout >"$log" 2>&1 &
-          preview_pid=$!
+          export AROMAN_DEMO_CHECKOUT_DIR="$RUNNER_TEMP/aroman-retained-checkout"
+          start_preview() {
+            node scripts/real-stack-runner.mjs mvp-checkout >"$log" 2>&1 &
+            preview_pid=$!
+            for attempt in {1..90}; do
+              if grep -q '^AROMAN retained demo data: ' "$log"; then break; fi
+              kill -0 "$preview_pid"
+              sleep 1
+            done
+            web="$(sed -n 's/^AROMAN MVP: //p' "$log")"
+            api="$(sed -n 's/^AROMAN API: //p' "$log")"
+            socket="$(sed -n 's/^Local FakeSMS socket: //p' "$log")"
+            test -n "$web" && test -n "$api" && test -S "$socket"
+            test "$(stat -c '%a' "$socket")" = 600
+          }
           trap 'kill -TERM "$preview_pid" 2>/dev/null || true; wait "$preview_pid" || true; cat "$log"' EXIT
-          for attempt in {1..90}; do
-            if grep -q '^Local FakeSMS socket: ' "$log"; then break; fi
-            kill -0 "$preview_pid"
-            sleep 1
-          done
-          web="$(sed -n 's/^AROMAN MVP: //p' "$log")"
-          api="$(sed -n 's/^AROMAN API: //p' "$log")"
-          socket="$(sed -n 's/^Local FakeSMS socket: //p' "$log")"
-          test -n "$web" && test -n "$api" && test -S "$socket"
-          test "$(stat -c '%a' "$socket")" = 600
+          start_preview
           curl --fail --silent --show-error --max-time 20 "$web/shop" -o /dev/null
           WEB_ORIGIN="$web" API_BASE="$api" OTP_SOCKET="$socket" node --input-type=module <<'JS'
           import assert from 'node:assert/strict';
@@ -137,17 +141,43 @@ jobs:
             await browser.close();
           }
           JS
-          python - "$(dirname "$socket")/test.sqlite3.orders" <<'PY'
+          kill -TERM "$preview_pid"
+          exit_status=0
+          wait "$preview_pid" || exit_status=$?
+          test "$exit_status" = 128
+          test ! -e "$socket"
+          test ! -e "$AROMAN_DEMO_CHECKOUT_DIR/.preview.lock"
+          cat "$log"
+          start_preview
+          python - "$api" "$web" "$socket" <<'PY'
           import json
-          import sqlite3
+          import socket
           import sys
-          from pathlib import Path
+          from http.cookiejar import CookieJar
+          from urllib.request import HTTPCookieProcessor, Request, build_opener
 
-          uri = Path(sys.argv[1]).resolve().as_uri() + "?mode=ro"
-          with sqlite3.connect(uri, uri=True) as db:
-              statuses = [json.loads(row[0])["status"] for row in db.execute(
-                  "SELECT receipt FROM demo_orders ORDER BY sequence"
-              )]
-          assert statuses == ["paid", "cancelled"], statuses
-          print("SQLite receipt states PASS")
+          api, web, socket_path = sys.argv[1:]
+          opener = build_opener(HTTPCookieProcessor(CookieJar()))
+
+          def request(path, payload=None):
+              body = None if payload is None else json.dumps(payload).encode()
+              req = Request(api + path, data=body, headers={
+                  "Origin": web, "Content-Type": "application/json",
+              })
+              with opener.open(req, timeout=10) as value:
+                  return json.load(value)
+
+          mobile = "+989990000001"
+          request("/auth/challenges", {"mobile": mobile})
+          with socket.socket(socket.AF_UNIX) as client:
+              client.settimeout(5)
+              client.connect(socket_path)
+              client.sendall((mobile + "\n").encode())
+              with client.makefile() as source:
+                  code = json.loads(source.readline())["code"]
+          request("/auth/verify", {"mobile": mobile, "code": code})
+          orders = request("/demo-checkout/orders")
+          assert [order["status"] for order in orders] == ["cancelled", "paid"]
+          assert all(order["subtotal"] == 1_200_000 for order in orders)
+          print("Full preview restart PASS: existing customer saw paid and cancelled orders")
           PY

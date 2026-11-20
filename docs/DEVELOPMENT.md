@@ -40,6 +40,15 @@ payment simulation or cancel it while it is awaiting payment. Orders are
 stored in a SQLite file in the preview directory, which the runner removes
 when you stop the full preview. The demo does not collect payment.
 
+To retain the test catalog, accounts, concepts and orders between runs, set
+`AROMAN_DEMO_CHECKOUT_DIR` for the checkout preview, for example
+`AROMAN_DEMO_CHECKOUT_DIR="$HOME/aroman-demo-data" npm run preview:checkout:local`
+with the same Backend and Python settings. Use a new directory or an empty
+private directory with mode `0700`. Sign in again with the same demo mobile
+number after restarting. Reuse the directory only with its owning preview.
+If forced termination leaves an empty `.preview.lock` directory behind,
+remove it only after verifying that the previous preview has stopped.
+
 1. In Backend, copy `.env.example` to `.env`. Set strong, different OTP and session peppers, `CORS_ORIGINS=http://localhost:3000`, and `COOKIE_SECURE=false` for local HTTP. Keep `SMS_PROVIDER=unconfigured` for ordinary development. Run `docker compose up --build` and confirm `http://localhost:8000/health/ready` returns 200. Seed data is managed by the backend.
 2. In FrontEnd, copy `.env.example` to `.env.local`, run `npm ci`, then `npm run dev`. Open `http://localhost:3000`. Both hosts must be `localhost`.
 3. Run `npm run test`, `npm run typecheck`, `npm run lint`, `npm run build`, and `git diff --check` before review. GitHub Actions runs those same install and verification steps on pull requests to `develop` and `main` with Node.js 22. With the frontend and seeded backend running and system Chrome installed, run `npm run test:browser` and `npm run screenshots` locally. These browser checks need the seeded FastAPI service and are not part of GitHub CI. They exercise the real public API, mobile Studio composition, unauthenticated save, protected-route 401, and SMS-unavailable 503. Screenshot capture waits for 24 rendered notes and saves home, shop, and Studio states at 320, 390, 768, and 1440 pixels: loaded library, one selection, three layers, six notes, and result. It fails on missing API data or unexpected browser errors. Set `CHROME_BIN` if Chrome is installed elsewhere. Set `FRONTEND_ORIGIN` and `AROMAN_BROWSER_API_BASE_URL` only when using nondefault local ports; keep both application URLs on the same `localhost` hostname.

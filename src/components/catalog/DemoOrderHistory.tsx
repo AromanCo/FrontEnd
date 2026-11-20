@@ -68,7 +68,7 @@ function OrderHistory() {
   return (
     <section id="demo-orders" className="mt-10 scroll-mt-24" aria-labelledby="demo-orders-heading">
       <h2 id="demo-orders-heading" className="text-2xl font-semibold">سفارش‌های آزمایشی</h2>
-      <p className="mt-2">این تاریخچه تا پایان اجرای پیش‌نمایش در دسترس است.</p>
+      <p className="mt-2">این سفارش‌ها در داده‌های پیش‌نمایش آزمایشی ثبت شده‌اند.</p>
       {actionError && <p className="mt-4" role="alert">{actionError}</p>}
       {history.status === 'loading' && <p role="status" className="mt-4">در حال دریافت سفارش‌ها…</p>}
       {history.status === 'error' && (
