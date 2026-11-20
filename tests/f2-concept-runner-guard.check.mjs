@@ -7,6 +7,7 @@ import test from 'node:test';
 const frontend = resolve(import.meta.dirname, '..');
 const runner = resolve(frontend, 'scripts/real-stack-runner.mjs');
 const source = readFileSync(runner, 'utf8');
+const journey = readFileSync(resolve(frontend, 'scripts/f2-concept-journey.mjs'), 'utf8');
 const expectedAck = 'f2-isolated-postgres-fakesms-only';
 
 for (const acknowledgment of [undefined, 'yes', 'isolated-postgres-fakesms-only', 'postgres', 'f2-isolated-postgres-fakesms']) {
@@ -52,4 +53,16 @@ test('F2 acknowledgment cannot bypass exact Backend revision verification', () =
   assert.notEqual(result.status, 0);
   assert.match(result.stderr + result.stdout, /Backend checkout must be at the pinned SHA/);
   assert.doesNotMatch(result.stderr + result.stdout, /Docker run/);
+});
+
+test('F2 mobile Creative reopen reveals Composition and waits for loaded name before editing', () => {
+  const reopen = journey.indexOf('const openLink =');
+  const tab = journey.indexOf("const compositionTab = page.getByRole('tablist'", reopen);
+  const visible = journey.indexOf("await compositionPanel.waitFor({ state: 'visible' });", tab);
+  const name = journey.indexOf("const nameField = compositionPanel.getByRole('textbox'", visible);
+  const loaded = journey.indexOf('await page.waitForFunction(', name);
+  const edit = journey.indexOf('await nameField.fill(editedName);', loaded);
+  assert.ok(reopen >= 0 && reopen < tab && tab < visible && visible < name && name < loaded && loaded < edit);
+  assert.match(journey.slice(tab, edit), /aria-selected/);
+  assert.match(journey.slice(name, edit), /#studio-panel-1 input\[aria-label="نام مفهوم"\]/);
 });
