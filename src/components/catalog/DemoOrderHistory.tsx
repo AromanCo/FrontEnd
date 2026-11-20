@@ -13,6 +13,11 @@ const statusLabels: Record<DemoOrderReceipt['status'], string> = {
   paid: 'پرداخت آزمایشی تأیید شد',
   cancelled: 'سفارش لغو شد',
 };
+const eventLabels: Record<DemoOrderReceipt['status'], string> = {
+  placed: 'ثبت سفارش',
+  paid: 'تأیید پرداخت آزمایشی',
+  cancelled: 'لغو سفارش',
+};
 
 export function DemoOrderHistory() {
   const { user, loading } = useAuth();
@@ -90,6 +95,19 @@ function OrderHistory() {
               </ul>
               <p className="mt-3 font-semibold">مبلغ سفارش {number.format(order.subtotal)} ریال</p>
               <p className="mt-2" role="status">{pendingOrder === order.id ? 'در حال تغییر وضعیت…' : statusLabels[order.status]}</p>
+              <details className="mt-3">
+                <summary className="cursor-pointer font-medium">خط زمانی سفارش</summary>
+                <ol className="mt-2 space-y-2 border-s-2 border-plum/20 ps-4 text-sm">
+                  {order.events.map(event => (
+                    <li key={event.status}>
+                      <p>{eventLabels[event.status]}</p>
+                      {event.occurred_at ? (
+                        <time dateTime={event.occurred_at}>{date.format(new Date(event.occurred_at))}</time>
+                      ) : <p>زمان این تغییر ثبت نشده بود.</p>}
+                    </li>
+                  ))}
+                </ol>
+              </details>
               {order.status === 'placed' && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button type="button" className="btn btn-primary" disabled={pendingOrder !== null} onClick={() => void actOnOrder(order.id, 'simulate-payment')}>شبیه‌سازی پرداخت</button>

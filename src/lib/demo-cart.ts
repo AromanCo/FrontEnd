@@ -18,10 +18,13 @@ type DemoQuote = {
   })[];
   subtotal: number;
 };
+export type DemoOrderStatus = 'placed' | 'paid' | 'cancelled';
+
 export type DemoOrderReceipt = DemoQuote & {
   id: string;
-  status: 'placed' | 'paid' | 'cancelled';
+  status: DemoOrderStatus;
   created_at: string;
+  events: { status: DemoOrderStatus; occurred_at: string | null }[];
 };
 export type DemoOrderAction = 'simulate-payment' | 'cancel';
 type StoredAttempt = { cart: string; id: string; subtotal: number };
