@@ -13,7 +13,9 @@ import { captureTestContainerId, cleanupTestContainer } from './real-stack-conta
 const frontend = resolve(import.meta.dirname, '..');
 const mode = process.argv[2] || 'sqlite';
 const isF5Mvp = mode === 'f5-mvp';
-assert.ok(['sqlite', 'postgres', 'transactions', 'f1-account', 'f2-concepts', 'f3-continuity', 'f5-mvp'].includes(mode) && process.argv.length <= 3, 'Usage: real-stack-runner.mjs [sqlite|postgres|transactions|f1-account|f2-concepts|f3-continuity|f5-mvp]');
+const isMvpPreview = mode === 'mvp-preview';
+const usesSqlite = mode === 'sqlite' || isMvpPreview;
+assert.ok(['sqlite', 'postgres', 'transactions', 'f1-account', 'f2-concepts', 'f3-continuity', 'f5-mvp', 'mvp-preview'].includes(mode) && process.argv.length <= 3, 'Usage: real-stack-runner.mjs [sqlite|postgres|transactions|f1-account|f2-concepts|f3-continuity|f5-mvp|mvp-preview]');
 if (mode === 'f1-account') {
   assert.equal(
     process.env.AROMAN_F1_ACCOUNT_EPHEMERAL_ACK,
@@ -45,7 +47,10 @@ if (isF5Mvp) {
 const backend = resolve(process.env.AROMAN_TEST_BACKEND_DIR || join(frontend, '..', 'Backend'));
 const revision = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: backend, encoding: 'utf8' });
 assert.equal(revision.status, 0, `Backend checkout unavailable: ${revision.stderr}`);
-assert.equal(revision.stdout.trim(), mode === 'f1-account' ? f1AccountBackendSha : isF5Mvp || ['f2-concepts', 'f3-continuity'].includes(mode) ? f2ConceptBackendSha : backendSha, 'Backend checkout must be at the pinned SHA');
+const expectedBackend = mode === 'f1-account'
+  ? f1AccountBackendSha
+  : isF5Mvp || isMvpPreview || ['f2-concepts', 'f3-continuity'].includes(mode) ? f2ConceptBackendSha : backendSha;
+assert.equal(revision.stdout.trim(), expectedBackend, 'Backend checkout must be at the pinned SHA');
 
 const tsconfigPath = join(frontend, 'tsconfig.json');
 const originalTsconfig = await readFile(tsconfigPath, 'utf8');
@@ -69,7 +74,7 @@ function makeEnv(apiPort, frontendPort, databaseUrl, postgres = null) {
   const frontendOrigin = `http://localhost:${frontendPort}`;
   return {
     ...process.env,
-    ...(isF5Mvp || ['f1-account', 'f2-concepts', 'f3-continuity'].includes(mode) ? { AROMAN_RELEASE_SCOPE: 'full' } : {}),
+    ...(isF5Mvp || isMvpPreview || ['f1-account', 'f2-concepts', 'f3-continuity'].includes(mode) ? { AROMAN_RELEASE_SCOPE: 'full' } : {}),
     ENVIRONMENT: 'test',
     DATABASE_URL: databaseUrl,
     OTP_PEPPER: randomBytes(32).toString('hex'),
@@ -86,7 +91,7 @@ function makeEnv(apiPort, frontendPort, databaseUrl, postgres = null) {
     AROMAN_BROWSER_API_BASE_URL: `${apiOrigin}/api/v1`,
     PYTHONPATH: backend,
     AROMAN_TEST_NEXT_DIST_DIR: nextDist,
-    AROMAN_TEST_DB_MODE: isF5Mvp || ['f1-account', 'f2-concepts', 'f3-continuity'].includes(mode) ? 'postgres' : mode,
+    AROMAN_TEST_DB_MODE: usesSqlite ? 'sqlite' : isF5Mvp || ['f1-account', 'f2-concepts', 'f3-continuity'].includes(mode) ? 'postgres' : mode,
     AROMAN_TEST_DB_USER: postgres?.user || '',
     AROMAN_TEST_DB_NAME: postgres?.database || '',
   };
@@ -208,7 +213,7 @@ for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {
 try {
   const apiPort = await reservePort();
   const frontendPort = await reservePort();
-  const postgres = mode !== 'sqlite' ? await isolatedPostgres() : null;
+  const postgres = usesSqlite ? null : await isolatedPostgres();
   env = makeEnv(apiPort, frontendPort, postgres?.url || `sqlite:///${join(temp, 'test.sqlite3')}`, postgres);
   run(python, [join(frontend, 'scripts', 'real-stack-db-check.py'), 'before'], backend);
   run(python, ['-m', 'alembic', 'upgrade', 'head'], backend);
@@ -222,7 +227,19 @@ try {
     const next = start(join(frontend, 'node_modules', '.bin', 'next'), ['dev', '--hostname', '127.0.0.1', '--port', String(frontendPort)], frontend);
     await ready(`http://127.0.0.1:${frontendPort}/studio/guided`, next);
     Object.assign(process.env, env);
-    if (mode === 'f1-account') await import('./f1-account-journey.mjs');
+    if (isMvpPreview) {
+      console.log(`AROMAN MVP: ${env.FRONTEND_ORIGIN}`);
+      console.log(`AROMAN API: ${env.AROMAN_API_BASE_URL}`);
+      console.log(`Local FakeSMS socket: ${env.AROMAN_TEST_OTP_SOCKET}`);
+      console.log('The preview stays up until Ctrl+C. Its demo data is temporary.');
+      await new Promise((_, reject) => {
+        for (const service of [api, next]) {
+          const exited = () => reject(new Error(`Preview service exited:\n${service.diagnostics()}`));
+          if (service.child.exitCode !== null || service.child.signalCode !== null) exited();
+          else service.child.once('exit', exited);
+        }
+      });
+    } else if (mode === 'f1-account') await import('./f1-account-journey.mjs');
     else if (mode === 'f2-concepts') await import('./f2-concept-journey.mjs');
     else if (mode === 'f3-continuity') await import('./f3-continuity-journey.mjs');
     else if (isF5Mvp) await import('./f5-mvp-journey.mjs');

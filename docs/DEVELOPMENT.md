@@ -1,5 +1,33 @@
 # Local development
 
+## Interactive MVP preview
+
+Use separate FrontEnd and Backend checkouts. The launcher expects Backend
+`e69c286f6758847c08077b12ab621341ebb2a557`, Python 3.12, and the installed
+FrontEnd npm dependencies. From FrontEnd, with Backend in the adjacent directory:
+
+```bash
+AROMAN_TEST_BACKEND_DIR="$PWD/../Backend" \
+AROMAN_TEST_PYTHON="$PWD/../Backend/.venv/bin/python" \
+npm run preview:mvp:local
+```
+
+Open the printed `AROMAN MVP` URL on the same machine. The catalog, Guided,
+Creative, Smart Perfumer and accounts use the real applications with six
+fictional products and a fresh SQLite database. The services bind to loopback.
+The launcher does not require Docker. Ctrl+C stops the services and removes
+demo data.
+
+For login, request a code from the UI with a fictional mobile number such as
+`09990000001`, then use a second terminal on the same machine. Set
+`otp_socket` to the printed `Local FakeSMS socket` path:
+
+```bash
+python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.connect(sys.argv[1]); s.sendall((sys.argv[2]+"\n").encode()); print(s.makefile().readline().strip())' "$otp_socket" +989990000001
+```
+
+Use the returned code in the login form. FakeSMS is local test tooling.
+
 1. In Backend, copy `.env.example` to `.env`. Set strong, different OTP and session peppers, `CORS_ORIGINS=http://localhost:3000`, and `COOKIE_SECURE=false` for local HTTP. Keep `SMS_PROVIDER=unconfigured` for ordinary development. Run `docker compose up --build` and confirm `http://localhost:8000/health/ready` returns 200. Seed data is managed by the backend.
 2. In FrontEnd, copy `.env.example` to `.env.local`, run `npm ci`, then `npm run dev`. Open `http://localhost:3000`. Both hosts must be `localhost`.
 3. Run `npm run test`, `npm run typecheck`, `npm run lint`, `npm run build`, and `git diff --check` before review. GitHub Actions runs those same install and verification steps on pull requests to `develop` and `main` with Node.js 22. With the frontend and seeded backend running and system Chrome installed, run `npm run test:browser` and `npm run screenshots` locally. These browser checks need the seeded FastAPI service and are not part of GitHub CI. They exercise the real public API, mobile Studio composition, unauthenticated save, protected-route 401, and SMS-unavailable 503. Screenshot capture waits for 24 rendered notes and saves home, shop, and Studio states at 320, 390, 768, and 1440 pixels: loaded library, one selection, three layers, six notes, and result. It fails on missing API data or unexpected browser errors. Set `CHROME_BIN` if Chrome is installed elsewhere. Set `FRONTEND_ORIGIN` and `AROMAN_BROWSER_API_BASE_URL` only when using nondefault local ports; keep both application URLs on the same `localhost` hostname.
