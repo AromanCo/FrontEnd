@@ -2,7 +2,7 @@ name: MVP local preview
 
 on:
   pull_request:
-    branches: [develop, feat/local-mvp-preview, feat/local-demo-cart, feat/local-demo-orders, feat/local-demo-order-history]
+    branches: [develop, feat/local-mvp-preview, feat/local-demo-cart, feat/local-demo-orders, feat/local-demo-order-history, feat/local-demo-order-actions]
     paths:
       - '.github/workflows/mvp-local-preview.yml'
       - 'scripts/real-stack-runner.mjs'
@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: AromanCo/Backend
-          ref: 6904a81e47f69add887b83852239dbe08061e113
+          ref: de197168a5d14d18356faa7e1cd047b87ca14157
           path: backend-preview
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -137,3 +137,17 @@ jobs:
             await browser.close();
           }
           JS
+          python - "$(dirname "$socket")/test.sqlite3.orders" <<'PY'
+          import json
+          import sqlite3
+          import sys
+          from pathlib import Path
+
+          uri = Path(sys.argv[1]).resolve().as_uri() + "?mode=ro"
+          with sqlite3.connect(uri, uri=True) as db:
+              statuses = [json.loads(row[0])["status"] for row in db.execute(
+                  "SELECT receipt FROM demo_orders ORDER BY sequence"
+              )]
+          assert statuses == ["paid", "cancelled"], statuses
+          print("SQLite receipt states PASS")
+          PY
