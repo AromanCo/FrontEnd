@@ -88,6 +88,18 @@ async function showComposition(page) {
   await page.locator('#studio-panel-1[data-active="true"]').waitFor({ state: 'visible' });
 }
 
+async function waitForCatalogCards(page, expectedPaths) {
+  // Client navigation can briefly retain outgoing cards beside the new result.
+  // Match the complete visible result, including multiplicity, by product URL.
+  await page.waitForFunction(expected => {
+    const paths = Array.from(document.querySelectorAll('.product-editorial-card .product-detail-link'))
+      .filter(link => link.getClientRects().length > 0 && getComputedStyle(link).visibility === 'visible')
+      .map(link => new URL(link.href).pathname)
+      .sort();
+    return paths.length === expected.length && paths.every((path, index) => path === expected[index]);
+  }, [...expectedPaths].sort(), { timeout: 15_000 });
+}
+
 async function checkCatalog(page, context) {
   const response = await context.request.get(apiBase + '/products?limit=100&offset=0');
   assert.equal(response.status(), 200);
@@ -96,8 +108,19 @@ async function checkCatalog(page, context) {
   assert.ok(products.every(product => product.is_demo));
   const target = products.find(product => product.brand_id && product.family_id);
   assert.ok(target);
+  const targetPath = '/shop/' + target.id;
+  const allPaths = products.map(product => '/shop/' + product.id);
+  assert.equal(new Set(allPaths).size, 6);
+  const appliedFilters = new URLSearchParams({
+    q: target.name, brand_id: target.brand_id, family_id: target.family_id, limit: '12', offset: '0',
+  });
+  const filteredResponse = await context.request.get(apiBase + '/products?' + appliedFilters);
+  assert.equal(filteredResponse.status(), 200);
+  const filteredPaths = (await filteredResponse.json()).map(product => '/shop/' + product.id);
+  assert.deepEqual(filteredPaths, [targetPath], 'Seeded filters must select exactly the intended product');
+
   await page.goto(frontendOrigin + '/shop');
-  await page.getByRole('heading', { name: target.name, exact: true }).waitFor();
+  await waitForCatalogCards(page, allPaths);
   await checkLayout(page, 'F5 catalog at 390px');
 
   const filters = page.getByRole('search', { name: 'جستجو و فیلتر محصولات' });
@@ -108,12 +131,9 @@ async function checkCatalog(page, context) {
   await page.waitForURL(url => url.pathname === '/shop' && url.searchParams.get('q') === target.name &&
     url.searchParams.get('brand_id') === target.brand_id && url.searchParams.get('family_id') === target.family_id);
   await page.getByRole('button', { name: 'پاک کردن همه فیلترها' }).waitFor();
-  const cards = page.locator('.product-editorial-card');
-  const targetCard = cards.filter({ has: page.getByRole('heading', { name: target.name, exact: true }) });
-  await targetCard.waitFor();
-  assert.deepEqual(await cards.locator('h3').allTextContents(), [target.name]);
-  await targetCard.getByRole('link', { name: /مشاهده جزئیات/ }).click();
-  await page.waitForURL(frontendOrigin + '/shop/' + target.id);
+  await waitForCatalogCards(page, filteredPaths);
+  await page.locator('.product-editorial-card .product-detail-link[href="' + targetPath + '"]:visible').click();
+  await page.waitForURL(frontendOrigin + targetPath);
   await page.getByRole('heading', { name: target.name, exact: true }).waitFor();
   await page.getByRole('heading', { name: 'گونه‌ها', exact: true }).waitFor();
   await page.getByRole('listitem').filter({ hasText: 'نمونه مفهومی · نمایشی' }).waitFor();
@@ -124,15 +144,14 @@ async function checkCatalog(page, context) {
     ['offset', '0'], ['offset', '12'],
   ]);
   await page.goto(frontendOrigin + '/shop?' + repeated);
-  await targetCard.waitFor();
-  assert.deepEqual(await cards.locator('h3').allTextContents(), [target.name]);
+  await waitForCatalogCards(page, filteredPaths);
 
   const empty = page.getByRole('heading', { name: 'برای این جستجو محصولی پیدا نشد.' });
   await page.goto(frontendOrigin + '/shop?q=aroman-f5-missing');
   await empty.waitFor();
   await page.getByRole('link', { name: 'نمایش همه محصولات' }).click();
   await page.waitForURL(frontendOrigin + '/shop');
-  await targetCard.waitFor();
+  await waitForCatalogCards(page, allPaths);
 
   // A malformed UUID deterministically exercises the real API's validation error.
   const failed = await context.request.get(apiBase + '/products?family_id=invalid');
@@ -142,7 +161,7 @@ async function checkCatalog(page, context) {
   assert.equal(await empty.count(), 0);
   await page.getByRole('button', { name: 'پاک کردن همه فیلترها' }).click();
   await page.waitForURL(frontendOrigin + '/shop');
-  await targetCard.waitFor();
+  await waitForCatalogCards(page, allPaths);
   await page.setViewportSize({ width: 1440, height: 900 });
   await checkLayout(page, 'F5 catalog at 1440px');
   await page.setViewportSize({ width: 390, height: 844 });
