@@ -179,6 +179,7 @@ jobs:
                   "PATH": os.environ["PATH"], "HOME": str(temp), "NEXT_TELEMETRY_DISABLED": "1",
                   "AROMAN_RELEASE_SCOPE": "public-showcase", "NEXT_PUBLIC_AROMAN_API_BASE_URL": "/api/v1",
                   "AROMAN_CATALOG_UPSTREAM_URL": api + "/api/v1",
+                  "AROMAN_API_BASE_URL": api + "/api/v1",
               }
               backend_process = subprocess.Popen(
                   [python, "-m", "uvicorn", "aroman.exploration_api:app", "--host", "127.0.0.1",
@@ -195,6 +196,10 @@ jobs:
               status, raw = request(front, "/api/v1/products")
               products = json.loads(raw)
               assert status == 200 and len(products) == 3 and all(p["is_demo"] for p in products)
+              for page in ("/", "/shop"):
+                  page_status, page_html = request(front, page)
+                  if page_status != 200 or page_html.count(b'<article class="product-editorial-card">') != len(products):
+                      raise RuntimeError(f"SSR did not render the synthetic product cards: {page}")
               paths = ["/api/v1/brands", "/api/v1/products", "/api/v1/fragrance-families",
                        "/api/v1/fragrance-notes", f"/api/v1/products/{products[0]['id']}/variants"]
               for path in paths:
