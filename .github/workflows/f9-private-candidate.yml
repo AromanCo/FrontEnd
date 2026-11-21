@@ -5,9 +5,6 @@ on:
     branches: [develop]
     paths:
       - '.github/workflows/f9-private-candidate.yml'
-      - '.github/workflows/f9-review-images.yml'
-      - 'deploy/private-preproduction/Dockerfile.frontend'
-      - 'deploy/private-preproduction/Dockerfile.database'
   workflow_dispatch:
 
 permissions:
@@ -17,8 +14,6 @@ jobs:
   compile-candidate:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    outputs:
-      frontend-revision: ${{ steps.source.outputs.revision }}
     env:
       F9_FRONTEND_REVISION: a5711d329e38e4a8ade221d23678a6cc1670649a
       F9_BACKEND_REVISION: 0be24c4597bd693e70348243c26e550a20a8ad0e
@@ -38,12 +33,10 @@ jobs:
           cache: npm
 
       - name: Verify source and lockfile inputs
-        id: source
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$F9_FRONTEND_REVISION"
-          printf 'revision=%s\n' "$F9_FRONTEND_REVISION" >> "$GITHUB_OUTPUT"
           node --input-type=module -e '
             import assert from "node:assert/strict";
             import { backendSha } from "./scripts/backend-pin.mjs";
@@ -92,6 +85,131 @@ jobs:
             sha256sum -c SHA256SUMS
           )
 
+      - name: Check out the pinned restricted Backend
+        uses: actions/checkout@v4
+        with:
+          repository: AromanCo/Backend
+          ref: ${{ env.F9_BACKEND_REVISION }}
+          path: backend-pinned
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify compiled Frontend and restricted Backend over loopback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/aroman-f9-venv"
+          python="$RUNNER_TEMP/aroman-f9-venv/bin/python"
+          "$python" -m pip install ./backend-pinned
+          "$python" - ./backend-pinned <<'F9_NATIVE'
+          from contextlib import ExitStack
+          import json
+          import os
+          from pathlib import Path
+          import secrets
+          import signal
+          import socket
+          import subprocess
+          import sys
+          import tempfile
+          import time
+          from urllib.error import HTTPError, URLError
+          from urllib.request import ProxyHandler, Request, build_opener
+
+          backend = Path(sys.argv[1]).resolve(strict=True)
+          python = sys.executable
+          assert subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=backend, text=True).strip() == os.environ["F9_BACKEND_REVISION"]
+          def reserve_port():
+              with socket.socket() as sock:
+                  sock.bind(("127.0.0.1", 0))
+                  return sock.getsockname()[1]
+
+          api_port, front_port = reserve_port(), reserve_port()
+          while front_port == api_port:
+              front_port = reserve_port()
+          api = f"http://127.0.0.1:{api_port}"
+          front = f"http://127.0.0.1:{front_port}"
+          http = build_opener(ProxyHandler({}))
+
+          def request(origin, path, method="GET"):
+              try:
+                  with http.open(Request(origin + path, method=method), timeout=3) as response:
+                      return response.status, response.read()
+              except HTTPError as error:
+                  return error.code, error.read()
+
+          def wait_ready(process, origin, path):
+              for _ in range(120):
+                  if process.poll() is not None:
+                      raise RuntimeError(f"Service stopped before readiness: {origin}")
+                  try:
+                      if request(origin, path)[0] == 200:
+                          return
+                  except (URLError, TimeoutError):
+                      pass
+                  time.sleep(0.25)
+              raise RuntimeError(f"Service not ready: {origin}{path}")
+
+          def stop(process):
+              if process.poll() is None:
+                  os.killpg(process.pid, signal.SIGTERM)
+              try:
+                  process.wait(timeout=5)
+              except subprocess.TimeoutExpired:
+                  os.killpg(process.pid, signal.SIGKILL)
+                  process.wait()
+
+          with tempfile.TemporaryDirectory(prefix="aroman-f9-native-") as temp, ExitStack() as stack:
+              temp = Path(temp)
+              database = temp / "catalog.sqlite3"
+              be_env = {
+                  "PATH": os.environ["PATH"], "HOME": str(temp), "PYTHONDONTWRITEBYTECODE": "1",
+                  "ENVIRONMENT": "test", "DATABASE_URL": f"sqlite:///{database}",
+                  "CORS_ORIGINS": front, "OTP_PEPPER": secrets.token_hex(32),
+                  "SESSION_PEPPER": secrets.token_hex(32), "SMS_PROVIDER": "unconfigured",
+              }
+              for args in (["alembic", "upgrade", "head"], ["aroman.seed"]):
+                  subprocess.run([python, "-m", *args], cwd=backend, env=be_env, check=True, timeout=60)
+              be_env["DATABASE_URL"] = f"sqlite:///file:{database}?mode=ro&uri=true"
+              fe_env = {
+                  "PATH": os.environ["PATH"], "HOME": str(temp), "NEXT_TELEMETRY_DISABLED": "1",
+                  "AROMAN_RELEASE_SCOPE": "public-showcase", "NEXT_PUBLIC_AROMAN_API_BASE_URL": "/api/v1",
+                  "AROMAN_CATALOG_UPSTREAM_URL": api + "/api/v1",
+              }
+              backend_process = subprocess.Popen(
+                  [python, "-m", "uvicorn", "aroman.exploration_api:app", "--host", "127.0.0.1",
+                   "--port", str(api_port)], cwd=backend, env=be_env, start_new_session=True,
+              )
+              stack.callback(stop, backend_process)
+              wait_ready(backend_process, api, "/api/v1/products")
+              frontend_process = subprocess.Popen(
+                  ["./node_modules/.bin/next", "start", "--hostname", "127.0.0.1", "--port", str(front_port)],
+                  env=fe_env, start_new_session=True,
+              )
+              stack.callback(stop, frontend_process)
+              wait_ready(frontend_process, front, "/")
+              status, raw = request(front, "/api/v1/products")
+              products = json.loads(raw)
+              assert status == 200 and len(products) == 3 and all(p["is_demo"] for p in products)
+              paths = ["/api/v1/brands", "/api/v1/products", "/api/v1/fragrance-families",
+                       "/api/v1/fragrance-notes", f"/api/v1/products/{products[0]['id']}/variants"]
+              for path in paths:
+                  direct_status, direct_body = request(api, path)
+                  proxy_status, proxy_body = request(front, path)
+                  assert direct_status == proxy_status == 200, path
+                  assert json.loads(direct_body) == json.loads(proxy_body), path
+              for path in ("/login", "/account", "/cart", "/checkout", "/api/v1/auth/session"):
+                  assert request(front, path)[0] == 404, path
+              for path in ("/docs", "/redoc", "/openapi.json", "/api/v1/auth/session"):
+                  assert request(api, path)[0] == 404, path
+              assert request(front, "/api/v1/products", "POST")[0] == 405
+              print("PASS F9 native smoke: loopback, 3 demo products, 5 catalog routes, excluded routes and write rejection")
+          F9_NATIVE
+
       - name: Retain the compiled candidate and evidence
         uses: actions/upload-artifact@v4
         with:
@@ -99,9 +217,3 @@ jobs:
           path: ${{ runner.temp }}/aroman-f9-candidate/
           if-no-files-found: error
           retention-days: 14
-
-  review-images:
-    needs: compile-candidate
-    uses: ./.github/workflows/f9-review-images.yml
-    with:
-      frontend-revision: ${{ needs.compile-candidate.outputs.frontend-revision }}

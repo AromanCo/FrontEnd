@@ -6,8 +6,7 @@ RUN node -e 'if (Number(process.versions.node.split(".")[0]) < 22) throw new Err
 
 WORKDIR /app
 ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1 \
-    PATH="/app/node_modules/.bin:${PATH}"
+    NEXT_TELEMETRY_DISABLED=1
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
