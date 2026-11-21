@@ -149,7 +149,7 @@ describe('AccountContent dashboard', () => {
   });
 
   it('keeps loaded concepts during a failed next page and retries only on explicit action', async () => {
-    const firstPage = Array.from({ length: 20 }, (_, index) => ({ ...first, id: `concept-${index + 1}` }));
+    const firstPage = Array.from({ length: 20 }, (_, index) => ({ ...first, id: `page-one-${index + 1}` }));
     mocks.list.mockResolvedValueOnce(firstPage)
       .mockRejectedValueOnce(new Error('next page unavailable'))
       .mockResolvedValueOnce([second]);
@@ -167,6 +167,58 @@ describe('AccountContent dashboard', () => {
     expect(mocks.list).toHaveBeenCalledTimes(3);
     expect(mocks.list.mock.calls[2].slice(0, 2)).toEqual([20, 20]);
     expect(screen.getAllByRole('heading', { name: 'رایحه باران' })).toHaveLength(20);
+  });
+
+  it('prevents list paging and concept changes from racing each other', async () => {
+    const firstPage = Array.from({ length: 20 }, (_, index) => ({ ...first, id: `page-one-${index + 1}` }));
+    const secondPage = Array.from({ length: 20 }, (_, index) => ({ ...first, id: `page-two-${index + 1}` }));
+    let resolvePage!: (items: typeof second[]) => void;
+    let resolveDuplicate!: (item: typeof second) => void;
+    mocks.list.mockResolvedValueOnce(firstPage)
+      .mockImplementationOnce(() => new Promise(resolve => { resolvePage = resolve; }))
+      .mockResolvedValueOnce([second]);
+    mocks.duplicate.mockReturnValue(new Promise(resolve => { resolveDuplicate = resolve; }));
+    render(<AccountContent />);
+
+    await screen.findAllByRole('heading', { name: 'رایحه باران' });
+    fireEvent.click(screen.getByRole('button', { name: 'نمایش بیشتر' }));
+    const duplicate = screen.getAllByRole('button', { name: 'کپی' })[0];
+    expect(duplicate).toHaveProperty('disabled', true);
+    fireEvent.click(duplicate);
+    expect(mocks.duplicate).not.toHaveBeenCalled();
+
+    await act(async () => { resolvePage(secondPage); });
+    fireEvent.click(duplicate);
+    expect(mocks.duplicate).toHaveBeenCalledTimes(1);
+    const more = screen.getByRole('button', { name: 'نمایش بیشتر' });
+    expect(more).toHaveProperty('disabled', true);
+    fireEvent.click(more);
+    expect(mocks.list).toHaveBeenCalledTimes(2);
+
+    await act(async () => { resolveDuplicate(second); });
+    expect(await screen.findByRole('heading', { name: 'رایحه باغ' })).toBeTruthy();
+    expect(mocks.list.mock.calls[2].slice(0, 2)).toEqual([20, 0]);
+  });
+
+  it('retries the list alone after a confirmed delete and failed refresh', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mocks.remove.mockResolvedValue(undefined);
+    mocks.list.mockResolvedValueOnce([first])
+      .mockRejectedValueOnce(new Error('refresh unavailable'))
+      .mockResolvedValueOnce([second]);
+    render(<AccountContent />);
+
+    await screen.findByRole('heading', { name: 'رایحه باران' });
+    fireEvent.click(screen.getByRole('button', { name: 'حذف' }));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByText('مفهوم حذف شد.')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'رایحه باران' })).toBeNull();
+    expect(screen.queryByText(/هنوز مفهومی ذخیره نکرده‌اید/)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'تلاش دوباره' }));
+    expect(await screen.findByRole('heading', { name: 'رایحه باغ' })).toBeTruthy();
+    expect(mocks.remove).toHaveBeenCalledTimes(1);
+    expect(mocks.list.mock.calls[2].slice(0, 2)).toEqual([20, 0]);
   });
 
   it('requests saved concepts again after a same-account logout and remount', async () => {
