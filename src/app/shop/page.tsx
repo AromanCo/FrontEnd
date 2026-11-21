@@ -46,8 +46,8 @@ export default async function Shop({
   };
 
   return (
-    <div className="container section">
-      <header className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+    <div className="container section catalog-page">
+      <header className="catalog-intro">
         <div>
           <h1 className="heading">کشف محصولات</h1>
           <p className="mt-3 text-plum/70">مجموعه‌ای نمایشی برای آشنایی با خانواده‌های رایحه.</p>
@@ -68,7 +68,7 @@ export default async function Shop({
         </section>
       ) : products.length ? (
         <>
-          <p className="mt-8 text-sm text-plum/70" aria-live="polite">
+          <p className="catalog-result-count" aria-live="polite">
             نمایش {products.length.toLocaleString('fa-IR')} محصول در این صفحه
           </p>
           <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

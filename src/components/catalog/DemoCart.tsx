@@ -100,7 +100,7 @@ export function DemoCart() {
   };
 
   return (
-    <div className="container section">
+    <div className="container section cart-page">
       <h1 className="heading">سبد آزمایشی</h1>
       <p className="mt-3 leading-8">مبالغ به ریال و برای محصولات ساختگی هستند. سفارش آزمایشی موقت است و پرداختی انجام نمی‌شود.</p>
       {storageError && <p role="alert" className="mt-4">{storageError}</p>}

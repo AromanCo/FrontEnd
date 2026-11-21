@@ -20,7 +20,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     if (product) variants = await catalog.variants(id, true);
   } catch {
     return (
-      <div className="container section">
+      <div className="container section product-page">
         <p role="alert">اطلاعات محصول اکنون در دسترس نیست.</p>
         <div className="mt-4 flex flex-wrap gap-3">
           <a className="btn btn-primary" href={`/shop/${encodeURIComponent(id)}`}>تلاش دوباره</a>
@@ -39,7 +39,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     <article className="container section">
       <Link className="text-link" href="/shop">بازگشت به مجموعه <span aria-hidden="true">↗</span></Link>
       <div className="mt-5 grid gap-6 md:grid-cols-2 md:gap-10">
-        <div className="flex min-h-64 flex-col items-center justify-center gap-4 rounded-[2rem] bg-[radial-gradient(circle,#f2d5cf,#c8aecf)] p-5 md:min-h-96">
+        <div className="product-detail-art flex min-h-64 flex-col items-center justify-center gap-4 p-5 md:min-h-96">
           <div className="bottle !h-52 !w-32 md:!h-64 md:!w-40" aria-hidden="true" />
           <span className="text-sm text-plum/80">تصویر مفهومی</span>
         </div>
@@ -67,7 +67,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             </ul>
           ) : <p className="mt-3">گونه‌ای برای این محصول ثبت نشده است.</p>}
 
-          <section className="mt-6 rounded-xl bg-blush p-4 sm:p-5" aria-label="ادامهٔ کشف رایحه">
+          <section className="product-next-step mt-6 p-4 sm:p-5" aria-label="ادامهٔ کشف رایحه">
             <p className="leading-8">برای دریافت یک پیشنهاد مفهومی بر اساس سلیقهٔ خودتان، به چند پرسش پاسخ دهید.</p>
             <Link className="text-link mt-3" href="/studio/guided">شروع کشف با راهنما <span aria-hidden="true">←</span></Link>
           </section>

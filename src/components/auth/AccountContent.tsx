@@ -49,28 +49,17 @@ function LayerPreview({ notes }: { notes: Concept['notes'] }) {
 
 function ConceptCard({
   concept,
-  position,
   busy,
   onAction,
 }: {
   concept: Concept;
-  position: number;
   busy: boolean;
   onAction: (id: string, kind: 'duplicate' | 'delete') => void;
 }) {
   return (
     <article className="card flex h-full min-w-0 flex-col overflow-hidden shadow-[0_12px_32px_rgba(56,42,61,0.035)] transition-shadow hover:shadow-[0_18px_44px_rgba(56,42,61,0.09)]">
-      <div className="relative overflow-hidden bg-[linear-gradient(125deg,#f6ebee,#f8f1e6_55%,#eff2e9)] px-5 pb-5 pt-6 sm:px-6">
-        <div className="pointer-events-none absolute -left-8 -top-16 h-48 w-48 rounded-full border border-white/80" aria-hidden="true" />
-        <div className="relative mb-5 flex items-center justify-between gap-3">
-          <span className="eyebrow">AROMAN ATELIER</span>
-          <span className="rounded-full border border-[#daccd3] bg-white/70 px-3 py-1 text-xs text-[#715b72]">
-            شماره {position.toLocaleString('fa-IR')}
-          </span>
-        </div>
-        <div className="relative">
-          <LayerPreview notes={concept.notes} />
-        </div>
+      <div className="account-concept-preview px-5 py-5 sm:px-6">
+        <LayerPreview notes={concept.notes} />
       </div>
       <div className="flex flex-1 flex-col p-5 sm:p-6">
         <p className="eyebrow">مفهوم ذخیره‌شده</p>
@@ -101,7 +90,6 @@ export function AccountContent() {
   if (loading) return <p role="status">در حال بررسی نشست…</p>;
   if (!user) return (
     <div className="card mx-auto max-w-2xl p-8 text-center sm:p-12">
-      <p className="eyebrow">MY AROMAN</p>
       <h1 className="heading mt-4">حساب من</h1>
       <p className="my-6 leading-8 text-[#715b72]">برای دیدن و ادامه‌دادن رایحه‌های شخصی خود وارد شوید.</p>
       <Link className="btn btn-primary" href="/login">ورود</Link>
@@ -193,11 +181,10 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
 
   return (
     <div dir="rtl">
-      <header className="relative overflow-hidden rounded-[2rem] border border-[#e7d9dd] bg-[linear-gradient(120deg,#fffaf6,#f5eaf0)] px-6 py-8 sm:px-9 sm:py-10 lg:px-12">
+      <header className="account-intro relative overflow-hidden rounded-2xl border px-6 py-8 sm:px-9 sm:py-10 lg:px-12">
         <div className="pointer-events-none absolute -left-14 -top-20 h-64 w-64 rounded-full border border-white/80" aria-hidden="true" />
         <div className="relative flex flex-col justify-between gap-7 lg:flex-row lg:items-end">
           <div className="max-w-2xl">
-            <p className="eyebrow">MY AROMAN · فضای شخصی شما</p>
             <h1 className="heading mt-3">مفاهیم من</h1>
             <p className="mt-3 max-w-xl leading-8 text-[#715b72]">
               رایحه‌هایی که ساخته‌اید، همین‌جا منتظر ادامهٔ داستان شما هستند.
@@ -226,7 +213,6 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
       <section aria-labelledby="account-concepts-heading" className="mt-9 sm:mt-12">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="eyebrow">YOUR COLLECTION</p>
             <h2 id="account-concepts-heading" className="mt-2 text-2xl font-semibold sm:text-3xl">مجموعهٔ رایحه‌های شما</h2>
           </div>
           {!loadingItems && items.length > 0 && (
@@ -267,11 +253,10 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
 
         {items.length > 0 && (
           <div className="grid gap-5 md:grid-cols-2">
-            {items.map((item, index) => (
+            {items.map(item => (
               <ConceptCard
                 key={item.id}
                 concept={item}
-                position={index + 1}
                 busy={Boolean(busy) || loadingItems || loadingMore}
                 onAction={(id, kind) => void runAction(id, kind)}
               />
