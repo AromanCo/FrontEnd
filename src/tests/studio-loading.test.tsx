@@ -1,6 +1,6 @@
 import React from 'react';
-import {expect,it,vi} from 'vitest';
-import {fireEvent,render,screen,waitFor,within} from '@testing-library/react';
+import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
+import {act,fireEvent,render,screen,waitFor,within} from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 const mocks=vi.hoisted(()=>({notes:vi.fn(),families:vi.fn(),conceptGet:vi.fn(),conceptCreate:vi.fn(),conceptUpdate:vi.fn(),routerReplace:vi.fn()}));
 const authState=vi.hoisted(()=>({authEnabled:true,user:null as {id:string;mobile_e164:string;role:string}|null,loading:false}));
@@ -144,7 +144,7 @@ it('detaches the accepted draft from saved-concept editing before Save can targe
   fireEvent.click(screen.getAllByRole('button',{name:'ذخیره مفهوم'})[0]!);
   await waitFor(()=>expect(mocks.conceptCreate).toHaveBeenCalledTimes(1));
   expect(mocks.conceptUpdate).not.toHaveBeenCalled();
-  expect(mocks.conceptGet).toHaveBeenCalledWith('saved-3');
+  expect(mocks.conceptGet).toHaveBeenCalledWith('saved-3',expect.any(AbortSignal));
 });
 
 it('does not apply an in-flight import after route intent changes to a saved concept',async()=>{
@@ -166,3 +166,94 @@ it('does not apply an in-flight import after route intent changes to a saved con
 });
 
 function deferred<T>(){let resolve!:(value:T)=>void;const promise=new Promise<T>(accept=>{resolve=accept});return{promise,resolve};}
+
+describe('saved concept editor', () => {
+  const owner = { id: 'owner', mobile_e164: '+989990000001', role: 'customer' };
+  const saved = {
+    id: 'saved-owner',
+    name: 'رایحهٔ شخصی',
+    notes: [{ note_id: demoNote.id, layer: 'heart', position: 0 }],
+  };
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    authState.user = owner;
+    mocks.families.mockResolvedValue([]);
+    mocks.notes.mockResolvedValue([demoNote]);
+    mocks.conceptGet.mockResolvedValue(saved);
+  });
+
+  afterEach(() => { authState.user = null; });
+
+  it('sends just one saved concept request on a Strict Mode mount', async () => {
+    render(
+      <React.StrictMode>
+        <StudioDraftProvider><CreativeStudio conceptId={saved.id} /></StudioDraftProvider>
+      </React.StrictMode>,
+    );
+    expect(await screen.findByDisplayValue(saved.name)).toBeInTheDocument();
+    expect(mocks.conceptGet).toHaveBeenCalledExactlyOnceWith(saved.id, expect.any(AbortSignal));
+  });
+
+  it('offers in-place sign-in and loads the original URL after sign-in', async () => {
+    authState.user = null;
+    const editor = <StudioDraftProvider><CreativeStudio conceptId={saved.id} /></StudioDraftProvider>;
+    const view = render(editor);
+    fireEvent.click(screen.getByRole('button', { name: 'ورود برای بارگذاری مفهوم' }));
+    expect(screen.getByRole('dialog', { name: 'ورود برای بارگذاری مفهوم' })).toBeInTheDocument();
+    expect(mocks.conceptGet).not.toHaveBeenCalled();
+
+    authState.user = owner;
+    view.rerender(<StudioDraftProvider><CreativeStudio conceptId={saved.id} /></StudioDraftProvider>);
+    expect(await screen.findByDisplayValue(saved.name)).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mocks.routerReplace).not.toHaveBeenCalled();
+  });
+
+  it('clears the old editor on account change and discards the abandoned read', async () => {
+    const pendingSecond = deferred<typeof saved>();
+    mocks.conceptGet.mockResolvedValueOnce(saved)
+      .mockReturnValueOnce(pendingSecond.promise)
+      .mockRejectedValueOnce(new Error('unavailable for this account'));
+    const renderEditor = (id: string) => <StudioDraftProvider><CreativeStudio conceptId={id} /></StudioDraftProvider>;
+    const view = render(renderEditor(saved.id));
+    await screen.findByDisplayValue(saved.name);
+
+    view.rerender(renderEditor('saved-other'));
+    await waitFor(() => expect(mocks.conceptGet).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText(saved.name)).not.toBeInTheDocument();
+    const signal = mocks.conceptGet.mock.calls[1][1] as AbortSignal;
+
+    authState.user = { ...owner, id: 'other-user' };
+    view.rerender(renderEditor('saved-other'));
+    expect(signal.aborted).toBe(true);
+    await act(async () => { pendingSecond.resolve({ ...saved, id: 'saved-other', name: 'پاسخ حساب قبلی' }); });
+    expect(screen.queryByDisplayValue('پاسخ حساب قبلی')).not.toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'بازگشت به مفاهیم من' })).toHaveAttribute('href', '/account');
+    expect(screen.getAllByRole('button', { name: 'ذخیره مفهوم' })[0]).toBeDisabled();
+    expect(mocks.conceptUpdate).not.toHaveBeenCalled();
+  });
+
+  it('keeps edits and retries only the original update when the response identifies a different concept', async () => {
+    const pendingUpdate = deferred<typeof saved>();
+    mocks.conceptUpdate.mockReturnValueOnce(pendingUpdate.promise).mockResolvedValueOnce(saved);
+    render(<StudioDraftProvider><CreativeStudio conceptId={saved.id} /></StudioDraftProvider>);
+    const input = await screen.findByDisplayValue(saved.name);
+    fireEvent.change(input, { target: { value: 'رایحهٔ ویرایش‌شده' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'ذخیره تغییرات' })[0]);
+    expect(document.querySelector('.studio-grid')).toHaveAttribute('inert');
+    fireEvent.change(input, { target: { value: 'ویرایش هم‌زمان' } });
+    await act(async () => { pendingUpdate.resolve({ ...saved, id: 'different-id' }); });
+
+    expect(input).toHaveValue('رایحهٔ ویرایش‌شده');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/پاسخ ذخیره با مفهوم بازشده هم‌خوان نیست/);
+    expect(screen.queryByText('مفهوم رایحه با موفقیت ذخیره شد.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'ذخیره تغییرات' })[0]);
+    expect(await screen.findByText('مفهوم رایحه با موفقیت ذخیره شد.')).toBeInTheDocument();
+    expect(mocks.conceptUpdate.mock.calls).toEqual([
+      [saved.id, { name: 'رایحهٔ ویرایش‌شده', notes: saved.notes }],
+      [saved.id, { name: 'رایحهٔ ویرایش‌شده', notes: saved.notes }],
+    ]);
+    expect(mocks.conceptCreate).not.toHaveBeenCalled();
+  });
+});
