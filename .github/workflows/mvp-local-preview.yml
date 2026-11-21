@@ -2,7 +2,7 @@ name: MVP local preview
 
 on:
   pull_request:
-    branches: [develop, feat/local-mvp-preview, feat/local-demo-cart, feat/local-demo-orders, feat/local-demo-order-history, feat/local-demo-order-actions, feat/local-demo-order-persistence, feat/local-demo-checkout-resume, feat/local-demo-order-timeline]
+    branches: [develop, feat/local-mvp-preview, feat/local-demo-cart, feat/local-demo-orders, feat/local-demo-order-history, feat/local-demo-order-actions, feat/local-demo-order-persistence, feat/local-demo-checkout-resume, feat/local-demo-order-timeline, feat/local-demo-order-fulfillment]
     paths:
       - '.github/workflows/mvp-local-preview.yml'
       - 'scripts/real-stack-runner.mjs'
@@ -154,6 +154,17 @@ jobs:
               for (const event of events) await card.getByText(event, { exact: true }).waitFor();
               assert.equal(await card.locator('ol time').count(), events.length + 1);
             }
+
+            await page.goto(`/shop/${garden.id}`);
+            await page.getByRole('button', { name: 'افزودن به سبد آزمایشی' }).click();
+            await page.getByRole('link', { name: 'مشاهدهٔ سبد آزمایشی' }).waitFor();
+            await page.goto('/account');
+            const delivered = history.locator('li.card').filter({ hasText: 'تحویل آزمایشی ثبت شد' });
+            await delivered.getByRole('button', { name: 'افزودن دوباره به سبد' }).click();
+            await delivered.getByRole('link', { name: 'مشاهدهٔ سبد آزمایشی' }).click();
+            await page.getByText('جمع سبد ۲٬۴۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
+            assert.equal(await page.getByRole('combobox', { name: /تعداد/ }).inputValue(), '2');
+            console.log('Demo reorder PASS: merge into the cart and refresh the server quote');
             console.log('Demo orders PASS: receipt, simulated payment, cancellation and history after reload');
           } finally {
             await browser.close();

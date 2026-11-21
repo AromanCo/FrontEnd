@@ -1,8 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { type DemoOrderAction, type DemoOrderReceipt, listDemoOrders, updateDemoOrder } from '@/lib/demo-cart';
+import { addDemoCartItems, type DemoOrderAction, type DemoOrderReceipt, listDemoOrders, updateDemoOrder } from '@/lib/demo-cart';
 
 const number = new Intl.NumberFormat('fa-IR');
 const date = new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Tehran' });
@@ -41,6 +42,8 @@ function OrderHistory() {
   const activeOrder = useRef<string | null>(null);
   const [pendingOrder, setPendingOrder] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
+  const [addedOrders, setAddedOrders] = useState<string[]>([]);
+  const [cartNotice, setCartNotice] = useState<{ orderId: string; message: string } | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -78,6 +81,26 @@ function OrderHistory() {
     } finally {
       activeOrder.current = null;
       setPendingOrder(null);
+    }
+  };
+
+  const addOrderToCart = (order: DemoOrderReceipt) => {
+    if (addedOrders.includes(order.id)) return;
+    try {
+      const limit = addDemoCartItems(order.items.map(item => ({
+        variant_id: item.variant_id,
+        name: `${item.product_name} · ${item.variant_label}`,
+        quantity: item.quantity,
+      })));
+      const message = limit === 'quantity'
+        ? 'با افزودن این سفارش، تعداد یکی از اقلام از سقف ۱۰ عدد بیشتر می‌شود.'
+        : limit === 'lines'
+          ? 'با افزودن این سفارش، تعداد اقلام متفاوت از سقف ۶ قلم بیشتر می‌شود.'
+          : 'اقلام اضافه شدند. مبلغ فعلی را در سبد ببین.';
+      setCartNotice({ orderId: order.id, message });
+      if (!limit) setAddedOrders(previous => [...previous, order.id]);
+    } catch {
+      setCartNotice({ orderId: order.id, message: 'افزودن اقلام به سبد ممکن نبود.' });
     }
   };
 
@@ -130,6 +153,11 @@ function OrderHistory() {
                 {simulation && (
                   <button type="button" className="btn btn-secondary mt-3" disabled={pendingOrder !== null} onClick={() => void actOnOrder(order.id, simulation[0])}>{simulation[1]}</button>
                 )}
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button type="button" className="btn btn-secondary" disabled={addedOrders.includes(order.id)} onClick={() => addOrderToCart(order)}>افزودن دوباره به سبد</button>
+                  {addedOrders.includes(order.id) && <Link className="text-link" href="/cart">مشاهدهٔ سبد آزمایشی</Link>}
+                  {cartNotice?.orderId === order.id && <span className="text-sm" role="status">{cartNotice.message}</span>}
+                </div>
               </li>
             );
           })}

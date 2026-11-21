@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { maxCartLines, maxCartQuantity, readDemoCart, writeDemoCart } from '@/lib/demo-cart';
+import { addDemoCartItems } from '@/lib/demo-cart';
 
 export function AddToDemoCart({ variantId, name }: { variantId: string; name: string }) {
   const [message, setMessage] = useState('');
@@ -11,19 +11,15 @@ export function AddToDemoCart({ variantId, name }: { variantId: string; name: st
   const add = () => {
     setAdded(false);
     try {
-      const items = readDemoCart();
-      const existing = items.find(item => item.variant_id === variantId);
-      if (existing && existing.quantity >= maxCartQuantity) {
+      const limit = addDemoCartItems([{ variant_id: variantId, name, quantity: 1 }]);
+      if (limit === 'quantity') {
         setMessage('تعداد این محصول به سقف ۱۰ عدد رسیده است.');
         return;
       }
-      if (!existing && items.length >= maxCartLines) {
+      if (limit === 'lines') {
         setMessage('سبد آزمایشی حداکثر ۶ محصول متفاوت می‌پذیرد.');
         return;
       }
-      if (existing) existing.quantity += 1;
-      else items.push({ variant_id: variantId, name, quantity: 1 });
-      writeDemoCart(items);
       setAdded(true);
       setMessage('به سبد آزمایشی اضافه شد.');
     } catch {

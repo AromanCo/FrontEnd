@@ -58,6 +58,19 @@ export function writeDemoCart(items: DemoCartItem[]) {
   sessionStorage.setItem(storageKey, JSON.stringify(items));
 }
 
+export function addDemoCartItems(additions: DemoCartItem[]): 'quantity' | 'lines' | null {
+  const items = new Map(readDemoCart().map(item => [item.variant_id, item]));
+  for (const item of additions) {
+    const existing = items.get(item.variant_id);
+    const quantity = (existing?.quantity ?? 0) + item.quantity;
+    if (quantity > maxCartQuantity) return 'quantity';
+    items.set(item.variant_id, { ...(existing ?? item), quantity });
+  }
+  if (items.size > maxCartLines) return 'lines';
+  writeDemoCart([...items.values()]);
+  return null;
+}
+
 export function quoteDemoCart(items: DemoCartItem[], signal: AbortSignal) {
   return request<DemoQuote>('/demo-checkout/quote', {
     method: 'POST',
