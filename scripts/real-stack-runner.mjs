@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
@@ -13,7 +13,12 @@ import { captureTestContainerId, cleanupTestContainer } from './real-stack-conta
 const frontend = resolve(import.meta.dirname, '..');
 const mode = process.argv[2] || 'sqlite';
 const isF5Mvp = mode === 'f5-mvp';
-assert.ok(['sqlite', 'postgres', 'transactions', 'f1-account', 'f2-concepts', 'f3-continuity', 'f5-mvp'].includes(mode) && process.argv.length <= 3, 'Usage: real-stack-runner.mjs [sqlite|postgres|transactions|f1-account|f2-concepts|f3-continuity|f5-mvp]');
+const isMvpCheckout = mode === 'mvp-checkout';
+const demoDataPath = process.env.AROMAN_DEMO_CHECKOUT_DIR;
+assert.ok(!demoDataPath || isMvpCheckout, 'AROMAN_DEMO_CHECKOUT_DIR is only supported by mvp-checkout');
+const isMvpPreview = mode === 'mvp-preview' || isMvpCheckout;
+const usesSqlite = mode === 'sqlite' || isMvpPreview;
+assert.ok(['sqlite', 'postgres', 'transactions', 'f1-account', 'f2-concepts', 'f3-continuity', 'f5-mvp', 'mvp-preview', 'mvp-checkout'].includes(mode) && process.argv.length <= 3, 'Usage: real-stack-runner.mjs [sqlite|postgres|transactions|f1-account|f2-concepts|f3-continuity|f5-mvp|mvp-preview|mvp-checkout]');
 if (mode === 'f1-account') {
   assert.equal(
     process.env.AROMAN_F1_ACCOUNT_EPHEMERAL_ACK,
@@ -45,7 +50,11 @@ if (isF5Mvp) {
 const backend = resolve(process.env.AROMAN_TEST_BACKEND_DIR || join(frontend, '..', 'Backend'));
 const revision = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: backend, encoding: 'utf8' });
 assert.equal(revision.status, 0, `Backend checkout unavailable: ${revision.stderr}`);
-assert.equal(revision.stdout.trim(), mode === 'f1-account' ? f1AccountBackendSha : isF5Mvp || ['f2-concepts', 'f3-continuity'].includes(mode) ? f2ConceptBackendSha : backendSha, 'Backend checkout must be at the pinned SHA');
+const demoCheckoutBackendSha = '02a29f8e13f1513b963e3dd4228ef4e2f36883aa';
+const expectedBackend = mode === 'f1-account'
+  ? f1AccountBackendSha
+  : isF5Mvp || isMvpPreview || ['f2-concepts', 'f3-continuity'].includes(mode) ? f2ConceptBackendSha : backendSha;
+assert.equal(revision.stdout.trim(), isMvpCheckout ? demoCheckoutBackendSha : expectedBackend, 'Backend checkout must be at the pinned SHA');
 
 const tsconfigPath = join(frontend, 'tsconfig.json');
 const originalTsconfig = await readFile(tsconfigPath, 'utf8');
@@ -64,12 +73,51 @@ const reservePort = () => new Promise((resolvePort, reject) => {
 const temp = await mkdtemp(join(tmpdir(), 'aroman-real-stack-'));
 const nextDist = `.next-real-stack-${randomBytes(6).toString('hex')}`;
 let env;
+let demoDataLock;
+
+async function openDemoData(path) {
+  const directory = resolve(path);
+  assert.ok(!/[?#%]/.test(directory), 'The demo data path cannot contain ?, # or %');
+  try { await mkdir(directory, { mode: 0o700 }); }
+  catch (error) { if (error.code !== 'EEXIST') throw error; }
+  const info = await lstat(directory);
+  assert.ok(info.isDirectory() && (info.mode & 0o077) === 0,
+    'Set AROMAN_DEMO_CHECKOUT_DIR to a new or private (0700) directory');
+  const lock = join(directory, '.preview.lock');
+  try { await mkdir(lock, { mode: 0o700 }); }
+  catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+    throw new Error('This demo data directory is already locked by a preview');
+  }
+  demoDataLock = lock;
+  const marker = '.aroman-checkout';
+  const entries = (await readdir(directory)).filter(entry => entry !== '.preview.lock');
+  if (entries.length === 0) {
+    await writeFile(join(directory, marker), 'aroman-demo-checkout-v1\n', { mode: 0o600, flag: 'wx' });
+    return { directory, reuse: false };
+  }
+  assert.ok(entries.includes(marker), 'Choose an empty folder or an existing Aroman demo data folder');
+  for (const entry of entries) {
+    assert.ok(entry === marker || /^test\.sqlite3(?:\.orders)?(?:-(?:journal|wal|shm))?$/.test(entry),
+      'Unexpected files in demo data directory');
+    const file = await lstat(join(directory, entry));
+    assert.ok(file.isFile() && file.nlink === 1, 'Demo data files must be regular files');
+  }
+  assert.equal(await readFile(join(directory, marker), 'utf8'), 'aroman-demo-checkout-v1\n');
+  assert.ok(!entries.includes('test.sqlite3.orders') || entries.includes('test.sqlite3'),
+    'The demo catalog database is missing');
+  return { directory, reuse: entries.includes('test.sqlite3') };
+}
+
 function makeEnv(apiPort, frontendPort, databaseUrl, postgres = null) {
   const apiOrigin = `http://localhost:${apiPort}`;
   const frontendOrigin = `http://localhost:${frontendPort}`;
   return {
     ...process.env,
-    ...(isF5Mvp || ['f1-account', 'f2-concepts', 'f3-continuity'].includes(mode) ? { AROMAN_RELEASE_SCOPE: 'full' } : {}),
+    DEMO_CHECKOUT_ENABLED: String(isMvpCheckout),
+    AROMAN_DEMO_CHECKOUT_ENABLED: String(isMvpCheckout),
+    AROMAN_TEST_REUSE_DEMO_DB: 'false',
+    ...(isF5Mvp || isMvpPreview || ['f1-account', 'f2-concepts', 'f3-continuity'].includes(mode) ? { AROMAN_RELEASE_SCOPE: 'full' } : {}),
     ENVIRONMENT: 'test',
     DATABASE_URL: databaseUrl,
     OTP_PEPPER: randomBytes(32).toString('hex'),
@@ -86,7 +134,7 @@ function makeEnv(apiPort, frontendPort, databaseUrl, postgres = null) {
     AROMAN_BROWSER_API_BASE_URL: `${apiOrigin}/api/v1`,
     PYTHONPATH: backend,
     AROMAN_TEST_NEXT_DIST_DIR: nextDist,
-    AROMAN_TEST_DB_MODE: isF5Mvp || ['f1-account', 'f2-concepts', 'f3-continuity'].includes(mode) ? 'postgres' : mode,
+    AROMAN_TEST_DB_MODE: usesSqlite ? 'sqlite' : isF5Mvp || ['f1-account', 'f2-concepts', 'f3-continuity'].includes(mode) ? 'postgres' : mode,
     AROMAN_TEST_DB_USER: postgres?.user || '',
     AROMAN_TEST_DB_NAME: postgres?.database || '',
   };
@@ -185,6 +233,10 @@ async function cleanup() {
   } catch (error) {
     failures.push(error instanceof Error ? error.message : 'Test PostgreSQL container cleanup failed.');
   }
+  if (demoDataLock) {
+    try { await rmdir(demoDataLock); }
+    catch (error) { failures.push(error.message); }
+  }
   await rm(temp, { recursive: true, force: true });
   await rm(join(frontend, nextDist), { recursive: true, force: true });
   const currentTsconfig = await readFile(tsconfigPath, 'utf8');
@@ -206,13 +258,18 @@ for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {
 });
 
 try {
+  const demoData = demoDataPath ? await openDemoData(demoDataPath) : null;
   const apiPort = await reservePort();
   const frontendPort = await reservePort();
-  const postgres = mode !== 'sqlite' ? await isolatedPostgres() : null;
-  env = makeEnv(apiPort, frontendPort, postgres?.url || `sqlite:///${join(temp, 'test.sqlite3')}`, postgres);
-  run(python, [join(frontend, 'scripts', 'real-stack-db-check.py'), 'before'], backend);
-  run(python, ['-m', 'alembic', 'upgrade', 'head'], backend);
-  run(python, ['-m', 'aroman.seed'], backend);
+  const postgres = usesSqlite ? null : await isolatedPostgres();
+  const sqlitePath = join(demoData?.directory ?? temp, 'test.sqlite3');
+  env = makeEnv(apiPort, frontendPort, postgres?.url || `sqlite:///${sqlitePath}`, postgres);
+  env.AROMAN_TEST_REUSE_DEMO_DB = String(demoData?.reuse === true);
+  if (!demoData?.reuse) {
+    run(python, [join(frontend, 'scripts', 'real-stack-db-check.py'), 'before'], backend);
+    run(python, ['-m', 'alembic', 'upgrade', 'head'], backend);
+    run(python, ['-m', 'aroman.seed'], backend);
+  }
   run(python, [join(frontend, 'scripts', 'real-stack-db-check.py'), 'after'], backend);
   if (mode === 'transactions') {
     run(python, [join(frontend, 'scripts', 'postgres-transactions.py')], backend);
@@ -222,7 +279,20 @@ try {
     const next = start(join(frontend, 'node_modules', '.bin', 'next'), ['dev', '--hostname', '127.0.0.1', '--port', String(frontendPort)], frontend);
     await ready(`http://127.0.0.1:${frontendPort}/studio/guided`, next);
     Object.assign(process.env, env);
-    if (mode === 'f1-account') await import('./f1-account-journey.mjs');
+    if (isMvpPreview) {
+      console.log(`AROMAN MVP: ${env.FRONTEND_ORIGIN}`);
+      console.log(`AROMAN API: ${env.AROMAN_API_BASE_URL}`);
+      console.log(`Local FakeSMS socket: ${env.AROMAN_TEST_OTP_SOCKET}`);
+      if (demoData) console.log(`AROMAN retained demo data: ${demoData.directory}`);
+      else console.log('The preview stays up until Ctrl+C. Its demo data is temporary.');
+      await new Promise((_, reject) => {
+        for (const service of [api, next]) {
+          const exited = () => reject(new Error(`Preview service exited:\n${service.diagnostics()}`));
+          if (service.child.exitCode !== null || service.child.signalCode !== null) exited();
+          else service.child.once('exit', exited);
+        }
+      });
+    } else if (mode === 'f1-account') await import('./f1-account-journey.mjs');
     else if (mode === 'f2-concepts') await import('./f2-concept-journey.mjs');
     else if (mode === 'f3-continuity') await import('./f3-continuity-journey.mjs');
     else if (isF5Mvp) await import('./f5-mvp-journey.mjs');

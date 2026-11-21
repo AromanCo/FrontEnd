@@ -46,7 +46,10 @@ def main():
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "a4b01"
             assert connection.scalar(text("SELECT count(*) FROM fragrance_families")) == 6
             assert connection.scalar(text("SELECT count(*) FROM fragrance_notes")) == 24
-            assert connection.scalar(text("SELECT count(*) FROM fragrance_concepts")) == 0
+            if os.environ.get("AROMAN_TEST_REUSE_DEMO_DB") == "true":
+                assert mode == "sqlite" and os.environ.get("DEMO_CHECKOUT_ENABLED") == "true"
+            else:
+                assert connection.scalar(text("SELECT count(*) FROM fragrance_concepts")) == 0
     print(f"REAL-STACK DATABASE PASS: {mode}, {phase}")
 
 

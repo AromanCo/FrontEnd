@@ -5,6 +5,9 @@ on:
     branches: [develop]
     paths:
       - '.github/workflows/f9-private-candidate.yml'
+      - '.github/workflows/f9-review-images.yml'
+      - 'deploy/private-preproduction/Dockerfile.frontend'
+      - 'deploy/private-preproduction/Dockerfile.database'
   workflow_dispatch:
 
 permissions:
@@ -14,29 +17,33 @@ jobs:
   compile-candidate:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    outputs:
+      frontend-revision: ${{ steps.source.outputs.revision }}
     env:
-      F9_FRONTEND_REVISION: 37d18450f4a641c40bb68386ba7c59e4cdd020aa
+      F9_FRONTEND_REVISION: a5711d329e38e4a8ade221d23678a6cc1670649a
       F9_BACKEND_REVISION: 0be24c4597bd693e70348243c26e550a20a8ad0e
       AROMAN_RELEASE_SCOPE: public-showcase
       NEXT_PUBLIC_AROMAN_API_BASE_URL: /api/v1
     steps:
-      - name: Check out the approved Frontend source
+      - name: Check out the pinned Frontend source
         uses: actions/checkout@v4
         with:
-          ref: 37d18450f4a641c40bb68386ba7c59e4cdd020aa
+          ref: ${{ env.F9_FRONTEND_REVISION }}
           persist-credentials: false
 
-      - name: Set up the Node version used for F8 verification
+      - name: Set up the candidate toolchain
         uses: actions/setup-node@v4
         with:
           node-version: 22.23.5
           cache: npm
 
       - name: Verify source and lockfile inputs
+        id: source
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$F9_FRONTEND_REVISION"
+          printf 'revision=%s\n' "$F9_FRONTEND_REVISION" >> "$GITHUB_OUTPUT"
           node --input-type=module -e '
             import assert from "node:assert/strict";
             import { backendSha } from "./scripts/backend-pin.mjs";
@@ -92,3 +99,9 @@ jobs:
           path: ${{ runner.temp }}/aroman-f9-candidate/
           if-no-files-found: error
           retention-days: 14
+
+  review-images:
+    needs: compile-candidate
+    uses: ./.github/workflows/f9-review-images.yml
+    with:
+      frontend-revision: ${{ needs.compile-candidate.outputs.frontend-revision }}

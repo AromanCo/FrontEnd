@@ -1,0 +1,235 @@
+name: MVP local preview
+
+on:
+  pull_request:
+    branches: [develop, feat/local-mvp-preview, feat/local-demo-cart, feat/local-demo-orders, feat/local-demo-order-history, feat/local-demo-order-actions, feat/local-demo-order-persistence, feat/local-demo-checkout-resume, feat/local-demo-order-timeline, feat/local-demo-order-fulfillment, feat/local-demo-reorder]
+    paths:
+      - '.github/workflows/mvp-local-preview.yml'
+      - 'scripts/real-stack-runner.mjs'
+      - 'scripts/real-stack-api.py'
+      - 'src/components/catalog/**'
+      - 'src/app/cart/**'
+      - 'src/app/account/**'
+      - 'src/app/shop/**'
+      - 'src/lib/demo-cart.ts'
+      - 'src/lib/release-scope.ts'
+
+permissions:
+  contents: read
+
+jobs:
+  startup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: AromanCo/Backend
+          ref: 02a29f8e13f1513b963e3dd4228ef4e2f36883aa
+          path: backend-preview
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - run: python -m pip install ./backend-preview
+      - name: Start the local preview and verify the demo order
+        env:
+          AROMAN_TEST_BACKEND_DIR: ${{ github.workspace }}/backend-preview
+          AROMAN_TEST_PYTHON: python
+        run: |
+          log="$RUNNER_TEMP/aroman-preview.log"
+          export AROMAN_DEMO_CHECKOUT_DIR="$RUNNER_TEMP/aroman-retained-checkout"
+          start_preview() {
+            node scripts/real-stack-runner.mjs mvp-checkout >"$log" 2>&1 &
+            preview_pid=$!
+            for attempt in {1..90}; do
+              if grep -q '^AROMAN retained demo data: ' "$log"; then break; fi
+              kill -0 "$preview_pid"
+              sleep 1
+            done
+            web="$(sed -n 's/^AROMAN MVP: //p' "$log")"
+            api="$(sed -n 's/^AROMAN API: //p' "$log")"
+            socket="$(sed -n 's/^Local FakeSMS socket: //p' "$log")"
+            test -n "$web" && test -n "$api" && test -S "$socket"
+            test "$(stat -c '%a' "$socket")" = 600
+          }
+          trap 'kill -TERM "$preview_pid" 2>/dev/null || true; wait "$preview_pid" || true; cat "$log"' EXIT
+          start_preview
+          curl --fail --silent --show-error --max-time 20 "$web/shop" -o /dev/null
+          WEB_ORIGIN="$web" API_BASE="$api" OTP_SOCKET="$socket" node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { createConnection } from 'node:net';
+          import { chromium } from 'playwright';
+
+          const response = await fetch(`${process.env.API_BASE}/products?limit=20`);
+          assert.equal(response.status, 200);
+          const products = await response.json();
+          assert.equal(products.length, 6);
+          const garden = products.find(product => product.slug === 'aroman-garden-demo');
+          assert.ok(garden);
+          const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome' });
+          try {
+            const page = await browser.newPage({ baseURL: process.env.WEB_ORIGIN });
+            await page.goto(`/shop/${garden.id}`);
+            await page.getByRole('button', { name: 'افزودن به سبد آزمایشی' }).click();
+            await page.getByRole('link', { name: 'مشاهدهٔ سبد آزمایشی' }).click();
+            await page.getByText('جمع سبد ۱٬۲۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
+            await page.getByRole('combobox', { name: /تعداد/ }).selectOption('2');
+            await page.getByText('جمع سبد ۲٬۴۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
+            await page.reload();
+            await page.getByText('جمع سبد ۲٬۴۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
+            await page.getByRole('button', { name: /حذف/ }).click();
+            await page.getByText('سبد آزمایشی خالی است.', { exact: true }).waitFor();
+
+            await page.goto(`/shop/${garden.id}`);
+            await page.getByRole('button', { name: 'افزودن به سبد آزمایشی' }).click();
+            await page.getByRole('link', { name: 'مشاهدهٔ سبد آزمایشی' }).click();
+            await page.getByRole('button', { name: 'ورود برای ثبت سفارش آزمایشی' }).click();
+            const login = page.getByRole('dialog', { name: 'ورود برای سفارش آزمایشی' });
+            await login.getByLabel('شماره موبایل').fill('09990000001');
+            await login.getByRole('button', { name: 'دریافت کد' }).click();
+            await login.getByLabel('کد شش رقمی').waitFor();
+            const code = await new Promise((resolve, reject) => {
+              const socket = createConnection(process.env.OTP_SOCKET);
+              let message = '';
+              socket.setEncoding('utf8');
+              socket.on('connect', () => socket.write('+989990000001\n'));
+              socket.on('data', chunk => { message += chunk; });
+              socket.on('error', reject);
+              socket.on('end', () => resolve(JSON.parse(message).code));
+              socket.setTimeout(5_000, () => socket.destroy(new Error('FakeSMS read timed out')));
+            });
+            assert.match(code, /^\d{6}$/);
+            await login.getByLabel('کد شش رقمی').fill(code);
+            await login.getByRole('button', { name: 'تأیید و ورود' }).click();
+            await page.getByRole('button', { name: 'ثبت سفارش آزمایشی', exact: true }).click();
+            const receipt = page.getByRole('status', { name: 'رسید سفارش آزمایشی' });
+            await receipt.getByText('سفارش آزمایشی ثبت شد.').waitFor();
+            await receipt.getByText('مبلغ سفارش ۱٬۲۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
+            const orderId = await receipt.locator('bdi').innerText();
+            assert.match(orderId, /^[a-f0-9-]{36}$/i);
+            await page.getByText('سبد آزمایشی خالی است.', { exact: true }).waitFor();
+            await receipt.getByRole('link', { name: 'مشاهدهٔ سفارش‌های آزمایشی' }).click();
+            const history = page.getByRole('region', { name: 'سفارش‌های آزمایشی' });
+            await history.getByText(orderId, { exact: true }).waitFor();
+            await history.getByText('مبلغ سفارش ۱٬۲۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
+            await page.reload();
+            await history.getByText(orderId, { exact: true }).waitFor();
+            await history.getByRole('button', { name: 'شبیه‌سازی پرداخت' }).click();
+            await history.getByText('پرداخت آزمایشی تأیید شد', { exact: true }).waitFor();
+            for (const [action, status] of [
+              ['شبیه‌سازی آماده‌سازی', 'در حال آماده‌سازی آزمایشی'],
+              ['شبیه‌سازی ارسال', 'ارسال آزمایشی ثبت شد'],
+              ['شبیه‌سازی تحویل', 'تحویل آزمایشی ثبت شد'],
+            ]) {
+              await history.getByRole('button', { name: action, exact: true }).click();
+              await history.getByText(status, { exact: true }).waitFor();
+            }
+
+            await page.goto(`/shop/${garden.id}`);
+            await page.getByRole('button', { name: 'افزودن به سبد آزمایشی' }).click();
+            await page.getByRole('link', { name: 'مشاهدهٔ سبد آزمایشی' }).click();
+            await page.getByRole('button', { name: 'ثبت سفارش آزمایشی', exact: true }).click();
+            await receipt.getByRole('link', { name: 'مشاهدهٔ سفارش‌های آزمایشی' }).click();
+            await history.getByRole('button', { name: 'لغو سفارش آزمایشی' }).click();
+            await history.getByText('سفارش لغو شد', { exact: true }).waitFor();
+            await page.reload();
+            await history.getByText('تحویل آزمایشی ثبت شد', { exact: true }).waitFor();
+            await history.getByText('سفارش لغو شد', { exact: true }).waitFor();
+            assert.equal(await history.getByRole('button', { name: 'شبیه‌سازی پرداخت' }).count(), 0);
+            assert.equal(await history.getByRole('button', { name: 'لغو سفارش آزمایشی' }).count(), 0);
+            for (const [status, events] of [
+              ['تحویل آزمایشی ثبت شد', ['تأیید پرداخت آزمایشی', 'شروع آماده‌سازی', 'ارسال سفارش', 'تحویل سفارش']],
+              ['سفارش لغو شد', ['لغو سفارش']],
+            ]) {
+              const card = history.locator('li.card').filter({ hasText: status });
+              await card.getByText('خط زمانی سفارش', { exact: true }).click();
+              await card.getByText('ثبت سفارش', { exact: true }).waitFor();
+              for (const event of events) await card.getByText(event, { exact: true }).waitFor();
+              assert.equal(await card.locator('ol time').count(), events.length + 1);
+            }
+
+            await page.goto(`/shop/${garden.id}`);
+            await page.getByRole('button', { name: 'افزودن به سبد آزمایشی' }).click();
+            await page.getByRole('link', { name: 'مشاهدهٔ سبد آزمایشی' }).waitFor();
+            await page.goto('/account');
+            const delivered = history.locator('li.card').filter({ hasText: 'تحویل آزمایشی ثبت شد' });
+            const search = history.getByRole('searchbox', { name: 'جست‌وجوی سفارش' });
+            const filter = history.getByRole('combobox', { name: 'وضعیت سفارش' });
+            await search.fill(garden.name);
+            assert.equal(await history.locator('li.card').count(), 2);
+            await filter.selectOption('delivered');
+            await history.locator('li.card').nth(1).waitFor({ state: 'detached' });
+            assert.equal(await history.locator('li.card').count(), 1);
+            await delivered.getByText(orderId, { exact: true }).waitFor();
+            const persianOrderId = orderId.replace(/\d/g, digit => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]);
+            await search.fill(persianOrderId);
+            await delivered.getByText(orderId, { exact: true }).waitFor();
+            await filter.selectOption('cancelled');
+            await history.getByText('سفارشی با این جست‌وجو و فیلتر پیدا نشد.', { exact: true }).waitFor();
+            await history.getByRole('button', { name: 'پاک کردن جست‌وجو و فیلتر' }).click();
+            await history.locator('li.card').nth(1).waitFor();
+            assert.equal(await history.locator('li.card').count(), 2);
+            await delivered.getByRole('button', { name: 'افزودن دوباره به سبد' }).click();
+            await delivered.getByRole('link', { name: 'مشاهدهٔ سبد آزمایشی' }).click();
+            await page.getByText('جمع سبد ۲٬۴۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
+            assert.equal(await page.getByRole('combobox', { name: /تعداد/ }).inputValue(), '2');
+            console.log('Demo reorder PASS: merge into the cart and refresh the server quote');
+            console.log('Demo orders PASS: receipt, simulated payment, cancellation and history after reload');
+          } finally {
+            await browser.close();
+          }
+          JS
+          kill -TERM "$preview_pid"
+          exit_status=0
+          wait "$preview_pid" || exit_status=$?
+          test "$exit_status" = 128
+          test ! -e "$socket"
+          test ! -e "$AROMAN_DEMO_CHECKOUT_DIR/.preview.lock"
+          cat "$log"
+          start_preview
+          python - "$api" "$web" "$socket" <<'PY'
+          import json
+          import socket
+          import sys
+          from http.cookiejar import CookieJar
+          from urllib.request import HTTPCookieProcessor, Request, build_opener
+
+          api, web, socket_path = sys.argv[1:]
+          opener = build_opener(HTTPCookieProcessor(CookieJar()))
+
+          def request(path, payload=None):
+              body = None if payload is None else json.dumps(payload).encode()
+              req = Request(api + path, data=body, headers={
+                  "Origin": web, "Content-Type": "application/json",
+              })
+              with opener.open(req, timeout=10) as value:
+                  return json.load(value)
+
+          mobile = "+989990000001"
+          request("/auth/challenges", {"mobile": mobile})
+          with socket.socket(socket.AF_UNIX) as client:
+              client.settimeout(5)
+              client.connect(socket_path)
+              client.sendall((mobile + "\n").encode())
+              with client.makefile() as source:
+                  code = json.loads(source.readline())["code"]
+          request("/auth/verify", {"mobile": mobile, "code": code})
+          orders = request("/demo-checkout/orders")
+          assert [order["status"] for order in orders] == ["cancelled", "delivered"]
+          assert all(order["subtotal"] == 1_200_000 for order in orders)
+          expected = [
+              ["placed", "cancelled"],
+              ["placed", "paid", "preparing", "shipped", "delivered"],
+          ]
+          for order, timeline in zip(orders, expected, strict=True):
+              assert [event["status"] for event in order["events"]] == timeline
+              assert all(event["occurred_at"] for event in order["events"])
+          print("Full preview restart PASS: existing customer saw delivered and cancelled orders")
+          PY

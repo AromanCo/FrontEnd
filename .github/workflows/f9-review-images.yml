@@ -1,22 +1,21 @@
 name: F9 review images
 
 on:
-  pull_request:
-    branches: [develop]
-    paths:
-      - '.github/workflows/f9-review-images.yml'
-      - 'deploy/private-preproduction/Dockerfile.frontend'
+  workflow_call:
+    inputs:
+      frontend-revision:
+        required: true
+        type: string
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
   review-images:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
-      F9_FRONTEND_REVISION: 37d18450f4a641c40bb68386ba7c59e4cdd020aa
+      F9_FRONTEND_REVISION: ${{ inputs.frontend-revision }}
       F9_BACKEND_REVISION: 0be24c4597bd693e70348243c26e550a20a8ad0e
       AROMAN_RELEASE_SCOPE: public-showcase
       NEXT_PUBLIC_AROMAN_API_BASE_URL: /api/v1
@@ -26,14 +25,14 @@ jobs:
       - name: Check out the pinned compiled source
         uses: actions/checkout@v4
         with:
-          ref: 37d18450f4a641c40bb68386ba7c59e4cdd020aa
+          ref: ${{ env.F9_FRONTEND_REVISION }}
           path: frontend
           persist-credentials: false
 
       - name: Check out the reviewed image recipes
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
           path: review
           persist-credentials: false
 
@@ -41,8 +40,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: aroman-f9-frontend-review-candidate
-          run-id: 44753872117
-          github-token: ${{ github.token }}
           path: ${{ runner.temp }}/aroman-f9-compiled
 
       - name: Set up the candidate verifier toolchain
@@ -77,6 +74,7 @@ jobs:
           assert.equal(record.slots.backend_source_revision, process.env.F9_BACKEND_REVISION);
           assert.equal(record.public_release_disposition, 'NO-GO');
           assert.equal(record.deployable_claim, false);
+          assert.equal(record.production_acceptance_claim, false);
           F9_VERIFY
 
       - name: Resolve official bases and build review images

@@ -365,6 +365,7 @@ describe('BlendAdvisor Creative Studio integration', () => {
 
   it('rejects duplicate catalog identities while loading a saved concept', async () => {
     mocks.auth.user = { id: 'user-1', mobile_e164: '+989121234567', role: 'customer' };
+    mocks.conceptGet.mockResolvedValue({ id: 'saved-conflict', name: 'مفهوم ذخیره‌شده', notes: [{ note_id: noteA.id, layer: 'heart', position: 0 }] });
     mocks.notes.mockImplementation((filters?: { limit?: number }) => Promise.resolve(filters?.limit === 100 ? [noteA, { ...noteA, name: 'نت متعارض' }] : fixtures));
     renderStudio({ conceptId: 'saved-conflict' });
     expect(await screen.findByRole('alert')).toHaveTextContent(/اطلاعات کاتالوگ تکراری یا ناسازگار است/);
@@ -868,6 +869,7 @@ describe('BlendAdvisor Creative Studio integration', () => {
     const pendingSave = deferred<{ id: string; name: string; notes: [] }>();
     mocks.conceptCreate.mockReturnValueOnce(pendingSave.promise);
     mocks.conceptGet.mockResolvedValue({ id: 'saved-b', name: 'مفهوم تازه', notes: [{ note_id: noteB.id, layer: 'base', position: 0 }] });
+    mocks.conceptUpdate.mockResolvedValue({ id: 'saved-b', name: 'مفهوم تازه', notes: [] });
     const view = renderStudio();
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(noteA.name) }));
     fireEvent.click(screen.getAllByRole('button', { name: 'ذخیره مفهوم' })[0]);
