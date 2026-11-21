@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "preview:mvp:local": "node scripts/real-stack-runner.mjs mvp-preview",
+    "preview:checkout:local": "node scripts/real-stack-runner.mjs mvp-checkout",
     "build": "node scripts/public-showcase-build.mjs",
     "start": "node scripts/public-showcase-start.mjs",
     "lint": "eslint .",

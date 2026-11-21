@@ -1,5 +1,60 @@
 # Local development
 
+## Interactive MVP preview
+
+Use separate FrontEnd and Backend checkouts. The launcher expects Backend
+`e69c286f6758847c08077b12ab621341ebb2a557`, Python 3.12, and the installed
+FrontEnd npm dependencies. From FrontEnd, with Backend in the adjacent directory:
+
+```bash
+AROMAN_TEST_BACKEND_DIR="$PWD/../Backend" \
+AROMAN_TEST_PYTHON="$PWD/../Backend/.venv/bin/python" \
+npm run preview:mvp:local
+```
+
+Open the printed `AROMAN MVP` URL on the same machine. The catalog, Guided,
+Creative, Smart Perfumer and accounts use the real applications with six
+fictional products and a fresh SQLite database. The services bind to loopback.
+The launcher does not require Docker. Ctrl+C stops the services and removes
+demo data.
+
+For login, request a code from the UI with a fictional mobile number such as
+`09990000001`, then use a second terminal on the same machine. Set
+`otp_socket` to the printed `Local FakeSMS socket` path:
+
+```bash
+python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.connect(sys.argv[1]); s.sendall((sys.argv[2]+"\n").encode()); print(s.makefile().readline().strip())' "$otp_socket" +989990000001
+```
+
+Use the returned code in the login form. FakeSMS is local test tooling.
+
+For the demo cart and orders, check out Backend `02a29f8e13f1513b963e3dd4228ef4e2f36883aa`
+from [Backend PR #34](https://github.com/AromanCo/Backend/pull/34) in a separate
+workspace. Use that checkout and its Python environment with
+`npm run preview:checkout:local` in place of the regular preview command. Add a
+demo variant from its product page to see server-calculated totals. The browser
+keeps the cart in the current tab's session storage. Sign in from the cart
+using FakeSMS and confirm the demo order to see its receipt. Follow the
+receipt's account link to see your orders, newest first. Use the order's
+payment simulation or cancel it while it is awaiting payment. Orders are
+stored in a SQLite file in the preview directory, which the runner removes
+when you stop the full preview. The demo does not collect payment.
+Open an order's timeline to see when it was placed, paid in the simulation,
+or cancelled. Older receipts retain their original placement time.
+After simulated payment, use the next action on the order to simulate
+preparation, shipping and delivery. Each transition appears in the timeline.
+To try a previous order again, add its items from Account and open the cart
+to review the current server quote before submitting a new order.
+
+To retain the test catalog, accounts, concepts and orders between runs, set
+`AROMAN_DEMO_CHECKOUT_DIR` for the checkout preview, for example
+`AROMAN_DEMO_CHECKOUT_DIR="$HOME/aroman-demo-data" npm run preview:checkout:local`
+with the same Backend and Python settings. Use a new directory or an empty
+private directory with mode `0700`. Sign in again with the same demo mobile
+number after restarting. Reuse the directory only with its owning preview.
+If forced termination leaves an empty `.preview.lock` directory behind,
+remove it only after verifying that the previous preview has stopped.
+
 1. In Backend, copy `.env.example` to `.env`. Set strong, different OTP and session peppers, `CORS_ORIGINS=http://localhost:3000`, and `COOKIE_SECURE=false` for local HTTP. Keep `SMS_PROVIDER=unconfigured` for ordinary development. Run `docker compose up --build` and confirm `http://localhost:8000/health/ready` returns 200. Seed data is managed by the backend.
 2. In FrontEnd, copy `.env.example` to `.env.local`, run `npm ci`, then `npm run dev`. Open `http://localhost:3000`. Both hosts must be `localhost`.
 3. Run `npm run test`, `npm run typecheck`, `npm run lint`, `npm run build`, and `git diff --check` before review. GitHub Actions runs those same install and verification steps on pull requests to `develop` and `main` with Node.js 22. With the frontend and seeded backend running and system Chrome installed, run `npm run test:browser` and `npm run screenshots` locally. These browser checks need the seeded FastAPI service and are not part of GitHub CI. They exercise the real public API, mobile Studio composition, unauthenticated save, protected-route 401, and SMS-unavailable 503. Screenshot capture waits for 24 rendered notes and saves home, shop, and Studio states at 320, 390, 768, and 1440 pixels: loaded library, one selection, three layers, six notes, and result. It fails on missing API data or unexpected browser errors. Set `CHROME_BIN` if Chrome is installed elsewhere. Set `FRONTEND_ORIGIN` and `AROMAN_BROWSER_API_BASE_URL` only when using nondefault local ports; keep both application URLs on the same `localhost` hostname.

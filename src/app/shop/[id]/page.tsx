@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { catalog, type Product, type Variant } from '@/lib/api/client';
-import { getReleaseScope } from '@/lib/release-scope';
+import { getReleaseScope, isDemoCheckoutEnabled } from '@/lib/release-scope';
+import { AddToDemoCart } from '@/components/catalog/AddToDemoCart';
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -29,6 +30,10 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     );
   }
   if (!product) notFound();
+  const scope = getReleaseScope();
+  const demoCheckout = isDemoCheckoutEnabled(scope);
+  const productName = product.name;
+  const productIsDemo = product.is_demo;
 
   return (
     <article className="container section">
@@ -42,7 +47,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           {product.is_demo && <p className="eyebrow">محصول نمایشی</p>}
           <h1 className="heading mt-2">{product.name}</h1>
           <p className="mt-4 leading-8">{product.description || 'توضیحی برای این محصول ثبت نشده است.'}</p>
-          {getReleaseScope() === 'exploration' && (
+          {scope === 'exploration' && (
             <p className="mt-4 text-sm leading-7 text-plum/70">
               این ورودی برای کاوش در کاتالوگ است و دسترسی به محصول واقعی را نشان نمی‌دهد.
             </p>
@@ -54,6 +59,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               {variants.map(variant => (
                 <li className="card p-4" key={variant.id}>
                   {variant.label}{variant.volume_ml ? ` · ${variant.volume_ml} میلی‌لیتر` : ''}{variant.is_demo ? ' · نمایشی' : ''}
+                  {demoCheckout && productIsDemo && variant.is_demo && (
+                    <AddToDemoCart variantId={variant.id} name={`${productName} · ${variant.label}`} />
+                  )}
                 </li>
               ))}
             </ul>
@@ -63,7 +71,11 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             <p className="leading-8">برای دریافت یک پیشنهاد مفهومی بر اساس سلیقهٔ خودتان، به چند پرسش پاسخ دهید.</p>
             <Link className="text-link mt-3" href="/studio/guided">شروع کشف با راهنما <span aria-hidden="true">←</span></Link>
           </section>
-          <p className="mt-4 text-sm leading-7 text-plum/70">قیمت، موجودی و خرید آنلاین هنوز در دسترس نیستند.</p>
+          <p className="mt-4 text-sm leading-7 text-plum/70">
+            {demoCheckout && productIsDemo
+              ? 'مبلغ آزمایشی در سبد نمایش داده می‌شود.'
+              : 'قیمت، موجودی و خرید آنلاین هنوز در دسترس نیستند.'}
+          </p>
         </div>
       </div>
     </article>

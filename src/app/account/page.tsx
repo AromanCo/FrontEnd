@@ -1,12 +1,15 @@
 import { AccountContent } from '@/components/auth/AccountContent';
+import { DemoOrderHistory } from '@/components/catalog/DemoOrderHistory';
 import { notFound } from 'next/navigation';
-import { getReleaseScope } from '@/lib/release-scope';
+import { getReleaseScope, isDemoCheckoutEnabled } from '@/lib/release-scope';
 
 export default function AccountPage() {
-  if (getReleaseScope() !== 'full') notFound();
+  const scope = getReleaseScope();
+  if (scope !== 'full') notFound();
   return (
     <div className="container py-10 sm:py-14 lg:py-16">
       <AccountContent />
+      {isDemoCheckoutEnabled(scope) && <DemoOrderHistory />}
     </div>
   );
 }
