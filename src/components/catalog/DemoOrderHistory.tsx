@@ -9,6 +9,7 @@ const number = new Intl.NumberFormat('fa-IR');
 const date = new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Tehran' });
 
 type History = { status: 'loading' | 'error' } | { status: 'ready'; orders: DemoOrderReceipt[] };
+type StatusFilter = 'all' | DemoOrderReceipt['status'];
 const statusLabels: Record<DemoOrderReceipt['status'], string> = {
   placed: 'در انتظار پرداخت آزمایشی',
   paid: 'پرداخت آزمایشی تأیید شد',
@@ -16,6 +17,14 @@ const statusLabels: Record<DemoOrderReceipt['status'], string> = {
   preparing: 'در حال آماده‌سازی آزمایشی',
   shipped: 'ارسال آزمایشی ثبت شد',
   delivered: 'تحویل آزمایشی ثبت شد',
+};
+const filterLabels: Record<DemoOrderReceipt['status'], string> = {
+  placed: 'در انتظار پرداخت',
+  paid: 'پرداخت‌شده',
+  cancelled: 'لغوشده',
+  preparing: 'در حال آماده‌سازی',
+  shipped: 'ارسال‌شده',
+  delivered: 'تحویل‌شده',
 };
 const eventLabels: Record<DemoOrderReceipt['status'], string> = {
   placed: 'ثبت سفارش',
@@ -31,6 +40,16 @@ const nextSimulation: Partial<Record<DemoOrderReceipt['status'], [DemoOrderActio
   shipped: ['simulate-delivery', 'شبیه‌سازی تحویل'],
 };
 
+function normalizeSearch(value: string) {
+  return value.normalize('NFKC').toLowerCase()
+    .replace(/[يى]/g, 'ی')
+    .replace(/ك/g, 'ک')
+    .replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - 0x06f0))
+    .replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[\s\u200c]+/g, ' ')
+    .trim();
+}
+
 export function DemoOrderHistory() {
   const { user, loading } = useAuth();
   return user && !loading ? <OrderHistory key={user.id} /> : null;
@@ -44,6 +63,16 @@ function OrderHistory() {
   const [actionError, setActionError] = useState('');
   const [addedOrders, setAddedOrders] = useState<string[]>([]);
   const [cartNotice, setCartNotice] = useState<{ orderId: string; message: string } | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const query = normalizeSearch(search);
+  const visibleOrders = history.status === 'ready'
+    ? history.orders.filter(order =>
+      (statusFilter === 'all' || order.status === statusFilter)
+      && (!query || normalizeSearch(order.id).includes(query)
+        || order.items.some(item => normalizeSearch(`${item.product_name} ${item.variant_label}`).includes(query))),
+    )
+    : [];
 
   useEffect(() => {
     const controller = new AbortController();
@@ -116,9 +145,36 @@ function OrderHistory() {
           <button className="btn btn-secondary mt-2" type="button" onClick={reload}>تلاش دوباره</button>
         </div>
       )}
-      {history.status === 'ready' && (history.orders.length ? (
+      {history.status === 'ready' && history.orders.length > 0 && (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1">
+            جست‌وجوی سفارش
+            <input type="search" className="min-w-0 rounded-lg border border-plum/25 bg-white p-2" value={search} onChange={event => setSearch(event.target.value)} placeholder="شمارهٔ سفارش یا نام محصول" />
+          </label>
+          <label className="grid gap-1">
+            وضعیت سفارش
+            <select className="min-w-0 rounded-lg border border-plum/25 bg-white p-2" value={statusFilter} onChange={event => setStatusFilter(event.target.value as StatusFilter)}>
+              <option value="all">همهٔ وضعیت‌ها</option>
+              {Object.entries(filterLabels).map(([status, label]) => <option key={status} value={status}>{label}</option>)}
+            </select>
+          </label>
+        </div>
+      )}
+      {history.status === 'ready' && history.orders.length === 0 && (
+        <p className="mt-4">هنوز سفارش آزمایشی ثبت نکرده‌ای.</p>
+      )}
+      {history.status === 'ready' && history.orders.length > 0 && visibleOrders.length === 0 && (
+        <div className="mt-4">
+          <p role="status">سفارشی با این جست‌وجو و فیلتر پیدا نشد.</p>
+          <button className="btn btn-secondary mt-2" type="button" onClick={() => {
+            setSearch('');
+            setStatusFilter('all');
+          }}>پاک کردن جست‌وجو و فیلتر</button>
+        </div>
+      )}
+      {visibleOrders.length > 0 && (
         <ul className="mt-4 space-y-3">
-          {history.orders.map(order => {
+          {visibleOrders.map(order => {
             const simulation = nextSimulation[order.status];
             return (
               <li className="card p-4" key={order.id}>
@@ -162,7 +218,7 @@ function OrderHistory() {
             );
           })}
         </ul>
-      ) : <p className="mt-4">هنوز سفارش آزمایشی ثبت نکرده‌ای.</p>)}
+      )}
     </section>
   );
 }

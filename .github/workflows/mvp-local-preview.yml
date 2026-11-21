@@ -2,7 +2,7 @@ name: MVP local preview
 
 on:
   pull_request:
-    branches: [develop, feat/local-mvp-preview, feat/local-demo-cart, feat/local-demo-orders, feat/local-demo-order-history, feat/local-demo-order-actions, feat/local-demo-order-persistence, feat/local-demo-checkout-resume, feat/local-demo-order-timeline, feat/local-demo-order-fulfillment]
+    branches: [develop, feat/local-mvp-preview, feat/local-demo-cart, feat/local-demo-orders, feat/local-demo-order-history, feat/local-demo-order-actions, feat/local-demo-order-persistence, feat/local-demo-checkout-resume, feat/local-demo-order-timeline, feat/local-demo-order-fulfillment, feat/local-demo-reorder]
     paths:
       - '.github/workflows/mvp-local-preview.yml'
       - 'scripts/real-stack-runner.mjs'
@@ -160,6 +160,22 @@ jobs:
             await page.getByRole('link', { name: 'مشاهدهٔ سبد آزمایشی' }).waitFor();
             await page.goto('/account');
             const delivered = history.locator('li.card').filter({ hasText: 'تحویل آزمایشی ثبت شد' });
+            const search = history.getByRole('searchbox', { name: 'جست‌وجوی سفارش' });
+            const filter = history.getByRole('combobox', { name: 'وضعیت سفارش' });
+            await search.fill(garden.name);
+            assert.equal(await history.locator('li.card').count(), 2);
+            await filter.selectOption('delivered');
+            await history.locator('li.card').nth(1).waitFor({ state: 'detached' });
+            assert.equal(await history.locator('li.card').count(), 1);
+            await delivered.getByText(orderId, { exact: true }).waitFor();
+            const persianOrderId = orderId.replace(/\d/g, digit => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]);
+            await search.fill(persianOrderId);
+            await delivered.getByText(orderId, { exact: true }).waitFor();
+            await filter.selectOption('cancelled');
+            await history.getByText('سفارشی با این جست‌وجو و فیلتر پیدا نشد.', { exact: true }).waitFor();
+            await history.getByRole('button', { name: 'پاک کردن جست‌وجو و فیلتر' }).click();
+            await history.locator('li.card').nth(1).waitFor();
+            assert.equal(await history.locator('li.card').count(), 2);
             await delivered.getByRole('button', { name: 'افزودن دوباره به سبد' }).click();
             await delivered.getByRole('link', { name: 'مشاهدهٔ سبد آزمایشی' }).click();
             await page.getByText('جمع سبد ۲٬۴۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
