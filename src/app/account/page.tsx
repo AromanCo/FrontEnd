@@ -7,7 +7,7 @@ export default function AccountPage() {
   const scope = getReleaseScope();
   if (scope !== 'full') notFound();
   return (
-    <div className="container py-10 sm:py-14 lg:py-16">
+    <div className="container account-page py-10 sm:py-14 lg:py-16">
       <AccountContent />
       {isDemoCheckoutEnabled(scope) && <DemoOrderHistory />}
     </div>
