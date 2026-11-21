@@ -43,6 +43,8 @@ Open an order's timeline to see when it was placed, paid in the simulation,
 or cancelled. Older receipts retain their original placement time.
 After simulated payment, use the next action on the order to simulate
 preparation, shipping and delivery. Each transition appears in the timeline.
+To try a previous order again, add its items from Account and open the cart
+to review the current server quote before submitting a new order.
 
 To retain the test catalog, accounts, concepts and orders between runs, set
 `AROMAN_DEMO_CHECKOUT_DIR` for the checkout preview, for example
