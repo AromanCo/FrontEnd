@@ -250,6 +250,12 @@ describe('saved concept editor', () => {
     expect(screen.queryByText('مفهوم رایحه با موفقیت ذخیره شد.')).not.toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: 'ذخیره تغییرات' })[0]);
     expect(await screen.findByText('مفهوم رایحه با موفقیت ذخیره شد.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'دیدن مفاهیم ذخیره‌شده' })).toHaveAttribute('href', '/account');
+    fireEvent.change(input, { target: { value: 'ویرایش بعد از ذخیره' } });
+    expect(screen.getByText('تغییرات ذخیره نشده‌اند.')).toBeInTheDocument();
+    expect(screen.queryByText('مفهوم رایحه با موفقیت ذخیره شد.')).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { value: 'رایحهٔ ویرایش‌شده' } });
+    expect(screen.queryByText('تغییرات ذخیره نشده‌اند.')).not.toBeInTheDocument();
     expect(mocks.conceptUpdate.mock.calls).toEqual([
       [saved.id, { name: 'رایحهٔ ویرایش‌شده', notes: saved.notes }],
       [saved.id, { name: 'رایحهٔ ویرایش‌شده', notes: saved.notes }],

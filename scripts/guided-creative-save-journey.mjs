@@ -325,7 +325,7 @@ try {
   const accountListResponsePromise = page.waitForResponse(response =>
     new URL(response.url()).pathname === '/api/v1/fragrance-concepts' && response.request().method() === 'GET',
   );
-  await page.goto(`${frontendOrigin}/account`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('link', { name: 'دیدن مفاهیم ذخیره‌شده', exact: true }).click();
   await page.waitForURL(`${frontendOrigin}/account`);
   await page.getByRole('heading', { name: 'مفاهیم من' }).waitFor();
   const accountListResponse = await accountListResponsePromise;
