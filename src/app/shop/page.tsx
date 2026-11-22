@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { catalog, type Brand, type Family, type Product } from '@/lib/api/client';
 import { ProductCard } from '@/components/catalog/ProductCard';
 import { CatalogControls } from '@/components/catalog/CatalogControls';
@@ -10,6 +11,36 @@ export default async function Shop({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const search = readCatalogSearch(await searchParams);
+  return (
+    <div className="container section catalog-page">
+      <header className="catalog-intro">
+        <div>
+          <h1 className="heading">کشف محصولات</h1>
+          <p className="mt-3 text-plum/70">مجموعه‌ای نمایشی برای آشنایی با خانواده‌های رایحه.</p>
+        </div>
+        <Link className="btn btn-atelier-outline justify-self-start" href="/studio/guided">
+          شروع کشف با راهنما
+        </Link>
+      </header>
+      <Suspense key={catalogSearchSuffix(search)} fallback={<CatalogLoading />}>
+        <CatalogResults search={search} />
+      </Suspense>
+    </div>
+  );
+}
+
+function CatalogLoading() {
+  return (
+    <div className="mt-8">
+      <p role="status" className="card px-5 py-4 text-sm">در حال دریافت محصولات…</p>
+      <div aria-hidden="true" className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {[1, 2, 3].map(card => <div key={card} className="card min-h-52 bg-plum/5" />)}
+      </div>
+    </div>
+  );
+}
+
+async function CatalogResults({ search }: { search: ReturnType<typeof readCatalogSearch> }) {
   const { q, brand_id, family_id, offset } = search;
   const suffix = catalogSearchSuffix(search);
   const limit = 12;
@@ -32,21 +63,13 @@ export default async function Shop({
   const pageUrl = (nextOffset: number) => '/shop' + catalogSearchSuffix({ ...search, offset: nextOffset });
 
   return (
-    <div className="container section catalog-page">
-      <header className="catalog-intro">
-        <div>
-          <h1 className="heading">کشف محصولات</h1>
-          <p className="mt-3 text-plum/70">مجموعه‌ای نمایشی برای آشنایی با خانواده‌های رایحه.</p>
-        </div>
-        <Link className="btn btn-atelier-outline justify-self-start" href="/studio/guided">
-          شروع کشف با راهنما
-        </Link>
-      </header>
+    <>
       <CatalogControls key={JSON.stringify([q, brand_id, family_id])} q={q} brandId={brand_id || ''} familyId={family_id || ''} brands={brands} families={families} />
 
       {error ? (
         <section className="card mt-8 p-6 sm:p-8" aria-label="بازیابی کاتالوگ">
-          <p role="alert" className="leading-8">اتصال به کاتالوگ برقرار نشد. لطفاً بعداً دوباره تلاش کنید.</p>
+          <h2 className="text-xl font-semibold">کاتالوگ موقتاً در دسترس نیست</h2>
+          <p role="alert" className="mt-2 leading-8">اتصال به کاتالوگ برقرار نشد. با تلاش دوباره، همین جستجو تکرار می‌شود.</p>
           <div className="mt-4 flex flex-wrap gap-3">
             <a className="btn btn-primary" href={pageUrl(offset)}>تلاش دوباره</a>
             {active && <Link className="btn btn-secondary" href="/shop">نمایش همه محصولات</Link>}
@@ -71,11 +94,13 @@ export default async function Shop({
         </>
       ) : (
         <div className="card mt-8 p-8 text-center sm:p-12">
-          <h2 className="text-xl font-semibold">برای این جستجو محصولی پیدا نشد.</h2>
+          <h2 className="text-xl font-semibold">
+            {active ? 'برای این جستجو محصولی پیدا نشد.' : offset > 0 ? 'محصول دیگری در این صفحه نیست' : 'هنوز محصولی در کاتالوگ نیست'}
+          </h2>
           <p className="mt-4 leading-8 text-plum/70">
             {active
               ? 'فیلترها را تغییر دهید یا همه را پاک کنید و دوباره جستجو کنید.'
-              : 'در حال حاضر محصول نمایشی دیگری در این صفحه وجود ندارد.'}
+              : offset > 0 ? 'می‌توانید به صفحهٔ اول کاتالوگ برگردید.' : 'برای کشف سلیقهٔ خود می‌توانید از استودیوی راهنما شروع کنید.'}
           </p>
           {active && (
             <div className="mt-6 flex flex-wrap justify-center gap-2">
@@ -86,8 +111,11 @@ export default async function Shop({
           {offset > 0 && (
             <Link className="btn btn-secondary mt-6" href={pageUrl(0)}>بازگشت به صفحه اول</Link>
           )}
+          {!active && offset === 0 && (
+            <Link className="btn btn-primary mt-6" href="/studio/guided">شروع کشف با راهنما</Link>
+          )}
         </div>
       )}
-    </div>
+    </>
   );
 }
