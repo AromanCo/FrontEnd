@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { AccountContent } from './AccountContent';
 
 const mocks = vi.hoisted(() => ({
@@ -144,18 +144,24 @@ describe('AccountContent dashboard', () => {
   });
 
   it('requires delete confirmation and does not replay an uncertain delete', async () => {
-    const confirmation = vi.spyOn(window, 'confirm').mockReturnValue(false);
     mocks.list.mockResolvedValue([first]);
     mocks.remove.mockRejectedValueOnce(new Error('uncertain network response'));
     render(<AccountContent />);
 
     await screen.findByRole('heading', { name: 'رایحه باران' });
-    fireEvent.click(screen.getByRole('button', { name: 'حذف' }));
-    expect(confirmation).toHaveBeenCalledTimes(1);
+    const remove = screen.getByRole('button', { name: 'حذف' });
+    remove.focus();
+    fireEvent.click(remove);
+    const dialog = screen.getByRole('dialog', { name: 'حذف رایحهٔ ذخیره‌شده' });
+    expect(within(dialog).getByText(/«رایحه باران»/)).toBeTruthy();
+    expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'انصراف' }));
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(remove);
     expect(mocks.remove).not.toHaveBeenCalled();
 
-    confirmation.mockReturnValue(true);
-    fireEvent.click(screen.getByRole('button', { name: 'حذف' }));
+    fireEvent.click(remove);
+    fireEvent.click(screen.getByRole('button', { name: 'حذف رایحه' }));
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(mocks.remove).toHaveBeenCalledTimes(1);
     expect(mocks.remove).toHaveBeenCalledWith('concept-1');
@@ -217,7 +223,6 @@ describe('AccountContent dashboard', () => {
   });
 
   it('retries the list alone after a confirmed delete and failed refresh', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     mocks.remove.mockResolvedValue(undefined);
     mocks.list.mockResolvedValueOnce([first])
       .mockRejectedValueOnce(new Error('refresh unavailable'))
@@ -226,6 +231,7 @@ describe('AccountContent dashboard', () => {
 
     await screen.findByRole('heading', { name: 'رایحه باران' });
     fireEvent.click(screen.getByRole('button', { name: 'حذف' }));
+    fireEvent.click(screen.getByRole('button', { name: 'حذف رایحه' }));
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(screen.getByText('مفهوم حذف شد.')).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'رایحه باران' })).toBeNull();

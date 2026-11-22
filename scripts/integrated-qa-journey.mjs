@@ -279,8 +279,8 @@ async function runIsolatedAccountJourney(browser, realNote) {
     assert.equal(await accountPage.locator('article').count(), 20, 'Duplicating should reload the first page of the list');
     await accountPage.locator('article').first().getByRole('heading', { name: 'مفهوم کپی‌شده' }).waitFor();
 
-    accountPage.on('dialog', dialog => dialog.accept());
     await accountPage.locator('article').first().getByRole('button', { name: 'حذف' }).click();
+    await accountPage.getByRole('dialog', { name: 'حذف رایحهٔ ذخیره‌شده' }).getByRole('button', { name: 'حذف رایحه' }).click();
     await accountPage.getByRole('status').getByText('مفهوم حذف شد.').waitFor();
     assert.equal(await accountPage.locator('article').count(), 20, 'Confirmed delete should remove the concept from the list');
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ApiError, concepts, type Concept, type User } from '@/lib/api/client';
 import { normalizeSearch } from '@/lib/normalize-search';
+import { Dialog } from '@/components/ui/Dialog';
 import { useAuth } from './AuthProvider';
 
 type Layer = 'top' | 'heart' | 'base';
@@ -106,6 +107,17 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
   const [items, setItems] = useState<Concept[]>([]);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState('');
+  const [deleteCandidate, setDeleteCandidate] = useState<Concept | null>(null);
+  const cancelDeleteButton = useRef<HTMLButtonElement>(null);
+  const collectionHeading = useRef<HTMLHeadingElement>(null);
+  const focusCollectionAfterDelete = useRef(false);
+  const closeDeleteDialog = useCallback(() => setDeleteCandidate(null), []);
+
+  useEffect(() => {
+    if (deleteCandidate || !focusCollectionAfterDelete.current) return;
+    focusCollectionAfterDelete.current = false;
+    collectionHeading.current?.focus();
+  }, [deleteCandidate]);
   const actionRef = useRef(false);
   const activeListRequest = useRef<AbortController | null>(null);
   const mounted = useRef(false);
@@ -157,7 +169,6 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
 
   const runAction = async (id: string, kind: 'duplicate' | 'delete') => {
     if (actionRef.current || activeListRequest.current) return;
-    if (kind === 'delete' && !window.confirm('این مفهوم حذف شود؟')) return;
     actionRef.current = true;
     setBusy(id);
     setError('');
@@ -216,7 +227,7 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
       <section aria-labelledby="account-concepts-heading" className="mt-9 sm:mt-12">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 id="account-concepts-heading" className="mt-2 text-2xl font-semibold sm:text-3xl">مجموعهٔ رایحه‌های شما</h2>
+            <h2 id="account-concepts-heading" ref={collectionHeading} tabIndex={-1} className="mt-2 text-2xl font-semibold sm:text-3xl">مجموعهٔ رایحه‌های شما</h2>
           </div>
           {!loadingItems && items.length > 0 && (
             <p className="rounded-full border border-[#e5d9ce] bg-white/70 px-4 py-2 text-sm text-[#715b72]">
@@ -285,7 +296,10 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
                 key={item.id}
                 concept={item}
                 busy={Boolean(busy) || loadingItems || loadingMore}
-                onAction={(id, kind) => void runAction(id, kind)}
+                onAction={(id, kind) => {
+                  if (kind === 'delete') setDeleteCandidate(item);
+                  else void runAction(id, kind);
+                }}
               />
             ))}
           </div>
@@ -301,6 +315,27 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
           </div>
         )}
       </section>
+
+      {deleteCandidate && (
+        <Dialog title="حذف رایحهٔ ذخیره‌شده" onClose={closeDeleteDialog} initialFocusRef={cancelDeleteButton}>
+          <h2 className="text-xl">این رایحه حذف شود؟</h2>
+          <p className="mt-3 break-words leading-8">«{deleteCandidate.name}» از مجموعهٔ شما حذف می‌شود و بازگرداندن آن ممکن نیست.</p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button ref={cancelDeleteButton} type="button" className="btn btn-secondary" onClick={closeDeleteDialog}>انصراف</button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                focusCollectionAfterDelete.current = true;
+                closeDeleteDialog();
+                void runAction(deleteCandidate.id, 'delete');
+              }}
+            >
+              حذف رایحه
+            </button>
+          </div>
+        </Dialog>
+      )}
     </div>
   );
 }

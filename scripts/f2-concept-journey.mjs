@@ -224,10 +224,10 @@ try {
   assert.notEqual(duplicated.id, created.id);
   const duplicateArticle = page.locator('article').filter({ has: page.locator(`a[href="/studio/creative?concept=${encodeURIComponent(duplicated.id)}"]`) });
   await duplicateArticle.waitFor();
-  page.once('dialog', dialog => { void dialog.accept(); });
   const deletePromise = page.waitForResponse(response =>
     new URL(response.url()).pathname === `/api/v1/fragrance-concepts/${duplicated.id}` && response.request().method() === 'DELETE');
   await duplicateArticle.getByRole('button', { name: 'حذف' }).click();
+  await page.getByRole('dialog', { name: 'حذف رایحهٔ ذخیره‌شده' }).getByRole('button', { name: 'حذف رایحه' }).click();
   assert.equal((await deletePromise).status(), 204);
   await duplicateArticle.waitFor({ state: 'detached' });
   const aAfterDelete = await context.request.get(`${apiBase}/fragrance-concepts?limit=50&offset=0`);
