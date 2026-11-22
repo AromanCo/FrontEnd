@@ -84,6 +84,8 @@ try {
   assert.equal(await returnToResults.getAttribute('href'), '/shop?' + new URLSearchParams({ q: familyProduct.name, family_id: familyProduct.family_id }));
   await page.getByRole('heading', { name: familyProduct.name }).waitFor();
   await page.getByText(/قیمت، موجودی و خرید آنلاین هنوز در دسترس نیستند/).waitFor();
+  const related = page.getByRole('link', { name: 'دیدن رایحه‌های هم‌خانواده', exact: true });
+  assert.equal(await related.getAttribute('href'), '/shop?' + new URLSearchParams({ family_id: familyProduct.family_id }));
   await verifyResponsive('product detail');
   await page.setViewportSize({ width: 390, height: 844 });
   await screenshot('product-detail-390');

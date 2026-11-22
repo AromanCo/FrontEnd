@@ -37,6 +37,12 @@ export default async function ProductPage({ params, searchParams }: {
     );
   }
   if (!product) notFound();
+  const [brandList, familyList] = await Promise.allSettled([
+    product.brand_id ? catalog.brands('', 100, 0, true) : [],
+    product.family_id ? catalog.families('', 100, 0, true) : [],
+  ]);
+  const brand = brandList.status === 'fulfilled' ? brandList.value.find(item => item.id === product.brand_id) : undefined;
+  const family = familyList.status === 'fulfilled' ? familyList.value.find(item => item.id === product.family_id) : undefined;
   const scope = getReleaseScope();
   const demoCheckout = isDemoCheckoutEnabled(scope);
   const productName = product.name;
@@ -45,15 +51,23 @@ export default async function ProductPage({ params, searchParams }: {
   return (
     <article className="container section">
       <Link className="text-link" href={returnHref}>{returnLabel} <span aria-hidden="true">↗</span></Link>
-      <div className="mt-5 grid gap-6 md:grid-cols-2 md:gap-10">
+      <div className="product-detail-layout">
+        <header className="product-detail-heading">
+          {product.is_demo && <p className="eyebrow">محصول نمایشی</p>}
+          <h1 className="heading mt-2">{product.name}</h1>
+          <p className="mt-4 leading-8">{product.description || 'توضیحی برای این محصول ثبت نشده است.'}</p>
+          {(brand || family) && (
+            <dl className="product-detail-facets">
+              {brand && <div><dt>برند</dt><dd>{brand.name}</dd></div>}
+              {family && <div><dt>خانوادهٔ رایحه</dt><dd>{family.name}</dd></div>}
+            </dl>
+          )}
+        </header>
         <div className="product-detail-art flex min-h-64 flex-col items-center justify-center gap-4 p-5 md:min-h-96">
           <div className="bottle !h-52 !w-32 md:!h-64 md:!w-40" aria-hidden="true" />
           <span className="text-sm text-plum/80">تصویر مفهومی</span>
         </div>
-        <div>
-          {product.is_demo && <p className="eyebrow">محصول نمایشی</p>}
-          <h1 className="heading mt-2">{product.name}</h1>
-          <p className="mt-4 leading-8">{product.description || 'توضیحی برای این محصول ثبت نشده است.'}</p>
+        <div className="product-detail-body">
           {scope === 'exploration' && (
             <p className="mt-4 text-sm leading-7 text-plum/70">
               این ورودی برای کاوش در کاتالوگ است و دسترسی به محصول واقعی را نشان نمی‌دهد.
@@ -76,7 +90,10 @@ export default async function ProductPage({ params, searchParams }: {
 
           <section className="product-next-step mt-6 p-4 sm:p-5" aria-label="ادامهٔ کشف رایحه">
             <p className="leading-8">برای دریافت یک پیشنهاد مفهومی بر اساس سلیقهٔ خودتان، به چند پرسش پاسخ دهید.</p>
-            <Link className="text-link mt-3" href="/studio/guided">شروع کشف با راهنما <span aria-hidden="true">←</span></Link>
+            <div className="mt-3 flex flex-wrap gap-4">
+              <Link className="text-link" href="/studio/guided">شروع کشف با راهنما <span aria-hidden="true">←</span></Link>
+              {family && <Link className="text-link" href={`/shop${catalogSearchSuffix({ family_id: family.id })}`}>دیدن رایحه‌های هم‌خانواده</Link>}
+            </div>
           </section>
           <p className="mt-4 text-sm leading-7 text-plum/70">
             {demoCheckout && productIsDemo
