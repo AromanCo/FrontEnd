@@ -203,6 +203,15 @@ async function runViewport(width) {
     await page.keyboard.press('Enter');
     assert.equal(await layer.inputValue(), targetLayer, 'Keyboard must change the selected layer');
     await panel(1).locator(`.composition-layer[data-layer="${targetLayer}"] [data-selected-note-id="${firstId}"]`).waitFor();
+    if (mobile) {
+      await activate(panel(1).getByRole('button', { name: 'دیدن پیش‌نمایش رایحه', exact: true }));
+      await selectedTab(2);
+      await page.waitForFunction(() => document.activeElement?.id === 'studio-panel-2-heading');
+      await activate(panel(2).getByRole('button', { name: 'برگشت به ترکیب', exact: true }));
+      await selectedTab(1);
+      await page.waitForFunction(() => document.activeElement?.id === 'studio-panel-1-heading');
+      assert.equal(await conceptName.inputValue(), `${name}، ویرایش‌شده`);
+    }
     // Free one slot, then exercise real note selection without depending on recommendation size.
     await activate(panel(1).locator(`[data-selected-note-id="${firstId}"]`).getByRole('button', { name: 'حذف', exact: true }));
     assert.equal(await panel(1).locator('.composition-note').count(), initialCount - 1);

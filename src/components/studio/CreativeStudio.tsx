@@ -159,6 +159,12 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
   const initializedTransferIds = useRef(new Set<string>());
   const importedInThisMount = useRef(false);
   const focusAdvisorForkImport = useRef(false);
+  const panelFocusRequest = useRef<number | null>(null);
+
+  const openPanel = (target: number) => {
+    panelFocusRequest.current = target;
+    setTab(target);
+  };
   const savedConceptLoaded = !conceptId || loadedConceptId === conceptId;
   const savedConceptLoadFailed = Boolean(conceptId && failedConceptId === conceptId);
   const guidedDraftExpired = Boolean(fromGuided && !conceptId && !importedInThisMount.current && (!guidedDraft || guidedDraft.origin === 'advisor-fork' || navigationIntentId !== guidedDraft.transferId));
@@ -529,7 +535,8 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
     }
     replaceComposition(resolution.name, [...resolution.selected]);
     changeSavedTarget('');
-    setTab(1);
+    if (isAdvisorFork) setTab(1);
+    else openPanel(1);
     setError('');
     setNotice(isAdvisorFork
       ? 'نسخهٔ مستقل برای ویرایش آماده است؛ نسخهٔ اصلی محفوظ مانده و این پیش‌نویس هنوز ذخیره نشده است.'
@@ -627,6 +634,12 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
   useEffect(() => {
     importRequest.current += 1;
   }, [routeIntent]);
+
+  useEffect(() => {
+    if (panelFocusRequest.current !== tab || editorLocked || busy) return;
+    panelFocusRequest.current = null;
+    document.getElementById(`studio-panel-${tab}-heading`)?.focus();
+  }, [tab, editorLocked, busy, name, selected]);
 
   useEffect(() => {
     if (!focusAdvisorForkImport.current || !importedInThisMount.current) return;
@@ -887,8 +900,8 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
 
       <div className="studio-grid" inert={editorLocked || busy} aria-busy={Boolean(editorLocked || busy || guidedImportState === 'loading')}>
         <NoteLibrary notes={notes} families={families} selectedIds={selectedIds} count={selected.length} query={query} familyId={family} loading={loading} noteError={noteError} familyError={familyError} hasMore={hasMore} active={tab === 0}
-          onQuery={updateQuery} onFamily={updateFamily} onSelect={select} onRetry={() => void loadNotes(failedOffset)} onRetryFamilies={loadFamilies} onMore={() => void loadNotes(offset)} onContinue={() => setTab(1)} />
-        <CompositionWorkspace selected={selected} name={name} active={tab === 1} onName={changeName}
+          onQuery={updateQuery} onFamily={updateFamily} onSelect={select} onRetry={() => void loadNotes(failedOffset)} onRetryFamilies={loadFamilies} onMore={() => void loadNotes(offset)} onContinue={() => openPanel(1)} />
+        <CompositionWorkspace selected={selected} name={name} active={tab === 1} onName={changeName} onBrowse={() => openPanel(0)} onPreview={() => openPanel(2)}
           onLayer={(id, layer) => changeSelected(current => moveNote(current, id, layer))}
           onRemove={id => { if (!savingRef.current) { changeSelected(current => current.filter(item => item.note.id !== id)); setNotice(''); } }}
           onReorder={(id, direction) => changeSelected(current => reorder(current, id, direction))}
@@ -896,7 +909,7 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
             open={advisorOpen} focusRequest={advisorFocusRequest} onOpenChange={setAdvisorOpen}
             applyBlockedMessage={advisorApplyBlock} forkBlockedMessage={advisorForkBlock} requestBlockedMessage={advisorRequestBlock}
             allowFork={authEnabled} onRequest={() => void requestAdvisor()} onApply={applyAdvisorSuggestion} onFork={openAdvisorForkConfirmation} onReject={rejectAdvisorSuggestion} onUndo={undoAdvisorSuggestion} />} />
-        <ConceptPreview selected={selected} families={families} name={name} active={tab === 2} busy={busy || editorLocked} saved={Boolean(savedId)} onSave={() => void save()} allowSaving={authEnabled} />
+        <ConceptPreview selected={selected} families={families} name={name} active={tab === 2} busy={busy || editorLocked} saved={Boolean(savedId)} onSave={() => void save()} allowSaving={authEnabled} onEdit={() => openPanel(selected.length ? 1 : 0)} />
       </div>
     </div>
 

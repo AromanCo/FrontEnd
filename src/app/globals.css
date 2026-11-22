@@ -763,3 +763,10 @@ body {
   .guided-result-layer ul { margin-block-start: .25rem; }
   .guided-result-layer li { flex-basis: 100%; }
 }
+
+.studio-mobile-panel-actions { display: none; }
+
+@media (max-width: 900px) {
+  .studio-mobile-panel-actions { display: grid; margin-block-start: .85rem; }
+  .studio-mobile-panel-actions button { min-height: 2.75rem; font-size: .82rem; }
+}

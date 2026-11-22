@@ -123,7 +123,7 @@ try {
   const guidedSnapshot = { name: guidedName, selections: guidedSelections };
   assertValidSnapshot(guidedSnapshot, 'Guided result');
 
-  const nextStep = page.getByRole('region', { name: 'ادامه در استودیوی خلاق' });
+  const nextStep = page.getByRole('region', { name: 'ترکیب را به سلیقهٔ خودتان بچینید' });
   const creativeLink = nextStep.getByRole('button', { name: 'رفتن به استودیوی خلاق', exact: true });
   assert.equal(await creativeLink.getAttribute('aria-describedby'), 'guided-transfer-description');
   await creativeLink.click();

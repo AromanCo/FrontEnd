@@ -6,16 +6,15 @@ import { compositionMood, moodCopy } from '@/lib/studio/presentation';
 import { FragranceVessel } from '@/components/studio/FragranceVessel';
 
 export function ConceptPreview({
-  selected, families, name, active, busy, saved, onSave, allowSaving = true,
+  selected, families, name, active, busy, saved, onSave, onEdit, allowSaving = true,
 }: {
-  selected: SelectedNote[]; families: Family[]; name: string; active: boolean; busy: boolean; saved: boolean; onSave: () => void; allowSaving?: boolean;
+  selected: SelectedNote[]; families: Family[]; name: string; active: boolean; busy: boolean; saved: boolean; onSave: () => void; onEdit: () => void; allowSaving?: boolean;
 }) {
   const mood = compositionMood(selected, families);
   return (
     <section className="studio-panel studio-preview" data-active={active} aria-label="پیش‌نمایش مفهوم" role="tabpanel" id="studio-panel-2" aria-labelledby="studio-tab-2">
       <header className="studio-panel-heading">
-        <div><span className="studio-step-index">۰۳ / تجربه</span><h2>تصویر رایحه</h2><p>برداشتی تصویری از انتخاب‌های شما</p></div>
-        <span className="preview-live-indicator"><i /> زنده</span>
+        <div><h2 id="studio-panel-2-heading" tabIndex={-1}>تصویر رایحه</h2><p>برداشتی تصویری از انتخاب‌های شما</p></div>
       </header>
       <div className="preview-atmosphere" data-mood={mood}>
         <span className="preview-orbit preview-orbit-one" aria-hidden="true" />
@@ -39,6 +38,9 @@ export function ConceptPreview({
         })}
       </div>
       <p className="preview-disclaimer">تصویر و توصیف، برداشت مفهومی هستند؛ نه فرمول تولید، ادعای ایمنی یا سنجه‌ی عملکرد.</p>
+      <div className="studio-mobile-panel-actions">
+        <button type="button" className="guided-button-secondary" onClick={onEdit}>{selected.length ? 'برگشت به ترکیب' : 'انتخاب اولین نت'}</button>
+      </div>
       {allowSaving && <button type="button" className="preview-save-button" onClick={onSave} disabled={busy}>{busy ? 'در حال ذخیره…' : saved ? 'ذخیره تغییرات' : 'ذخیره مفهوم'}<span aria-hidden="true">↗</span></button>}
     </section>
   );

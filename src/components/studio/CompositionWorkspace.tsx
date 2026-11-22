@@ -5,16 +5,18 @@ import type { SelectedNote } from '@/lib/studio/composition';
 import { layerLabels, layers } from '@/lib/studio/composition';
 
 export function CompositionWorkspace({
-  selected, name, active, advisor, onName, onLayer, onRemove, onReorder,
+  selected, name, active, advisor, onName, onLayer, onRemove, onReorder, onBrowse, onPreview,
 }: {
   selected: SelectedNote[]; name: string; active: boolean; onName: (value: string) => void;
   advisor?: ReactNode;
+  onBrowse: () => void;
+  onPreview: () => void;
   onLayer: (id: string, layer: Layer) => void; onRemove: (id: string) => void; onReorder: (id: string, direction: -1 | 1) => void;
 }) {
   return (
     <section className="studio-panel studio-composition" data-active={active} aria-label="ترکیب رایحه" role="tabpanel" id="studio-panel-1" aria-labelledby="studio-tab-1">
       <header className="studio-panel-heading">
-        <div><span className="studio-step-index">۰۲ / ترکیب</span><h2>بوم رایحه شما</h2><p>نت‌ها را در سه لایه‌ی روایت خود بچینید.</p></div>
+        <div><h2 id="studio-panel-1-heading" tabIndex={-1}>بوم رایحه شما</h2><p>{selected.length ? 'نام ترکیب را ویرایش کنید یا لایهٔ هر نت را تغییر دهید.' : 'با انتخاب اولین نت، ترکیب شما اینجا شکل می‌گیرد.'}</p></div>
         <span className="studio-composition-count">{selected.length}<span> / ۶</span></span>
       </header>
 
@@ -48,6 +50,13 @@ export function CompositionWorkspace({
         })}
       </div>
       <p className="composition-note-disclaimer">این چیدمان، روایت مفهومی شماست و فرمول ساخت عطر نیست.</p>
+      <div className="studio-mobile-panel-actions">
+        {selected.length > 0 ? (
+          <button type="button" className="guided-button-primary" onClick={onPreview}>دیدن پیش‌نمایش رایحه <span aria-hidden="true">←</span></button>
+        ) : (
+          <button type="button" className="guided-button-primary" onClick={onBrowse}>انتخاب اولین نت <span aria-hidden="true">←</span></button>
+        )}
+      </div>
       {advisor}
     </section>
   );

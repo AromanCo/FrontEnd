@@ -19,7 +19,7 @@ export function NoteLibrary({
   return (
     <section className="studio-panel studio-library" data-active={active} data-note-status={loading ? 'loading' : noteError ? 'error' : 'ready'} data-note-count={notes.length} aria-label="کتابخانه نت‌ها" role="tabpanel" id="studio-panel-0" aria-labelledby="studio-tab-0">
       <header className="studio-panel-heading">
-        <div><span className="studio-step-index">۰۱ / انتخاب</span><h2>کتابخانه نت‌ها</h2><p>نت‌هایی را انتخاب کنید که به روایت شما نزدیک‌اند.</p></div>
+        <div><h2 id="studio-panel-0-heading" tabIndex={-1}>کتابخانه نت‌ها</h2><p>{count ? 'نتی تازه به ترکیب اضافه کنید یا چیدمان نت‌های فعلی را ببینید.' : 'با یک نت شروع کنید. از نام یا خانوادهٔ رایحه برای پیدا کردنش کمک بگیرید.'}</p></div>
         <span className="studio-count-badge" aria-label={`${count} از ۶ نت انتخاب شده`}><strong>{count}</strong><span>از ۶ نت</span></span>
       </header>
 
