@@ -70,6 +70,8 @@ export function GuidedStep({
   if (step < 0 || step > 4) return null;
   const [title, subtitle, question] = titles[step]!;
   const selectedFamilies = Array.isArray(answers.familyIds) ? answers.familyIds as string[] : [];
+  const previousFeeling = step > 0 ? feelingOptions.find(option => option.value === answers.feeling) : undefined;
+  const previousFamilies = step > 1 ? families.filter(family => selectedFamilies.includes(family.id)) : [];
   const liked = Array.isArray(answers.likedNoteIds) ? answers.likedNoteIds as string[] : [];
   const avoided = Array.isArray(answers.avoidedNoteIds) ? answers.avoidedNoteIds as string[] : [];
 
@@ -80,6 +82,12 @@ export function GuidedStep({
         <h1 id="guided-step-heading" tabIndex={-1}>{title}</h1>
         <p>{subtitle}</p>
       </div>
+      {(previousFeeling || previousFamilies.length > 0) && (
+        <ul className="guided-prior-choices" aria-label="انتخاب‌های قبلی شما">
+          {previousFeeling && <li>{previousFeeling.label}</li>}
+          {previousFamilies.map(family => <li key={family.id}>{family.name}</li>)}
+        </ul>
+      )}
       <div className="guided-question-row">
         <span className="guided-question-index" aria-hidden="true">{new Intl.NumberFormat('fa-IR').format(step + 1)}</span>
         <h2>{question}</h2>

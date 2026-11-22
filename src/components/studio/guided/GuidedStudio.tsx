@@ -14,7 +14,7 @@ import { recommend } from '@/lib/studio/guided/recommendation';
 import { toConceptInput } from '@/lib/studio/guided/payload';
 import { useStudioDraft } from '@/lib/studio/draft-transfer';
 import type { Feeling, GuidedAnswersDraft, GuidedCatalogNote, NoteAffinityStatus, RecommendationResult, Scene, Temperature } from '@/lib/studio/guided/types';
-import { GuidedProgress } from './GuidedProgress';
+import { GuidedProgress, guidedStepNames } from './GuidedProgress';
 import { GuidedResult } from './GuidedResult';
 import { GuidedReview } from './GuidedReview';
 import { GuidedStep } from './GuidedStep';
@@ -412,6 +412,11 @@ export function GuidedStudio({ initialFeeling }: { initialFeeling?: Feeling }) {
     else navigateWithDraft();
   };
 
+  const reviewStep = (target: number) => {
+    setStep(target);
+    setStepError('');
+    setFeedback('');
+  };
   const openReview = () => { setStep(5); setView('questionnaire'); setStepError(''); };
   const restart = () => {
     setAnswers({});
@@ -439,11 +444,11 @@ export function GuidedStudio({ initialFeeling }: { initialFeeling?: Feeling }) {
         </header>
 
         {view === 'questionnaire' ? <>
-          <GuidedProgress step={step} />
+          <GuidedProgress step={step} onReview={reviewStep} />
           <div className="guided-question-layout" aria-busy={busyCatalog}>
             <div className="guided-question-main">
               {step === 5
-                ? <GuidedReview answers={answers} families={families} notes={notes} conceptName={conceptName} onName={setConceptName} onDiscovery={value => setAnswer('discovery', value)} onEdit={target => { setStep(target); setStepError(''); }} />
+                ? <GuidedReview answers={answers} families={families} notes={notes} conceptName={conceptName} onName={setConceptName} onDiscovery={value => setAnswer('discovery', value)} onEdit={reviewStep} />
                 : <GuidedStep
                     step={step} answers={answers} families={families} notes={notes}
                     familyLoading={familyState === 'loading'} familyError={familyState === 'error' ? familyError : ''}
@@ -461,9 +466,11 @@ export function GuidedStudio({ initialFeeling }: { initialFeeling?: Feeling }) {
               <nav className="guided-step-navigation" aria-label="حرکت میان مرحله‌ها">
                 {step === 0
                   ? <Link className="guided-exit-link" href="/studio/creative">بازگشت به استودیوها</Link>
-                  : <button type="button" className="guided-button-secondary" onClick={() => { setStep(current => Math.max(0, current - 1)); setStepError(''); }}>بازگشت</button>}
+                  : <button type="button" className="guided-button-secondary" onClick={() => reviewStep(step - 1)}>بازگشت</button>}
                 <div className="guided-next-wrap">
-                  {!currentValidation.valid && <span className="guided-validation-hint" aria-live="polite">{currentValidation.message}</span>}
+                  {!currentValidation.valid
+                    ? <span className="guided-validation-hint" aria-live="polite">{currentValidation.message}</span>
+                    : step < guidedStepNames.length - 1 && <span className="guided-next-preview">بعدی، {guidedStepNames[step + 1]}</span>}
                   <button type="button" className="guided-button-primary" onClick={continueStep} disabled={!currentValidation.valid || busyCatalog}>
                     {step === 5 ? 'دیدن پیشنهاد من' : 'ادامه'} <span aria-hidden="true">←</span>
                   </button>
@@ -495,7 +502,7 @@ export function GuidedStudio({ initialFeeling }: { initialFeeling?: Feeling }) {
         />}
 
         {view === 'result' && !recommendation && <p role="alert" className="guided-step-error">پیشنهاد در دسترس نیست؛ پاسخ‌ها را دوباره بررسی کنید.</p>}
-        <footer className="guided-footer-note"><span aria-hidden="true">✧</span> انتخاب‌های شما فقط در همین صفحه نگه داشته می‌شوند و با تازه‌سازی پاک خواهند شد.</footer>
+        <footer className="guided-footer-note"><span aria-hidden="true">✧</span> پاسخ‌های این مسیر فقط تا زمانی که در همین صفحه هستید نگه داشته می‌شوند.</footer>
         </div>
       </div>
 
