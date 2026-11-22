@@ -1,20 +1,17 @@
 import type { Family } from '@/lib/api/client';
-import type { GuidedAnswersDraft, GuidedCatalogNote, RecommendationResult } from '@/lib/studio/guided/types';
-import { guidedFamilyMood } from '@/lib/studio/guided/presentation';
+import type { GuidedAnswersDraft, RecommendationResult } from '@/lib/studio/guided/types';
+import { feelingOptions, guidedFamilyMood } from '@/lib/studio/guided/presentation';
 import { FragranceVessel } from '@/components/studio/FragranceVessel';
 import Link from 'next/link';
 
 const layerLabels = { top: 'آغازین', heart: 'میانی', base: 'پایه' } as const;
-const feelingLabels: Record<string, string> = {
-  calm: 'آرام و آسوده', bright: 'سرزنده و روشن', confident: 'استوار و باوقار', intimate: 'نزدیک و لطیف', curious: 'کنجکاو و ماجراجو',
-};
+const formatCount = new Intl.NumberFormat('fa-IR');
 
 export function GuidedResult({
   result,
   answers,
   conceptName,
   families,
-  notes,
   onReview,
   onRestart,
   onInvalidStep,
@@ -32,7 +29,6 @@ export function GuidedResult({
   answers: GuidedAnswersDraft;
   conceptName: string;
   families: readonly Family[];
-  notes: readonly GuidedCatalogNote[];
   onReview: () => void;
   onRestart: () => void;
   onInvalidStep: (step: number) => void;
@@ -77,32 +73,28 @@ export function GuidedResult({
   const primarySelection = result.selections[0];
   const primaryFamily = primarySelection?.note.family_id ? familyById.get(primarySelection.note.family_id.toLowerCase()) : undefined;
   const mood = guidedFamilyMood(primaryFamily?.slug);
-  const noteById = new Map(notes.map(note => [note.id.toLowerCase(), note]));
   const groups = (['top', 'heart', 'base'] as const).map(layer => ({
     layer,
     selections: result.selections.filter(selection => selection.layer === layer).slice().sort((a, b) => a.position - b.position),
   }));
-  const selectedFamilies = (Array.isArray(answers.familyIds) ? answers.familyIds as string[] : [])
-    .map(id => familyById.get(id.toLowerCase())?.name)
-    .filter((name): name is string => Boolean(name));
-  const likedNames = (Array.isArray(answers.likedNoteIds) ? answers.likedNoteIds as string[] : [])
-    .map(id => noteById.get(id.toLowerCase())?.name)
-    .filter((name): name is string => Boolean(name));
+  const likedIds = new Set((Array.isArray(answers.likedNoteIds) ? answers.likedNoteIds as string[] : []).map(id => id.toLowerCase()));
+  const selectedFeeling = feelingOptions.find(option => option.value === answers.feeling);
+  const [mainReason, ...moreReasons] = result.explanation;
 
   return (
     <section className="guided-result" aria-labelledby="guided-result-heading">
       <div className="guided-result-intro">
         <div className="guided-result-copy">
-          <p className="guided-step-kicker">پیشنهاد استودیوی هدایت‌شده <span aria-hidden="true">·</span> تصویر مفهومی</p>
+          <p className="guided-step-kicker">پیشنهاد استودیوی هدایت‌شده</p>
           <h1 id="guided-result-heading" tabIndex={-1}>این تصویرِ رایحهٔ شماست</h1>
           <p className="guided-result-name">{conceptName}</p>
-          <p className="guided-result-mood">با الهام از حال‌وهوای «{feelingLabels[String(answers.feeling)] ?? 'انتخاب‌شده'}» که دوست داشتید.</p>
-          <div className="guided-result-tags">
-            {selectedFamilies.map(name => <span key={name}>{name}</span>)}
-            {likedNames.length > 0 && <span>نت‌های پسندیدهٔ شما</span>}
-          </div>
-          <div className="guided-result-vessel-mobile"><FragranceVessel mood={mood} title="تصویر مفهومی بطری عطر" /></div>
-          <p className="guided-result-disclaimer">این پیشنهاد یک تصویر مفهومی از سلیقهٔ شماست، نه فرمول ساخت یا پیش‌بینی عملکرد یک عطر واقعی.</p>
+          <ul className="guided-result-tags" aria-label="خلاصهٔ پیشنهاد">
+            <li>{formatCount.format(result.selections.length)} نت</li>
+            {selectedFeeling && <li>حال‌وهوای انتخابی، {selectedFeeling.label}</li>}
+          </ul>
+          <div className="guided-result-vessel-mobile"><FragranceVessel mood={mood} decorative /></div>
+          {mainReason && <p className="guided-result-mood">{mainReason}</p>}
+          <p className="guided-result-disclaimer">این تصویر مفهومی برای کشف سلیقهٔ شماست و دستور ساخت عطر محسوب نمی‌شود.</p>
         </div>
         <div className="guided-result-art" data-mood={mood}>
           <div className="guided-result-art-halo" aria-hidden="true" />
@@ -118,8 +110,8 @@ export function GuidedResult({
 
       <section className="guided-result-actions-panel" aria-labelledby="guided-result-next">
         <div>
-          <h2 id="guided-result-next">ادامه در استودیوی خلاق</h2>
-          <p id="guided-transfer-description">نام، نت‌ها و لایه‌های این پیشنهاد برای ویرایش به استودیو منتقل می‌شوند.</p>
+          <h2 id="guided-result-next">ترکیب را به سلیقهٔ خودتان بچینید</h2>
+          <p id="guided-transfer-description">با همین نام و نت‌ها وارد استودیو شوید و چیدمان لایه‌ها را تغییر دهید.</p>
         </div>
         <div className="guided-result-actions guided-result-actions-grid">
           <button
@@ -143,27 +135,34 @@ export function GuidedResult({
       </section>
 
       <div className="guided-result-body">
-        <div className="guided-result-composition">
-          <div className="guided-result-section-title"><h2>نت‌ها در سه لایه</h2></div>
+        <section className="guided-result-composition" aria-labelledby="guided-result-notes">
+          <div className="guided-result-section-title"><h2 id="guided-result-notes">نت‌ها در سه لایه</h2></div>
           <div className="guided-result-layers">
             {groups.map(group => <section className="guided-result-layer" data-layer={group.layer} key={group.layer} aria-label={`لایهٔ ${layerLabels[group.layer]}`}>
-              <div className="guided-layer-heading"><span aria-hidden="true">✧</span><h3>{layerLabels[group.layer]}</h3><small>{group.layer === 'top' ? 'آغاز روایت' : group.layer === 'heart' ? 'میانهٔ روایت' : 'پایهٔ روایت'}</small></div>
+              <div className="guided-layer-heading"><h3>{layerLabels[group.layer]}</h3></div>
               {group.selections.length ? <ul>{group.selections.map(selection => {
                 const family = selection.note.family_id ? familyById.get(selection.note.family_id.toLowerCase()) : undefined;
-                return <li key={selection.note.id} data-note-id={selection.note.id}><span className="guided-result-note-dot" aria-hidden="true" /><div><strong>{selection.note.name}</strong><small>{family?.name ?? 'خانواده مشخص نشده'}</small></div><span className="guided-result-position">{new Intl.NumberFormat('fa-IR').format(selection.position + 1)}</span></li>;
+                return (
+                  <li key={selection.note.id} data-note-id={selection.note.id}>
+                    <span className="guided-result-note-dot" aria-hidden="true" />
+                    <div>
+                      <strong>{selection.note.name}</strong>
+                      {family && <small>{family.name}</small>}
+                      {likedIds.has(selection.note.id.toLowerCase()) && <small className="guided-note-liked">پسندیدهٔ شما</small>}
+                    </div>
+                  </li>
+                );
               })}</ul> : <p className="guided-result-layer-empty">هنوز نتی در این لایه نیست.</p>}
             </section>)}
           </div>
-        </div>
+        </section>
 
-        <aside className="guided-result-story">
-          <div className="guided-result-section-title"><h2>چرا این پیشنهاد؟</h2></div>
-          <div className="guided-result-explanations">{result.explanation.map((clause, index) => <p key={`${clause}-${index}`}>{clause}</p>)}</div>
+        <section className="guided-result-story" aria-labelledby="guided-result-reasons">
+          <div className="guided-result-section-title"><h2 id="guided-result-reasons">بیشتر دربارهٔ این پیشنهاد</h2></div>
+          <div className="guided-result-explanations">{moreReasons.map((clause, index) => <p key={`${clause}-${index}`}>{clause}</p>)}</div>
           {result.notices.map((notice, index) => <p className="guided-result-notice" key={`${notice}-${index}`}>{notice}</p>)}
-        </aside>
+        </section>
       </div>
-
-
     </section>
   );
 }

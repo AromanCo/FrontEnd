@@ -105,7 +105,7 @@ describe('Guided Studio questionnaire and result', () => {
     const recommendedNotes = document.querySelectorAll('.guided-result-layer li strong');
     expect(recommendedNotes).toHaveLength(4);
     expect([...recommendedNotes].every(element => seedNotes.some(note => note.name === element.textContent))).toBe(true);
-    expect(screen.getByText('این پیشنهاد یک تصویر مفهومی از سلیقهٔ شماست، نه فرمول ساخت یا پیش‌بینی عملکرد یک عطر واقعی.')).toBeInTheDocument();
+    expect(screen.getByText('این تصویر مفهومی برای کشف سلیقهٔ شماست و دستور ساخت عطر محسوب نمی‌شود.')).toBeInTheDocument();
     expect(families).toHaveBeenCalledWith('', 100, 0);
     expect(notes).toHaveBeenCalledWith({ limit: 100, offset: 0 });
     expect(screen.getByRole('button', { name: /ذخیرهٔ مفهوم/ })).toBeEnabled();

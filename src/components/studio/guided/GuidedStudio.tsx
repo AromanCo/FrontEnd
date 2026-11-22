@@ -492,7 +492,7 @@ export function GuidedStudio({ initialFeeling }: { initialFeeling?: Feeling }) {
           </div>
         </> : recommendation && <GuidedResult
           result={recommendation} answers={answers} conceptName={validateConceptName(conceptName).value ?? DEFAULT_CONCEPT_NAME}
-          families={families} notes={notes} onReview={openReview} onRestart={openRestart}
+          families={families} onReview={openReview} onRestart={openRestart}
           onSave={() => void saveResult()} onContinueCreative={continueToCreative}
           saveBusy={saveBusy} saved={isCurrentResultSaved} saveMessage={saveMessage} saveError={saveError}
           transferBusy={transferBusy}

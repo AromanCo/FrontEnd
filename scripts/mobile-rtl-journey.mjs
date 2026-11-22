@@ -174,6 +174,10 @@ async function runViewport(width) {
     await activate(page.getByRole('button', { name: 'دیدن پیشنهاد من', exact: true }));
     await page.getByRole('heading', { name: 'این تصویرِ رایحهٔ شماست', exact: true }).waitFor();
     await layout('Guided result');
+    assert.match(await page.getByRole('list', { name: 'خلاصهٔ پیشنهاد' }).textContent(), /آرام و آسوده/);
+    const composition = page.getByRole('region', { name: 'نت‌ها در سه لایه' });
+    const likedResultNote = composition.getByRole('listitem').filter({ has: page.getByText('رز', { exact: true }) });
+    assert.equal(await likedResultNote.getByText('پسندیدهٔ شما', { exact: true }).isVisible(), true);
     await activate(page.getByRole('button', { name: 'رفتن به استودیوی خلاق', exact: true }));
     await page.waitForURL(`${frontendOrigin}/studio/creative?from=guided`);
     await page.getByRole('status').filter({ hasText: 'پیشنهاد استودیوی هدایت‌شده برای ویرایش وارد شد.' }).waitFor();

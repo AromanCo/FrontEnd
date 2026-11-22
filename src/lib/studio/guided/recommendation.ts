@@ -201,14 +201,14 @@ function explanationFor(
     .filter((id, index, ids) => selectedFamilyKeys.has(id) && ids.indexOf(id) === index)
     .map(id => maps.byId.get(id)?.name)
     .filter((name): name is string => Boolean(name));
-  if (chosenFamilies.length) clauses.push(`با توجه به علاقه‌تان به ${chosenFamilies.length > 1 ? 'خانواده‌های' : 'خانوادهٔ'} ${chosenFamilies.join(' و ')}`);
+  if (chosenFamilies.length) clauses.push(`برای نزدیک ماندن به سلیقه‌تان، از ${chosenFamilies.length > 1 ? 'خانواده‌های' : 'خانوادهٔ'} ${chosenFamilies.join(' و ')} نت انتخاب کردیم`);
 
   const preferenceClauses: string[] = [];
   const preferenceValues = [...preferenceFamilyKeys].map(id => maps.scoreById.get(id)).filter((value): value is FamilyScore => Boolean(value));
   if (preferenceValues.some(score => score.contributions.feeling > 0)) preferenceClauses.push(ANSWER_PERSIAN_COPY.feeling[answers.feeling]);
   if (preferenceValues.some(score => score.contributions.temperature > 0)) preferenceClauses.push(ANSWER_PERSIAN_COPY.temperature[answers.temperature]);
   if (preferenceValues.some(score => score.contributions.scene > 0)) preferenceClauses.push(ANSWER_PERSIAN_COPY.scene[answers.scene]);
-  if (preferenceClauses.length) clauses.push(`و ${preferenceClauses.join(' و ')} که انتخاب کردید`);
+  if (preferenceClauses.length) clauses.push(`در انتخاب نت‌ها از ${preferenceClauses.join(' و ')} الهام گرفتیم`);
 
   const includedLikes = liked.filter(note => selectedNoteIds.has(idKey(note.id)));
   if (includedLikes.length) clauses.push(`${includedLikes.map(note => note.name).join('، ')} را که خودتان پسندیدید در پیشنهاد حفظ کردیم`);
@@ -225,8 +225,8 @@ function explanationFor(
   if (missingLiked) clauses.push('یکی از نت‌هایی که پسندیده بودید دیگر در کاتالوگ نیست و از پیشنهاد کنار گذاشته شد');
 
   if (!clauses.length) clauses.push('این پیشنهاد بر پایهٔ نت‌های موجود در کاتالوگ شکل گرفته است');
-  clauses.push('این یک پیشنهاد مفهومی است، نه فرمول ساخت عطر');
-  return clauses.map(clause => `«${clause}»`);
+  clauses.push('این پیشنهاد مفهومی، تصویری از سلیقهٔ شماست');
+  return clauses.map(clause => `${clause}.`);
 }
 
 export function recommend(
