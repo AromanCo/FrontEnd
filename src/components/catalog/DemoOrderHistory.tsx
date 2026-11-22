@@ -140,11 +140,11 @@ function OrderHistory() {
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="grid gap-1">
             جست‌وجوی سفارش
-            <input type="search" className="min-w-0 rounded-lg border border-plum/25 bg-white p-2" value={search} onChange={event => setSearch(event.target.value)} placeholder="شمارهٔ سفارش یا نام محصول" />
+            <input type="search" className="input min-h-11 min-w-0" value={search} onChange={event => setSearch(event.target.value)} placeholder="شمارهٔ سفارش یا نام محصول" />
           </label>
           <label className="grid gap-1">
             وضعیت سفارش
-            <select className="min-w-0 rounded-lg border border-plum/25 bg-white p-2" value={statusFilter} onChange={event => setStatusFilter(event.target.value as StatusFilter)}>
+            <select className="input min-h-11 min-w-0" value={statusFilter} onChange={event => setStatusFilter(event.target.value as StatusFilter)}>
               <option value="all">همهٔ وضعیت‌ها</option>
               {Object.entries(filterLabels).map(([status, label]) => <option key={status} value={status}>{label}</option>)}
             </select>
@@ -152,7 +152,10 @@ function OrderHistory() {
         </div>
       )}
       {history.status === 'ready' && history.orders.length === 0 && (
-        <p className="mt-4">هنوز سفارش آزمایشی ثبت نکرده‌ای.</p>
+        <div className="card mt-4 p-5">
+          <p>هنوز سفارش آزمایشی ثبت نکرده‌اید.</p>
+          <Link className="btn btn-secondary mt-3" href="/cart">مشاهدهٔ سبد آزمایشی</Link>
+        </div>
       )}
       {history.status === 'ready' && history.orders.length > 0 && visibleOrders.length === 0 && (
         <div className="mt-4">
@@ -169,11 +172,11 @@ function OrderHistory() {
             const simulation = nextSimulation[order.status];
             return (
               <li className="card p-4" key={order.id}>
-                <p className="break-all font-semibold">شمارهٔ سفارش <bdi>{order.id}</bdi></p>
+                <p className="font-semibold [overflow-wrap:anywhere]">شمارهٔ سفارش <bdi>{order.id}</bdi></p>
                 <time className="mt-1 block text-sm" dateTime={order.created_at}>{date.format(new Date(order.created_at))}</time>
                 <ul className="mt-3 space-y-1">
                   {order.items.map(item => (
-                    <li key={item.variant_id}>{item.product_name} · {item.variant_label} · {number.format(item.quantity)} عدد</li>
+                    <li className="[overflow-wrap:anywhere]" key={item.variant_id}>{item.product_name} · {item.variant_label} · {number.format(item.quantity)} عدد</li>
                   ))}
                 </ul>
                 <p className="mt-3 font-semibold">مبلغ سفارش {number.format(order.subtotal)} ریال</p>

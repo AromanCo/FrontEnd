@@ -75,23 +75,46 @@ jobs:
           assert.ok(garden);
           const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome' });
           try {
-            const page = await browser.newPage({ baseURL: process.env.WEB_ORIGIN });
+            const page = await browser.newPage({
+              baseURL: process.env.WEB_ORIGIN,
+              viewport: { width: 320, height: 720 },
+              hasTouch: true,
+              isMobile: true,
+            });
+            const checkMobile = async (label, ...controls) => {
+              const { clientWidth, scrollWidth } = await page.evaluate(() => ({
+                clientWidth: document.documentElement.clientWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+              }));
+              assert.ok(scrollWidth <= clientWidth + 1, `${label}: page is wider than its viewport`);
+              for (const control of controls) {
+                const box = await control.boundingBox();
+                assert.ok(box && box.x >= -1 && box.x + box.width <= clientWidth + 1,
+                  `${label}: a control extends outside the viewport`);
+                assert.ok(box.width >= 44 && box.height >= 44, `${label}: touch target is smaller than 44px`);
+              }
+            };
             await page.goto(`/shop/${garden.id}`);
             await page.getByRole('button', { name: 'افزودن به سبد آزمایشی' }).click();
             await page.getByRole('link', { name: 'مشاهدهٔ سبد آزمایشی' }).click();
             await page.getByText('جمع سبد ۱٬۲۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
+            const summary = page.getByRole('region', { name: 'خلاصهٔ سبد' });
+            await checkMobile('320px cart', page.getByRole('combobox', { name: /تعداد/ }),
+              summary.getByRole('button', { name: 'ورود برای ثبت سفارش آزمایشی' }));
             await page.getByRole('combobox', { name: /تعداد/ }).selectOption('2');
             await page.getByText('جمع سبد ۲٬۴۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
             await page.reload();
             await page.getByText('جمع سبد ۲٬۴۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
             await page.getByRole('button', { name: /حذف/ }).click();
             await page.getByText('سبد آزمایشی خالی است.', { exact: true }).waitFor();
+            await checkMobile('320px empty cart', page.getByRole('link', { name: 'بازگشت به کاتالوگ' }));
 
             await page.goto(`/shop/${garden.id}`);
             await page.getByRole('button', { name: 'افزودن به سبد آزمایشی' }).click();
             await page.getByRole('link', { name: 'مشاهدهٔ سبد آزمایشی' }).click();
             await page.getByRole('button', { name: 'ورود برای ثبت سفارش آزمایشی' }).click();
             const login = page.getByRole('dialog', { name: 'ورود برای سفارش آزمایشی' });
+            await checkMobile('320px cart sign-in', login.getByRole('button', { name: 'دریافت کد' }));
             await login.getByLabel('شماره موبایل').fill('09990000001');
             await login.getByRole('button', { name: 'دریافت کد' }).click();
             await login.getByLabel('کد شش رقمی').waitFor();
@@ -112,6 +135,8 @@ jobs:
             const receipt = page.getByRole('status', { name: 'رسید سفارش آزمایشی' });
             await receipt.getByText('سفارش آزمایشی ثبت شد.').waitFor();
             await receipt.getByText('مبلغ سفارش ۱٬۲۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
+            await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'رسید سفارش آزمایشی');
+            await checkMobile('320px receipt');
             const orderId = await receipt.locator('bdi').innerText();
             assert.match(orderId, /^[a-f0-9-]{36}$/i);
             await page.getByText('سبد آزمایشی خالی است.', { exact: true }).waitFor();
@@ -159,9 +184,16 @@ jobs:
             await page.getByRole('button', { name: 'افزودن به سبد آزمایشی' }).click();
             await page.getByRole('link', { name: 'مشاهدهٔ سبد آزمایشی' }).waitFor();
             await page.goto('/account');
+            const ordersLink = page.getByRole('link', { name: 'سفارش‌های آزمایشی', exact: true });
+            await ordersLink.click();
+            assert.equal(new URL(page.url()).hash, '#demo-orders');
             const delivered = history.locator('li.card').filter({ hasText: 'تحویل آزمایشی ثبت شد' });
             const search = history.getByRole('searchbox', { name: 'جست‌وجوی سفارش' });
             const filter = history.getByRole('combobox', { name: 'وضعیت سفارش' });
+            await search.waitFor();
+            await checkMobile('320px account and history', ordersLink, search, filter);
+            await page.setViewportSize({ width: 390, height: 844 });
+            await checkMobile('390px account and history', ordersLink, search, filter);
             await search.fill(garden.name);
             assert.equal(await history.locator('li.card').count(), 2);
             await filter.selectOption('delivered');
@@ -180,6 +212,8 @@ jobs:
             await delivered.getByRole('link', { name: 'مشاهدهٔ سبد آزمایشی' }).click();
             await page.getByText('جمع سبد ۲٬۴۰۰٬۰۰۰ ریال', { exact: true }).waitFor();
             assert.equal(await page.getByRole('combobox', { name: /تعداد/ }).inputValue(), '2');
+            await checkMobile('390px reordered cart', page.getByRole('combobox', { name: /تعداد/ }),
+              summary.getByRole('button', { name: 'ثبت سفارش آزمایشی' }));
             console.log('Demo reorder PASS: merge into the cart and refresh the server quote');
             console.log('Demo orders PASS: receipt, simulated payment, cancellation and history after reload');
           } finally {

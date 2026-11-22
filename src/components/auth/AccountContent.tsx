@@ -87,7 +87,7 @@ function ConceptCard({
   );
 }
 
-export function AccountContent() {
+export function AccountContent({ demoCheckout = false }: { demoCheckout?: boolean }) {
   const { user, loading, error: authError } = useAuth();
 
   if (authError && !user) return <p role="status">پس از بررسی دوباره نشست، محتوای حساب نمایش داده می‌شود.</p>;
@@ -102,10 +102,10 @@ export function AccountContent() {
 
   // Each authenticated identity owns a fresh collection and in-flight loading state.
   // Never render the previous account's saved concepts while another user loads.
-  return <AuthenticatedAccountContent key={user.id} user={user} />;
+  return <AuthenticatedAccountContent key={user.id} user={user} demoCheckout={demoCheckout} />;
 }
 
-function AuthenticatedAccountContent({ user }: { user: User }) {
+function AuthenticatedAccountContent({ user, demoCheckout }: { user: User; demoCheckout: boolean }) {
   const { logout } = useAuth();
   const [items, setItems] = useState<Concept[]>([]);
   const [search, setSearch] = useState('');
@@ -214,6 +214,7 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Link className="btn btn-primary" href="/studio/creative">ساخت رایحه تازه</Link>
+            {demoCheckout && <a className="btn btn-secondary" href="#demo-orders">سفارش‌های آزمایشی</a>}
             <button
               type="button"
               className="btn btn-secondary"
