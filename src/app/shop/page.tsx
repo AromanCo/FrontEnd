@@ -91,7 +91,12 @@ export default async function Shop({
               ? 'فیلترها را تغییر دهید یا همه را پاک کنید و دوباره جستجو کنید.'
               : 'در حال حاضر محصول نمایشی دیگری در این صفحه وجود ندارد.'}
           </p>
-          {active && <Link className="btn btn-primary mt-6" href="/shop">نمایش همه محصولات</Link>}
+          {active && (
+            <div className="mt-6 flex flex-wrap justify-center gap-2">
+              <a className="btn btn-primary" href="#catalog-product-search">تغییر جستجو</a>
+              <Link className="btn btn-secondary" href="/shop">نمایش همه محصولات</Link>
+            </div>
+          )}
           {offset > 0 && (
             <Link className="btn btn-secondary mt-6" href={pageUrl(0)}>بازگشت به صفحه اول</Link>
           )}

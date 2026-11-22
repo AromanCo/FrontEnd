@@ -95,6 +95,14 @@ try {
   await catalogGuidedLink.waitFor({ state: 'visible' });
   assert.equal(await catalogGuidedLink.getAttribute('href'), '/studio/guided');
   const filters = shopMain.getByRole('search', { name: 'جستجو و فیلتر محصولات' });
+  const filterToggle = filters.getByRole('button', { name: 'فیلترهای برند و خانواده' });
+  assert.equal(await filterToggle.getAttribute('aria-expanded'), 'false');
+  assert.ok(await filters.getByRole('searchbox').isVisible());
+  await filterToggle.click();
+  assert.equal(await filterToggle.getAttribute('aria-expanded'), 'true');
+  await filterToggle.focus();
+  await page.keyboard.press('Tab');
+  assert.ok(await filters.getByLabel('برند', { exact: true }).evaluate(element => element === document.activeElement));
   await filters.getByLabel('برند', { exact: true }).waitFor({ state: 'visible' });
   await filters.getByLabel('خانواده رایحه', { exact: true }).waitFor({ state: 'visible' });
   await shopMain.locator('.product-detail-link').first().click();

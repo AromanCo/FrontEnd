@@ -125,6 +125,7 @@ async function checkCatalog(page, context) {
 
   const filters = page.getByRole('search', { name: 'جستجو و فیلتر محصولات' });
   await filters.getByRole('searchbox').fill(target.name);
+  await filters.getByRole('button', { name: 'فیلترهای برند و خانواده' }).click();
   await filters.getByLabel('برند').selectOption(target.brand_id);
   await filters.getByLabel('خانواده رایحه').selectOption(target.family_id);
   await filters.getByRole('button', { name: 'اعمال فیلتر' }).click();
