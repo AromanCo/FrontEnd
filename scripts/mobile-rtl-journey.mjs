@@ -207,6 +207,8 @@ async function runViewport(width) {
       await activate(panel(1).getByRole('button', { name: 'دیدن پیش‌نمایش رایحه', exact: true }));
       await selectedTab(2);
       await page.waitForFunction(() => document.activeElement?.id === 'studio-panel-2-heading');
+      await panel(2).locator(`.preview-note-layer[data-layer="${targetLayer}"] [data-preview-note-id="${firstId}"]`).waitFor();
+      assert.equal(await panel(2).getByRole('heading', { name: `${name}، ویرایش‌شده` }).isVisible(), true);
       await activate(panel(2).getByRole('button', { name: 'برگشت به ترکیب', exact: true }));
       await selectedTab(1);
       await page.waitForFunction(() => document.activeElement?.id === 'studio-panel-1-heading');

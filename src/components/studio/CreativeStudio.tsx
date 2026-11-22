@@ -162,6 +162,10 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
   const panelFocusRequest = useRef<number | null>(null);
 
   const openPanel = (target: number) => {
+    if (target === tab) {
+      document.getElementById(`studio-panel-${target}-heading`)?.focus();
+      return;
+    }
     panelFocusRequest.current = target;
     setTab(target);
   };
