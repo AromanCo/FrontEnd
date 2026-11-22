@@ -120,6 +120,23 @@ describe('AccountContent dashboard', () => {
     await waitFor(() => expect(mocks.duplicate).toHaveBeenCalledWith('concept-1'));
     expect(await screen.findByRole('heading', { name: 'رایحه باغ' })).toBeTruthy();
     expect(screen.getByRole('status').textContent).toContain('مفهوم کپی شد.');
+    expect(screen.getByRole('status').textContent).toContain(second.name);
+    expect(screen.getByRole('link', { name: 'ویرایش نسخهٔ کپی' }).getAttribute('href'))
+      .toBe('/studio/creative?concept=concept-2');
+  });
+
+  it('keeps the direct copy link when refreshing the collection fails', async () => {
+    mocks.list.mockResolvedValueOnce([first]).mockRejectedValueOnce(new Error('refresh unavailable'));
+    mocks.duplicate.mockResolvedValue(second);
+    render(<AccountContent />);
+
+    await screen.findByRole('heading', { name: first.name });
+    fireEvent.click(screen.getByRole('button', { name: 'کپی' }));
+
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'ویرایش نسخهٔ کپی' }).getAttribute('href'))
+      .toBe('/studio/creative?concept=concept-2');
+    expect(mocks.duplicate).toHaveBeenCalledTimes(1);
   });
 
   it('does not send a second duplicate request while the first is unresolved', async () => {

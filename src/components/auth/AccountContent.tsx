@@ -8,6 +8,9 @@ import { Dialog } from '@/components/ui/Dialog';
 import { useAuth } from './AuthProvider';
 
 type Layer = 'top' | 'heart' | 'base';
+type CollectionAction = { kind: 'duplicate'; copy: Concept } | { kind: 'delete' };
+
+const conceptEditorHref = (id: string) => '/studio/creative?concept=' + encodeURIComponent(id);
 
 const layerDetails: { key: Layer; name: string; accent: string; track: string }[] = [
   { key: 'top', name: 'آغازین', accent: 'bg-[#d6ad72]', track: 'bg-[#f7ead7]' },
@@ -69,7 +72,7 @@ function ConceptCard({
           {concept.notes.length.toLocaleString('fa-IR')} نت در ترکیب
         </p>
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-6">
-          <Link className="btn btn-primary flex-1 text-center" href={'/studio/creative?concept=' + encodeURIComponent(concept.id)}>
+          <Link className="btn btn-primary flex-1 text-center" href={conceptEditorHref(concept.id)}>
             باز کردن و ویرایش
           </Link>
           <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => onAction(concept.id, 'duplicate')}>
@@ -122,7 +125,7 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
   const activeListRequest = useRef<AbortController | null>(null);
   const mounted = useRef(false);
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [completedAction, setCompletedAction] = useState<CollectionAction | null>(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loadingItems, setLoadingItems] = useState(true);
@@ -172,15 +175,17 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
     actionRef.current = true;
     setBusy(id);
     setError('');
-    setMessage('');
+    setCompletedAction(null);
     try {
+      let completed: CollectionAction;
       if (kind === 'duplicate') {
-        await concepts.duplicate(id);
+        completed = { kind, copy: await concepts.duplicate(id) };
       } else {
         await concepts.remove(id);
+        completed = { kind };
       }
       if (!mounted.current) return;
-      setMessage(kind === 'duplicate' ? 'مفهوم کپی شد.' : 'مفهوم حذف شد.');
+      setCompletedAction(completed);
       setItems([]);
       setOffset(0);
       setHasMore(false);
@@ -222,7 +227,16 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
       </header>
 
       {error && <div role="alert" className="mt-6 rounded-2xl bg-blush p-4 leading-7">{error}</div>}
-      {message && <div role="status" className="mt-6 rounded-2xl bg-sage/30 p-4 leading-7">{message}</div>}
+      {completedAction && (
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-sage/30 p-4 leading-7">
+          <p role="status">
+            {completedAction.kind === 'duplicate' ? <>مفهوم کپی شد. <strong className="break-words">«{completedAction.copy.name}»</strong></> : 'مفهوم حذف شد.'}
+          </p>
+          {completedAction.kind === 'duplicate' && (
+            <Link className="btn btn-secondary" href={conceptEditorHref(completedAction.copy.id)}>ویرایش نسخهٔ کپی</Link>
+          )}
+        </div>
+      )}
 
       <section aria-labelledby="account-concepts-heading" className="mt-9 sm:mt-12">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">

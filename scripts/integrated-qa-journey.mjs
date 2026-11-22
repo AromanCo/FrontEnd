@@ -273,11 +273,14 @@ async function runIsolatedAccountJourney(browser, realNote) {
 
     const firstCard = accountPage.locator('article').first();
     await firstCard.getByRole('button', { name: 'کپی' }).click();
-    await accountPage.getByRole('status').getByText('مفهوم کپی شد.').waitFor();
+    await accountPage.getByRole('link', { name: 'ویرایش نسخهٔ کپی' }).waitFor();
     assert.equal(duplicateRequests, 2, 'A stale CSRF response should renew and retry once through the shared API client');
     assert.ok(csrfRequests >= 2, 'The CSRF token should be renewed after the isolated 403');
+    const copiedCard = accountPage.locator('article').first();
+    await copiedCard.getByRole('heading', { name: 'مفهوم کپی‌شده' }).waitFor();
     assert.equal(await accountPage.locator('article').count(), 20, 'Duplicating should reload the first page of the list');
-    await accountPage.locator('article').first().getByRole('heading', { name: 'مفهوم کپی‌شده' }).waitFor();
+    assert.equal(await accountPage.getByRole('link', { name: 'ویرایش نسخهٔ کپی' }).getAttribute('href'),
+      await copiedCard.getByRole('link', { name: 'باز کردن و ویرایش' }).getAttribute('href'));
 
     await accountPage.locator('article').first().getByRole('button', { name: 'حذف' }).click();
     await accountPage.getByRole('dialog', { name: 'حذف رایحهٔ ذخیره‌شده' }).getByRole('button', { name: 'حذف رایحه' }).click();
