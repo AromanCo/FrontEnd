@@ -3,6 +3,7 @@ import { catalog, type Family, type Product } from '@/lib/api/client';
 import { ProductCard } from '@/components/catalog/ProductCard';
 import { FamilyCard } from '@/components/home/FamilyCard';
 import Image from 'next/image';
+import { feelingOptions } from '@/lib/studio/guided/presentation';
 import { StudioInvitationArtwork } from '@/components/home/StudioInvitationArtwork';
 
 export default async function Home() {
@@ -20,13 +21,21 @@ export default async function Home() {
       <div className="atelier-hero-inner container">
         <div className="atelier-hero-copy">
           <p className="eyebrow">آتلیهٔ رایحهٔ آرومان</p>
-          <h1>رایحه‌ای که<br /><em>از شما آغاز می‌شود.</em></h1>
-          <p className="atelier-hero-lede">با چند پرسش از سلیقه‌تان شروع کنید، نت‌های دلخواهتان را بچینید یا مجموعهٔ نمایشی رایحه‌ها را ببینید.</p>
+          <h1>رایحه‌ای که<br /><em>شبیه شماست.</em></h1>
+          <p className="atelier-hero-lede">از یک حس شروع کنید. در ۶ گام، نت‌های دلخواهتان را پیدا کنید و ایدهٔ رایحهٔ شخصی‌تان را ببینید.</p>
           <nav className="atelier-hero-actions" aria-label="مسیرهای شروع آرومان">
             <Link className="btn btn-primary" href="/studio/guided">شروع کشف با راهنما <span aria-hidden="true">←</span></Link>
-            <Link className="btn btn-atelier-outline" href="/studio/creative">ساخت مفهوم رایحه</Link>
-            <Link className="btn btn-atelier-outline" href="/shop">کشف مجموعه رایحه‌ها</Link>
+            <Link className="text-link" href="/shop">کشف مجموعه رایحه‌ها</Link>
+            <Link className="text-link" href="/studio/creative">ساخت مفهوم رایحه</Link>
           </nav>
+          <div className="hero-feelings" role="group" aria-labelledby="hero-feelings-label">
+            <p id="hero-feelings-label">رایحهٔ شما چه حسی داشته باشد؟</p>
+            <ul>
+              {feelingOptions.filter(({ value }) => value === 'calm' || value === 'bright' || value === 'intimate').map(({ value, label, tone }) => (
+                <li key={value}><Link href={`/studio/guided?feeling=${value}`} data-tone={tone}>{label}</Link></li>
+              ))}
+            </ul>
+          </div>
         </div>
         <figure className="hero-photo">
           <Image src="/images/atelier-editorial.webp" alt="" fill preload sizes="(max-width: 760px) 100vw, 55vw" />
@@ -38,7 +47,7 @@ export default async function Home() {
     <section className="home-discovery section" id="discover">
       <div className="container">
         <header className="section-editorial-heading">
-          <div><h2 className="heading">رایحه‌هایی برای کشف</h2><p>با مجموعه‌ی نمایشی کاتالوگ آشنا شوید.</p></div>
+          <div><h2 className="heading">رایحه‌هایی برای کشف</h2><p>برای شناخت رایحه‌ها، از نمونه‌های این مجموعه شروع کنید.</p></div>
           <Link className="text-link" href="/shop">دیدن مجموعه رایحه‌ها <span aria-hidden="true">←</span></Link>
         </header>
         {unavailable ? <p className="catalog-state" role="status">کاتالوگ در دسترس نیست. لطفاً کمی بعد دوباره سر بزنید.</p> : products.length ? <div className="home-product-grid">{products.map(product => <ProductCard key={product.id} product={product} />)}</div> : <p className="catalog-state">هنوز محصولی در کاتالوگ ثبت نشده است.</p>}

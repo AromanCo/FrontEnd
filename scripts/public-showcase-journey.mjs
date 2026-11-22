@@ -73,6 +73,17 @@ try {
     }
     const primary = paths.getByRole('link').first();
     assert.equal(await primary.getAttribute('href'), '/studio/guided');
+
+    const firstChoice = homePage.getByRole('group', { name: 'رایحهٔ شما چه حسی داشته باشد؟' });
+    await firstChoice.getByRole('link', { name: 'نزدیک و لطیف', exact: true }).click();
+    await homePage.waitForURL(url => url.pathname === '/studio/guided' && url.searchParams.get('feeling') === 'intimate');
+    const selected = homePage.locator('input[name="feeling"][value="intimate"]');
+    await selected.waitFor({ state: 'attached' });
+    assert.ok(await selected.isChecked(), `${viewport} should preserve the homepage choice in Guided`);
+    await homePage.locator('label').filter({ has: homePage.locator('input[name="feeling"][value="bright"]') }).click();
+    assert.ok(await homePage.locator('input[name="feeling"][value="bright"]').isChecked(), `${viewport} should be able to change the choice`);
+    assert.ok(!(await selected.isChecked()), `${viewport} should keep only one choice`);
+    await homePage.goto(new URL('/', origin).href);
   }
   for (const href of ['/login', '/account', '/cart', '/checkout']) {
     assert.equal(await desktopPage.locator(`a[href="${href}"]`).count(), 0, `public page chrome must omit ${href}`);

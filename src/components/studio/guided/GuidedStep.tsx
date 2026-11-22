@@ -1,17 +1,10 @@
 import Link from 'next/link';
 import type { Family } from '@/lib/api/client';
 import type { Feeling, GuidedAnswersDraft, GuidedCatalogNote, NoteAffinityStatus, Scene, Temperature } from '@/lib/studio/guided/types';
-import { guidedFamilyMood } from '@/lib/studio/guided/presentation';
+import { feelingOptions, guidedFamilyMood } from '@/lib/studio/guided/presentation';
 import { GuidedNotePicker } from './GuidedNotePicker';
 import { GuidedOptionCard } from './GuidedOptionCard';
 
-const feelingOptions: { value: Feeling; label: string; description: string; tone: string }[] = [
-  { value: 'calm', label: 'آرام و آسوده', description: 'مثل مکثی کوتاه میان روز.', tone: 'sage' },
-  { value: 'bright', label: 'سرزنده و روشن', description: 'برای شروعی سبک و پرانرژی.', tone: 'champagne' },
-  { value: 'confident', label: 'استوار و باوقار', description: 'حسی جمع‌وجور، گرم و مطمئن.', tone: 'plum' },
-  { value: 'intimate', label: 'نزدیک و لطیف', description: 'فضایی نرم و شخصی.', tone: 'blush' },
-  { value: 'curious', label: 'کنجکاو و ماجراجو', description: 'برای حال‌وهوایی با پیچ‌وخم بیشتر.', tone: 'lilac' },
-];
 const temperatureOptions: { value: Temperature; label: string; description: string; tone: string }[] = [
   { value: 'bright', label: 'روشن و تازه', description: 'حسی سبک و بیدارکننده در تصور.', tone: 'sage' },
   { value: 'soft', label: 'نرم و متعادل', description: 'میانه‌ای آرام، بدون تأکید بر گرما یا تازگی.', tone: 'lilac' },

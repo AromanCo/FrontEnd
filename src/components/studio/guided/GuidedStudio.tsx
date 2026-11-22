@@ -32,7 +32,7 @@ const stepForField = (field: string): number => {
   return 0;
 };
 
-export function GuidedStudio() {
+export function GuidedStudio({ initialFeeling }: { initialFeeling?: Feeling }) {
   const router = useRouter();
   const { user, loading: authLoading, authEnabled } = useAuth();
   const { pending: pendingTransfer, createDraft } = useStudioDraft();
@@ -42,7 +42,7 @@ export function GuidedStudio() {
   const [noteState, setNoteState] = useState<LoadState>('loading');
   const [familyError, setFamilyError] = useState('');
   const [noteError, setNoteError] = useState('');
-  const [answers, setAnswers] = useState<GuidedAnswersDraft>({});
+  const [answers, setAnswers] = useState<GuidedAnswersDraft>(() => initialFeeling ? { feeling: initialFeeling } : {});
   const [conceptName, setConceptName] = useState(DEFAULT_CONCEPT_NAME);
   const [step, setStep] = useState(0);
   const [view, setView] = useState<View>('questionnaire');

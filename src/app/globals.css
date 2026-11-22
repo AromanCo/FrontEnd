@@ -623,3 +623,57 @@ body {
   .btn, .product-editorial-card, .family-world, .guided-option-card { transition: none; }
   .btn:hover, .product-editorial-card:hover, .family-world:hover, .guided-option-card:hover { transform: none; }
 }
+
+/* Homepage entry and first discovery choice */
+.atelier-hero { background: #2b181d; color: #fff5e9; }
+.atelier-hero-copy .eyebrow { color: #eac2ac; }
+.atelier-hero-copy h1 em { color: #f2b6a8; }
+.atelier-hero-lede { max-width: 32rem; color: #f3ded4; }
+.atelier-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: .25rem 1rem;
+  margin-block-start: clamp(.9rem, 2vw, 1.5rem);
+}
+.atelier-hero-actions .btn-primary { background: #f8e3cb; color: #3a2327; padding-inline: 1.1rem; }
+.atelier-hero-actions .btn-primary:hover { background: #fff2df; }
+.atelier-hero-actions .text-link {
+  align-items: center;
+  padding-block: .25rem;
+  border-color: transparent;
+  color: #fff5e9;
+  font-size: .83rem;
+}
+.atelier-hero-actions .text-link:hover { border-color: #f2b6a8; }
+.atelier-hero a:focus-visible { outline-color: #ffd6c6; }
+.hero-feelings {
+  margin-block-start: clamp(.95rem, 2.4vw, 1.6rem);
+  padding-block-start: .85rem;
+  border-block-start: 1px solid #f8e3cb42;
+}
+.hero-feelings p { margin: 0 0 .5rem; font-size: .88rem; font-weight: 650; }
+.hero-feelings ul { display: flex; flex-wrap: wrap; gap: .45rem; margin: 0; padding: 0; list-style: none; }
+.hero-feelings a {
+  display: inline-flex;
+  align-items: center;
+  gap: .43rem;
+  min-height: 2.75rem;
+  padding: .3rem .7rem;
+  border: 1px solid #f8e3cb62;
+  border-radius: 999px;
+  color: #fff5e9;
+  font-size: .8rem;
+  text-decoration: none;
+}
+.hero-feelings a::before { content: ''; width: .55rem; height: .55rem; flex: none; border-radius: 50%; background: var(--feeling-accent); }
+.hero-feelings a[data-tone="sage"] { --feeling-accent: #b3c5a6; }
+.hero-feelings a[data-tone="champagne"] { --feeling-accent: #f3c279; }
+.hero-feelings a[data-tone="blush"] { --feeling-accent: #f3acba; }
+.hero-feelings a:hover { border-color: #f8e3cb; background: #f8e3cb1c; }
+
+@media (max-width: 760px) {
+  .atelier-hero-inner { gap: 1.15rem; }
+  .atelier-hero-actions { gap: .25rem .75rem; }
+  .atelier-hero-actions .btn-primary { width: 100%; }
+  .hero-feelings a { padding-inline: .5rem; font-size: .75rem; }
+}
