@@ -70,6 +70,22 @@ describe('AccountContent dashboard', () => {
     expect(screen.getByRole('button', { name: 'خروج' })).toBeTruthy();
   });
 
+  it('filters loaded concepts by Persian names and preserves search as more concepts load', async () => {
+    const firstPage = Array.from({ length: 20 }, (_, index) => ({ ...first, id: `page-one-${index + 1}` }));
+    mocks.list.mockResolvedValueOnce(firstPage).mockResolvedValueOnce([second]);
+    render(<AccountContent />);
+
+    const search = await screen.findByRole('searchbox', { name: 'جستجو بر اساس نام رایحه' });
+    fireEvent.change(search, { target: { value: 'رايحه‌باغ' } });
+    expect(screen.getByText('در رایحه‌های بارگذاری‌شده نامی مطابق جستجو پیدا نشد.')).toBeTruthy();
+    expect(mocks.list).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'نمایش بیشتر' }));
+    expect(await screen.findByRole('heading', { name: 'رایحه باغ' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'رایحه باران' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'پاک کردن' }));
+    expect(screen.getAllByRole('heading', { name: 'رایحه باران' })).toHaveLength(20);
+  });
+
   it('offers creative and guided starting points only for a genuinely empty account', async () => {
     mocks.list.mockResolvedValue([]);
     render(<AccountContent />);

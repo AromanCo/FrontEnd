@@ -796,3 +796,10 @@ body {
   .studio-mobile-panel-actions { display: grid; margin-block-start: .85rem; }
   .studio-mobile-panel-actions button { min-height: 2.75rem; font-size: .82rem; }
 }
+
+.account-collection-search { max-width: 34rem; margin-block: 0 1.25rem; }
+.account-collection-search label { display: block; margin-block-end: .4rem; font-weight: 650; }
+.account-collection-search-controls { display: flex; gap: .5rem; }
+.account-collection-search-controls .input { min-width: 0; }
+.account-collection-search-controls .btn { flex: none; }
+.account-collection-search p { margin: .35rem 0 0; color: var(--muted); font-size: .78rem; line-height: 1.8; }

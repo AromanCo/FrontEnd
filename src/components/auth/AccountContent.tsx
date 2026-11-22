@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ApiError, concepts, type Concept, type User } from '@/lib/api/client';
+import { normalizeSearch } from '@/lib/normalize-search';
 import { useAuth } from './AuthProvider';
 
 type Layer = 'top' | 'heart' | 'base';
@@ -62,10 +63,9 @@ function ConceptCard({
         <LayerPreview notes={concept.notes} />
       </div>
       <div className="flex flex-1 flex-col p-5 sm:p-6">
-        <p className="eyebrow">مفهوم ذخیره‌شده</p>
         <h3 className="mt-2 break-words text-2xl font-semibold leading-relaxed">{concept.name}</h3>
         <p className="mt-2 text-sm leading-7 text-[#806f7d]">
-          ترکیب شخصی شما با {concept.notes.length.toLocaleString('fa-IR')} نت در لایه‌های رایحه
+          {concept.notes.length.toLocaleString('fa-IR')} نت در ترکیب
         </p>
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-6">
           <Link className="btn btn-primary flex-1 text-center" href={'/studio/creative?concept=' + encodeURIComponent(concept.id)}>
@@ -104,6 +104,7 @@ export function AccountContent() {
 function AuthenticatedAccountContent({ user }: { user: User }) {
   const { logout } = useAuth();
   const [items, setItems] = useState<Concept[]>([]);
+  const [search, setSearch] = useState('');
   const [busy, setBusy] = useState('');
   const actionRef = useRef(false);
   const activeListRequest = useRef<AbortController | null>(null);
@@ -114,6 +115,8 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
   const [hasMore, setHasMore] = useState(false);
   const [loadingItems, setLoadingItems] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const query = normalizeSearch(search);
+  const visibleItems = query ? items.filter(item => normalizeSearch(item.name).includes(query)) : items;
 
   const loadPage = useCallback(async (nextOffset = 0) => {
     if (!mounted.current || activeListRequest.current) return;
@@ -217,7 +220,7 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
           </div>
           {!loadingItems && items.length > 0 && (
             <p className="rounded-full border border-[#e5d9ce] bg-white/70 px-4 py-2 text-sm text-[#715b72]">
-              {items.length.toLocaleString('fa-IR')} مفهوم نمایش داده‌شده
+              {visibleItems.length.toLocaleString('fa-IR')} مفهوم نمایش داده‌شده
             </p>
           )}
         </div>
@@ -252,8 +255,32 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
         )}
 
         {items.length > 0 && (
+          <div className="account-collection-search">
+            <label htmlFor="account-concept-search">جستجو بر اساس نام رایحه</label>
+            <div className="account-collection-search-controls">
+              <input
+                className="input"
+                id="account-concept-search"
+                type="search"
+                value={search}
+                onChange={event => setSearch(event.target.value)}
+                aria-describedby={hasMore ? 'account-concept-search-scope' : undefined}
+              />
+              {search && <button className="btn btn-secondary" type="button" onClick={() => setSearch('')}>پاک کردن</button>}
+            </div>
+            {hasMore && <p id="account-concept-search-scope">جستجو در رایحه‌های بارگذاری‌شده انجام می‌شود. برای بررسی بقیه، «نمایش بیشتر» را بزنید.</p>}
+          </div>
+        )}
+
+        {items.length > 0 && visibleItems.length === 0 && (
+          <p className="card p-6" role="status">
+            {hasMore ? 'در رایحه‌های بارگذاری‌شده نامی مطابق جستجو پیدا نشد.' : 'رایحه‌ای با این نام پیدا نشد.'}
+          </p>
+        )}
+
+        {visibleItems.length > 0 && (
           <div className="grid gap-5 md:grid-cols-2">
-            {items.map(item => (
+            {visibleItems.map(item => (
               <ConceptCard
                 key={item.id}
                 concept={item}

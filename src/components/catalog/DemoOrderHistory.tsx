@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { normalizeSearch } from '@/lib/normalize-search';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { addDemoCartItems, type DemoOrderAction, type DemoOrderReceipt, listDemoOrders, updateDemoOrder } from '@/lib/demo-cart';
@@ -39,16 +40,6 @@ const nextSimulation: Partial<Record<DemoOrderReceipt['status'], [DemoOrderActio
   preparing: ['simulate-shipping', 'شبیه‌سازی ارسال'],
   shipped: ['simulate-delivery', 'شبیه‌سازی تحویل'],
 };
-
-function normalizeSearch(value: string) {
-  return value.normalize('NFKC').toLowerCase()
-    .replace(/[يى]/g, 'ی')
-    .replace(/ك/g, 'ک')
-    .replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - 0x06f0))
-    .replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - 0x0660))
-    .replace(/[\s\u200c]+/g, ' ')
-    .trim();
-}
 
 export function DemoOrderHistory() {
   const { user, loading } = useAuth();
