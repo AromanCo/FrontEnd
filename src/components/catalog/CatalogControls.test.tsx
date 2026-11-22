@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { catalogSearchSuffix, readCatalogSearch } from '@/lib/catalog-search';
 import { CatalogControls } from './CatalogControls';
 
 const mockRouter = vi.hoisted(() => ({ push: vi.fn() }));
@@ -19,6 +20,15 @@ describe('CatalogControls', () => {
   const mount = (q = '', brandId = '', familyId = '') => render(
     <CatalogControls q={q} brandId={brandId} familyId={familyId} brands={brands} families={families} />,
   );
+
+  it('carries the recognized search and page to and from product details', () => {
+    const incoming = readCatalogSearch({ q: ['باران', 'باغ'], brand_id: 'brand-1', family_id: 'family-1', offset: '12', returnTo: '//elsewhere.test' });
+    const suffix = catalogSearchSuffix(incoming);
+    const query = new URLSearchParams(suffix);
+
+    expect(Object.fromEntries(query)).toEqual({ q: 'باران', brand_id: 'brand-1', family_id: 'family-1', offset: '12' });
+    expect(catalogSearchSuffix(readCatalogSearch({ offset: '-12' }))).toBe('');
+  });
 
   it('submits the three filters with trimmed search and resets pagination', () => {
     mount();

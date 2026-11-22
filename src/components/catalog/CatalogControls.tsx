@@ -3,6 +3,7 @@
 import { useId, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Brand, Family } from '@/lib/api/client';
+import { catalogSearchSuffix } from '@/lib/catalog-search';
 
 type Props = {
   q: string;
@@ -11,16 +12,6 @@ type Props = {
   brands: Brand[];
   families: Family[];
 };
-
-function catalogUrl(q: string, brandId: string, familyId: string) {
-  const query = new URLSearchParams();
-  const search = q.trim().slice(0, 100);
-  if (search) query.set('q', search);
-  if (brandId) query.set('brand_id', brandId);
-  if (familyId) query.set('family_id', familyId);
-  const suffix = query.toString();
-  return suffix ? `/shop?${suffix}` : '/shop';
-}
 
 export function CatalogControls({ q, brandId, familyId, brands, families }: Props) {
   const router = useRouter();
@@ -31,7 +22,7 @@ export function CatalogControls({ q, brandId, familyId, brands, families }: Prop
   const [showFilters, setShowFilters] = useState(Boolean(brandId || familyId));
 
   const apply = (nextSearch: string, nextBrand: string, nextFamily: string) => {
-    router.push(catalogUrl(nextSearch, nextBrand, nextFamily));
+    router.push('/shop' + catalogSearchSuffix({ q: nextSearch, brand_id: nextBrand, family_id: nextFamily }));
   };
 
   const removeAll = () => {

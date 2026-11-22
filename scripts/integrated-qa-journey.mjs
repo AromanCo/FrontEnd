@@ -79,7 +79,9 @@ try {
   await screenshot('shop-filtered-390');
 
   await page.getByRole('link', { name: 'مشاهده جزئیات' }).click();
-  await page.waitForURL(`**/shop/${familyProduct.id}`);
+  await page.waitForURL(url => url.pathname === `/shop/${familyProduct.id}`);
+  const returnToResults = page.getByRole('link', { name: 'بازگشت به نتایج' });
+  assert.equal(await returnToResults.getAttribute('href'), '/shop?' + new URLSearchParams({ q: familyProduct.name, family_id: familyProduct.family_id }));
   await page.getByRole('heading', { name: familyProduct.name }).waitFor();
   await page.getByText(/قیمت، موجودی و خرید آنلاین هنوز در دسترس نیستند/).waitFor();
   await verifyResponsive('product detail');

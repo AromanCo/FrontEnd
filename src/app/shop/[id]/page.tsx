@@ -3,10 +3,17 @@ import { notFound } from 'next/navigation';
 import { catalog, type Product, type Variant } from '@/lib/api/client';
 import { getReleaseScope, isDemoCheckoutEnabled } from '@/lib/release-scope';
 import { AddToDemoCart } from '@/components/catalog/AddToDemoCart';
+import { catalogSearchSuffix, readCatalogSearch } from '@/lib/catalog-search';
 
-export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProductPage({ params, searchParams }: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
   if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id)) notFound();
+  const suffix = catalogSearchSuffix(readCatalogSearch(await searchParams));
+  const returnHref = `/shop${suffix}`;
+  const returnLabel = suffix ? 'بازگشت به نتایج' : 'بازگشت به مجموعه';
 
   let product: Product | undefined;
   let variants: Variant[] = [];
@@ -23,8 +30,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       <div className="container section product-page">
         <p role="alert">اطلاعات محصول اکنون در دسترس نیست.</p>
         <div className="mt-4 flex flex-wrap gap-3">
-          <a className="btn btn-primary" href={`/shop/${encodeURIComponent(id)}`}>تلاش دوباره</a>
-          <Link className="btn btn-secondary" href="/shop">بازگشت به مجموعه</Link>
+          <a className="btn btn-primary" href={`/shop/${encodeURIComponent(id)}${suffix}`}>تلاش دوباره</a>
+          <Link className="btn btn-secondary" href={returnHref}>{returnLabel}</Link>
         </div>
       </div>
     );
@@ -37,7 +44,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   return (
     <article className="container section">
-      <Link className="text-link" href="/shop">بازگشت به مجموعه <span aria-hidden="true">↗</span></Link>
+      <Link className="text-link" href={returnHref}>{returnLabel} <span aria-hidden="true">↗</span></Link>
       <div className="mt-5 grid gap-6 md:grid-cols-2 md:gap-10">
         <div className="product-detail-art flex min-h-64 flex-col items-center justify-center gap-4 p-5 md:min-h-96">
           <div className="bottle !h-52 !w-32 md:!h-64 md:!w-40" aria-hidden="true" />

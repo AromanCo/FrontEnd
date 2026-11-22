@@ -2,22 +2,16 @@ import Link from 'next/link';
 import { catalog, type Brand, type Family, type Product } from '@/lib/api/client';
 import { ProductCard } from '@/components/catalog/ProductCard';
 import { CatalogControls } from '@/components/catalog/CatalogControls';
-
-function firstQueryValue(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
-}
+import { catalogSearchSuffix, readCatalogSearch } from '@/lib/catalog-search';
 
 export default async function Shop({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const params = await searchParams;
-  const q = (firstQueryValue(params.q) || '').slice(0, 100);
-  const brand_id = firstQueryValue(params.brand_id) || undefined;
-  const family_id = firstQueryValue(params.family_id) || undefined;
-  const raw = Number(firstQueryValue(params.offset) || 0);
-  const offset = Number.isSafeInteger(raw) && raw >= 0 ? raw : 0;
+  const search = readCatalogSearch(await searchParams);
+  const { q, brand_id, family_id, offset } = search;
+  const suffix = catalogSearchSuffix(search);
   const limit = 12;
   let products: Product[] = [];
   let brands: Brand[] = [];
@@ -35,15 +29,7 @@ export default async function Shop({
   }
 
   const active = Boolean(q || brand_id || family_id);
-  const pageUrl = (nextOffset: number) => {
-    const query = new URLSearchParams({
-      ...(q ? { q } : {}),
-      ...(brand_id ? { brand_id } : {}),
-      ...(family_id ? { family_id } : {}),
-      offset: String(nextOffset),
-    });
-    return `/shop?${query}`;
-  };
+  const pageUrl = (nextOffset: number) => '/shop' + catalogSearchSuffix({ ...search, offset: nextOffset });
 
   return (
     <div className="container section catalog-page">
@@ -72,7 +58,7 @@ export default async function Shop({
             نمایش {products.length.toLocaleString('fa-IR')} محصول در این صفحه
           </p>
           <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {products.map(product => <ProductCard key={product.id} product={product} />)}
+            {products.map(product => <ProductCard key={product.id} product={product} catalogSuffix={suffix} />)}
           </div>
           <nav aria-label="صفحه‌بندی محصولات" className="mt-9 flex flex-wrap justify-center gap-3">
             {offset > 0 && (
