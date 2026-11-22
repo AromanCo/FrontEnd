@@ -812,17 +812,13 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
     router.replace('/studio/creative?from=guided');
   };
 
-  const updateQuery = (value: string) => {
+  const updateNoteFilters = (nextQuery: string, nextFamily: string) => {
+    if (nextQuery === query && nextFamily === family) return;
     noteRequest.current++;
-    setQuery(value.slice(0, 100));
+    setQuery(nextQuery);
+    setFamily(nextFamily);
     setNotes([]);
-    setLoading(true);
-    setHasMore(false);
-  };
-  const updateFamily = (value: string) => {
-    noteRequest.current++;
-    setFamily(value);
-    setNotes([]);
+    setNoteError('');
     setLoading(true);
     setHasMore(false);
   };
@@ -923,7 +919,8 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
 
       <div className="studio-grid" inert={editorLocked || busy} aria-busy={Boolean(editorLocked || busy || guidedImportState === 'loading')}>
         <NoteLibrary notes={notes} families={families} selectedIds={selectedIds} count={selected.length} query={query} familyId={family} loading={loading} noteError={noteError} familyError={familyError} hasMore={hasMore} active={tab === 0}
-          onQuery={updateQuery} onFamily={updateFamily} onSelect={select} onRetry={() => void loadNotes(failedOffset)} onRetryFamilies={loadFamilies} onMore={() => void loadNotes(offset)} onContinue={() => openPanel(1)} />
+          onQuery={value => updateNoteFilters(value.slice(0, 100), family)} onFamily={value => updateNoteFilters(query, value)}
+          onClearFilters={() => updateNoteFilters('', '')} onSelect={select} onRetry={() => void loadNotes(failedOffset)} onRetryFamilies={loadFamilies} onMore={() => void loadNotes(offset)} onContinue={() => openPanel(1)} />
         <CompositionWorkspace selected={selected} name={name} active={tab === 1} onName={changeName} onBrowse={() => openPanel(0)} onPreview={() => openPanel(2)}
           onLayer={(id, layer) => changeSelected(current => moveNote(current, id, layer))}
           onRemove={id => { if (!savingRef.current) { changeSelected(current => current.filter(item => item.note.id !== id)); setNotice(''); } }}

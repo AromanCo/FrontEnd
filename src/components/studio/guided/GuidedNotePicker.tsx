@@ -93,9 +93,14 @@ export function GuidedNotePicker({
       </div>
 
       {loading && <div className="guided-inline-state" role="status"><span className="guided-spinner" aria-hidden="true" />در حال دریافت نت‌ها…</div>}
-      {error && <div className="guided-inline-error" role="alert"><p>{error}</p><button type="button" className="guided-small-action" onClick={onRetry}>تلاش دوباره</button></div>}
-      {!loading && !error && empty && <p className="guided-inline-state">در حال حاضر نتی برای انتخاب در دسترس نیست؛ می‌توانید این مرحله را رد کنید.</p>}
-      {!loading && !error && !empty && filtered.length === 0 && <p className="guided-inline-state">نتی با این عبارت پیدا نشد.</p>}
+      {error && <div className="guided-inline-error"><p role="alert">{error} پاسخ‌های قبلی شما حفظ شده‌اند.</p><button type="button" className="guided-small-action" onClick={onRetry}>تلاش دوباره</button></div>}
+      {!loading && !error && empty && <p className="guided-inline-state" role="status">در حال حاضر نتی برای انتخاب در دسترس نیست؛ می‌توانید این مرحله را رد کنید.</p>}
+      {!loading && !error && !empty && filtered.length === 0 && (
+        <div className="guided-inline-state flex-wrap">
+          <p role="status">نتی با این فیلترها پیدا نشد.</p>
+          <button type="button" className="guided-small-action" onClick={() => { setQuery(''); setFamilyId(''); setExpanded(false); }}>پاک کردن فیلترهای نت</button>
+        </div>
+      )}
 
       {!loading && !error && filtered.length > 0 && (
         <ul id="guided-note-list" className="guided-note-list" aria-label="نت‌های موجود در کاتالوگ" data-mobile-collapsed={!expanded}>

@@ -201,7 +201,7 @@ describe('AccountContent dashboard', () => {
     expect(mocks.list).toHaveBeenCalledTimes(2);
     expect(mocks.list.mock.calls[1].slice(0, 2)).toEqual([20, 20]);
 
-    fireEvent.click(screen.getByRole('button', { name: 'نمایش بیشتر' }));
+    fireEvent.click(screen.getByRole('button', { name: 'تلاش دوباره برای دریافت رایحه‌های بیشتر' }));
     expect(await screen.findByRole('heading', { name: 'رایحه باغ' })).toBeTruthy();
     expect(mocks.list).toHaveBeenCalledTimes(3);
     expect(mocks.list.mock.calls[2].slice(0, 2)).toEqual([20, 20]);

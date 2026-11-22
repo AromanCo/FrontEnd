@@ -398,7 +398,11 @@ describe('Guided Studio questionnaire and result', () => {
     expect(noteRows()).toHaveLength(1);
     expect(noteRows()[0]).toHaveTextContent(coffee.name);
     fireEvent.click(screen.getByRole('button', { name: 'دوست دارم' }));
-    fireEvent.change(search, { target: { value: '' } });
+    fireEvent.change(search, { target: { value: 'نت ناموجود' } });
+    expect(screen.getByText('نتی با این فیلترها پیدا نشد.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'پاک کردن فیلترهای نت' }));
+    expect(search).toHaveValue('');
+    expect(noteRows()).toHaveLength(seedNotes.length);
     expect(screen.getByRole('button', { name: 'نمایش نت‌های بیشتر' })).toHaveAttribute('aria-expanded', 'false');
     const remove = screen.getByRole('button', { name: `حذف ${coffee.name} از دوست دارم` });
     expect(remove).toBeInTheDocument();

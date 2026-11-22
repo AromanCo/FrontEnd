@@ -20,7 +20,7 @@ const secondNote={id:'00000000-0000-4000-8000-000000000002',slug:'rose',name:'ر
 
 it('shows a retry after failure, renders loaded notes, keeps selections, and distinguishes an empty result',async()=>{
   mocks.families.mockResolvedValue([]);
-  mocks.notes.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([demoNote]).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([]);
+  mocks.notes.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([demoNote]).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([]).mockResolvedValueOnce([demoNote]);
   render(<StudioDraftProvider><CreativeStudio/></StudioDraftProvider>);
   const panel=screen.getByRole('tabpanel',{name:/نت‌ها/});
   await waitFor(()=>expect(panel.getAttribute('data-note-status')).toBe('error'));
@@ -34,8 +34,12 @@ it('shows a retry after failure, renders loaded notes, keeps selections, and dis
   expect(screen.getByRole('status',{name:'1 از ۶ نت انتخاب شده'})).toBeTruthy();
   fireEvent.click(within(panel).getByRole('button',{name:'تلاش دوباره'}));
   await waitFor(()=>expect(panel.getAttribute('data-note-status')).toBe('ready'));
-  expect(within(panel).getByText('نتی پیدا نشد')).toBeTruthy();
+  expect(within(panel).getByText('نتی با این فیلترها پیدا نشد')).toBeTruthy();
   expect(within(panel).queryByText('در حال دریافت نت‌های آرومان…')).toBeNull();
+  fireEvent.click(within(panel).getByRole('button', { name: 'پاک کردن فیلترهای نت' }));
+  await within(panel).findByRole('button', { name: /اسطوخودوس/ });
+  expect(mocks.notes).toHaveBeenLastCalledWith({q:'',family_id:undefined,limit:50,offset:0});
+  expect(screen.getByRole('status',{name:'1 از ۶ نت انتخاب شده'})).toBeTruthy();
 });
 
 it('keeps Creative Studio usable in exploration mode and ignores saved-concept IDs',async()=>{

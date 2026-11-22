@@ -103,8 +103,8 @@ export function GuidedStep({
 
       {step === 1 && <>
         {familyLoading && <div className="guided-inline-state" role="status"><span className="guided-spinner" aria-hidden="true" />در حال دریافت خانواده‌ها…</div>}
-        {familyError && <div className="guided-inline-error" role="alert"><p>{familyError}</p><button type="button" className="guided-small-action" onClick={onRetryFamilies}>تلاش دوباره</button></div>}
-        {!familyLoading && !familyError && families.length === 0 && <div className="guided-empty-catalog"><span aria-hidden="true">✧</span><strong>خانواده‌ای در کاتالوگ در دسترس نیست.</strong><p>برای ساخت پیشنهاد هدایت‌شده، ابتدا باید خانواده‌های رایحه دریافت شوند.</p><Link href="/studio/creative">رفتن به استودیوی خلاق</Link></div>}
+        {familyError && <div className="guided-inline-error" role="alert"><p>{familyError} پاسخ‌های قبلی شما حفظ شده‌اند.</p><button type="button" className="guided-small-action" onClick={onRetryFamilies}>تلاش دوباره</button></div>}
+        {!familyLoading && !familyError && families.length === 0 && <div className="guided-empty-catalog"><span aria-hidden="true">✧</span><strong role="status">خانواده‌ای در کاتالوگ در دسترس نیست.</strong><p>برای ساخت پیشنهاد هدایت‌شده، ابتدا باید خانواده‌های رایحه دریافت شوند.</p><Link href="/studio/creative">رفتن به استودیوی خلاق</Link></div>}
         {!familyLoading && !familyError && families.length > 0 && <fieldset className="guided-choice-grid guided-choice-grid-families">
           <legend className="sr-only">یک یا دو خانواده انتخاب کنید</legend>
           {families.map(family => <GuidedOptionCard key={family.id} type="checkbox" name="familyIds" value={family.id} checked={selectedFamilies.includes(family.id)} title={family.name} description={family.description ?? undefined} tone={guidedFamilyMood(family.slug)} detail={<small className="guided-option-order">{selectedFamilies.includes(family.id) ? `انتخاب ${new Intl.NumberFormat('fa-IR').format(selectedFamilies.indexOf(family.id) + 1)}` : 'جهان رایحه'}</small>} onChange={() => onFamily(family.id)} />)}

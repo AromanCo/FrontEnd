@@ -125,6 +125,7 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
   const activeListRequest = useRef<AbortController | null>(null);
   const mounted = useRef(false);
   const [error, setError] = useState('');
+  const [listError, setListError] = useState(false);
   const [completedAction, setCompletedAction] = useState<CollectionAction | null>(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -137,7 +138,7 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
     if (!mounted.current || activeListRequest.current) return;
     const controller = new AbortController();
     activeListRequest.current = controller;
-    setError('');
+    setListError(false);
     if (nextOffset === 0) setLoadingItems(true);
     else setLoadingMore(true);
     try {
@@ -146,10 +147,8 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
       setItems(current => nextOffset ? [...current, ...page] : page);
       setOffset(nextOffset + page.length);
       setHasMore(page.length === 20);
-    } catch (cause) {
-      if (!controller.signal.aborted) {
-        setError(cause instanceof ApiError ? cause.message : 'بارگذاری انجام نشد.');
-      }
+    } catch {
+      if (!controller.signal.aborted) setListError(true);
     } finally {
       if (!controller.signal.aborted) {
         activeListRequest.current = null;
@@ -254,7 +253,7 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
           <div role="status" className="card p-9 text-center leading-8">در حال بارگذاری مفاهیم شما…</div>
         )}
 
-        {!loadingItems && items.length === 0 && !error && (
+        {!loadingItems && items.length === 0 && !listError && (
           <div className="card relative overflow-hidden px-6 py-12 text-center sm:px-10 sm:py-16">
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-[#f3e7ee]" aria-hidden="true">
               <span className="text-4xl text-[#806080]">✦</span>
@@ -270,10 +269,10 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
           </div>
         )}
 
-        {!loadingItems && items.length === 0 && error && (
+        {!loadingItems && items.length === 0 && listError && (
           <div className="card p-8 text-center">
-            <p className="leading-8">مفاهیم ذخیره‌شده بارگذاری نشدند.</p>
-            <button className="btn btn-secondary mt-5" type="button" onClick={() => void loadPage()}>
+            <p role="alert" className="leading-8">مفاهیم ذخیره‌شده بارگذاری نشدند.</p>
+            <button className="btn btn-secondary mt-5" type="button" disabled={Boolean(busy)} onClick={() => void loadPage()}>
               تلاش دوباره
             </button>
           </div>
@@ -320,11 +319,13 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
         )}
 
         {hasMore && (
-          <div className="mt-8 flex justify-center">
+          <div className="mt-8 flex flex-col items-center gap-3 text-center">
+            {listError && <p role="alert" className="card px-5 py-3">دریافت رایحه‌های بیشتر انجام نشد. می‌توانید دوباره همین صفحه را دریافت کنید.</p>}
+            {loadingMore && <p role="status" className="sr-only">در حال دریافت رایحه‌های بیشتر…</p>}
             <button type="button" className="btn btn-secondary" disabled={loadingItems || loadingMore || Boolean(busy)} onClick={() => {
               if (!actionRef.current) void loadPage(offset);
             }}>
-              {loadingMore ? 'در حال بارگذاری…' : 'نمایش بیشتر'}
+              {loadingMore ? 'در حال بارگذاری…' : listError ? 'تلاش دوباره برای دریافت رایحه‌های بیشتر' : 'نمایش بیشتر'}
             </button>
           </div>
         )}
