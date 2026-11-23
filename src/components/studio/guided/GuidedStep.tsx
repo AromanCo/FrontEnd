@@ -1,17 +1,10 @@
 import Link from 'next/link';
 import type { Family } from '@/lib/api/client';
 import type { Feeling, GuidedAnswersDraft, GuidedCatalogNote, NoteAffinityStatus, Scene, Temperature } from '@/lib/studio/guided/types';
-import { guidedFamilyMood } from '@/lib/studio/guided/presentation';
+import { feelingOptions, guidedFamilyMood } from '@/lib/studio/guided/presentation';
 import { GuidedNotePicker } from './GuidedNotePicker';
 import { GuidedOptionCard } from './GuidedOptionCard';
 
-const feelingOptions: { value: Feeling; label: string; description: string; tone: string }[] = [
-  { value: 'calm', label: 'آرام و آسوده', description: 'مثل مکثی کوتاه میان روز.', tone: 'sage' },
-  { value: 'bright', label: 'سرزنده و روشن', description: 'برای شروعی سبک و پرانرژی.', tone: 'champagne' },
-  { value: 'confident', label: 'استوار و باوقار', description: 'حسی جمع‌وجور، گرم و مطمئن.', tone: 'plum' },
-  { value: 'intimate', label: 'نزدیک و لطیف', description: 'فضایی نرم و شخصی.', tone: 'blush' },
-  { value: 'curious', label: 'کنجکاو و ماجراجو', description: 'برای حال‌وهوایی با پیچ‌وخم بیشتر.', tone: 'lilac' },
-];
 const temperatureOptions: { value: Temperature; label: string; description: string; tone: string }[] = [
   { value: 'bright', label: 'روشن و تازه', description: 'حسی سبک و بیدارکننده در تصور.', tone: 'sage' },
   { value: 'soft', label: 'نرم و متعادل', description: 'میانه‌ای آرام، بدون تأکید بر گرما یا تازگی.', tone: 'lilac' },
@@ -77,6 +70,8 @@ export function GuidedStep({
   if (step < 0 || step > 4) return null;
   const [title, subtitle, question] = titles[step]!;
   const selectedFamilies = Array.isArray(answers.familyIds) ? answers.familyIds as string[] : [];
+  const previousFeeling = step > 0 ? feelingOptions.find(option => option.value === answers.feeling) : undefined;
+  const previousFamilies = step > 1 ? families.filter(family => selectedFamilies.includes(family.id)) : [];
   const liked = Array.isArray(answers.likedNoteIds) ? answers.likedNoteIds as string[] : [];
   const avoided = Array.isArray(answers.avoidedNoteIds) ? answers.avoidedNoteIds as string[] : [];
 
@@ -87,6 +82,12 @@ export function GuidedStep({
         <h1 id="guided-step-heading" tabIndex={-1}>{title}</h1>
         <p>{subtitle}</p>
       </div>
+      {(previousFeeling || previousFamilies.length > 0) && (
+        <ul className="guided-prior-choices" aria-label="انتخاب‌های قبلی شما">
+          {previousFeeling && <li>{previousFeeling.label}</li>}
+          {previousFamilies.map(family => <li key={family.id}>{family.name}</li>)}
+        </ul>
+      )}
       <div className="guided-question-row">
         <span className="guided-question-index" aria-hidden="true">{new Intl.NumberFormat('fa-IR').format(step + 1)}</span>
         <h2>{question}</h2>
@@ -102,8 +103,8 @@ export function GuidedStep({
 
       {step === 1 && <>
         {familyLoading && <div className="guided-inline-state" role="status"><span className="guided-spinner" aria-hidden="true" />در حال دریافت خانواده‌ها…</div>}
-        {familyError && <div className="guided-inline-error" role="alert"><p>{familyError}</p><button type="button" className="guided-small-action" onClick={onRetryFamilies}>تلاش دوباره</button></div>}
-        {!familyLoading && !familyError && families.length === 0 && <div className="guided-empty-catalog"><span aria-hidden="true">✧</span><strong>خانواده‌ای در کاتالوگ در دسترس نیست.</strong><p>برای ساخت پیشنهاد هدایت‌شده، ابتدا باید خانواده‌های رایحه دریافت شوند.</p><Link href="/studio/creative">رفتن به استودیوی خلاق</Link></div>}
+        {familyError && <div className="guided-inline-error" role="alert"><p>{familyError} پاسخ‌های قبلی شما حفظ شده‌اند.</p><button type="button" className="guided-small-action" onClick={onRetryFamilies}>تلاش دوباره</button></div>}
+        {!familyLoading && !familyError && families.length === 0 && <div className="guided-empty-catalog"><span aria-hidden="true">✧</span><strong role="status">خانواده‌ای در کاتالوگ در دسترس نیست.</strong><p>برای ساخت پیشنهاد هدایت‌شده، ابتدا باید خانواده‌های رایحه دریافت شوند.</p><Link href="/studio/creative">رفتن به استودیوی خلاق</Link></div>}
         {!familyLoading && !familyError && families.length > 0 && <fieldset className="guided-choice-grid guided-choice-grid-families">
           <legend className="sr-only">یک یا دو خانواده انتخاب کنید</legend>
           {families.map(family => <GuidedOptionCard key={family.id} type="checkbox" name="familyIds" value={family.id} checked={selectedFamilies.includes(family.id)} title={family.name} description={family.description ?? undefined} tone={guidedFamilyMood(family.slug)} detail={<small className="guided-option-order">{selectedFamilies.includes(family.id) ? `انتخاب ${new Intl.NumberFormat('fa-IR').format(selectedFamilies.indexOf(family.id) + 1)}` : 'جهان رایحه'}</small>} onChange={() => onFamily(family.id)} />)}

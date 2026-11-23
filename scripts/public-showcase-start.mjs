@@ -25,11 +25,18 @@ export function publicShowcaseStartConfigurationError(env = process.env, cwd = p
   return publicShowcaseRuntimeError(scope, metadata, env.NEXT_PUBLIC_AROMAN_API_BASE_URL);
 }
 
+export function publicShowcaseRuntimeEnv(env, cwd = process.cwd()) {
+  const metadata = readPublicShowcaseBuildMetadata(cwd, env.AROMAN_TEST_NEXT_DIST_DIR || '.next');
+  return env.AROMAN_RELEASE_SCOPE === 'public-showcase' && metadata?.apiBase === '/api/v1' && !env.AROMAN_API_BASE_URL
+    ? { ...env, AROMAN_API_BASE_URL: env.AROMAN_CATALOG_UPSTREAM_URL }
+    : env;
+}
+
 export function main(args = process.argv.slice(2), env = process.env) {
   const error = publicShowcaseStartConfigurationError(env);
   if (error) { console.error(error); return 1; }
   const next = process.platform === 'win32' ? 'next.cmd' : 'next';
-  const result = spawnSync(next, ['start', ...args], { stdio: 'inherit', env });
+  const result = spawnSync(next, ['start', ...args], { stdio: 'inherit', env: publicShowcaseRuntimeEnv(env) });
   return result.status ?? 1;
 }
 

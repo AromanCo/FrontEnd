@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
+import { publicShowcaseRuntimeEnv } from './public-showcase-start.mjs';
 
 const origin = process.env.FRONTEND_ORIGIN || 'http://127.0.0.1:3201';
 const apiOrigin = 'http://127.0.0.1:18762';
@@ -13,21 +14,27 @@ const product = {
   brand_id: '00000000-0000-4000-8000-000000000122', family_id: null,
 };
 const upstreamCalls = [];
+let failVariants = false;
 const apiServer = createServer((request, response) => {
   const url = new URL(request.url || '/', apiOrigin);
   upstreamCalls.push(`${request.method} ${url.pathname}`);
-  response.writeHead(200, { 'content-type': 'application/json' });
-  response.end(JSON.stringify(url.pathname === '/api/v1/products' ? [product] : []));
+  const isProducts = url.pathname === '/api/v1/products';
+  const query = url.searchParams.get('q');
+  const unavailable = (isProducts && query === 'unavailable')
+    || (failVariants && url.pathname === `/api/v1/products/${productId}/variants`);
+  response.writeHead(unavailable ? 503 : 200, { 'content-type': 'application/json' });
+  response.end(JSON.stringify(isProducts && !['no-match', 'unavailable'].includes(query) ? [product] : []));
 });
 await new Promise(resolve => apiServer.listen(18762, '127.0.0.1', resolve));
 
+const runtimeEnv = {
+  ...process.env,
+  AROMAN_RELEASE_SCOPE: 'public-showcase',
+  AROMAN_CATALOG_UPSTREAM_URL: `${apiOrigin}/api/v1`,
+};
+delete runtimeEnv.AROMAN_API_BASE_URL;
 const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', new URL(origin).port], {
-  env: {
-    ...process.env,
-    AROMAN_RELEASE_SCOPE: 'public-showcase',
-    AROMAN_API_BASE_URL: `${apiOrigin}/api/v1`,
-    AROMAN_CATALOG_UPSTREAM_URL: `${apiOrigin}/api/v1`,
-  },
+  env: publicShowcaseRuntimeEnv(runtimeEnv),
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let serverLog = '';
@@ -57,6 +64,21 @@ try {
   const unsupportedMethod = await fetch(`${origin}/api/v1/products`, { method: 'POST', body: '{}' });
   assert.equal(unsupportedMethod.status, 405, 'unsupported method should be rejected by the running Next.js server');
   assert.equal(upstreamCalls.length, upstreamCallsBeforeRejectedRequests, 'rejected requests must not reach the upstream fixture');
+
+  const catalog = await (await fetch(`${origin}/shop`)).text();
+  assert.ok(catalog.includes(product.name), 'server-rendered catalog should use the configured private upstream');
+  const emptyCatalog = await (await fetch(`${origin}/shop?q=no-match`)).text();
+  assert.match(emptyCatalog, /برای این جستجو محصولی پیدا نشد/);
+  const unavailableCatalog = await (await fetch(`${origin}/shop?q=unavailable&offset=12`)).text();
+  assert.match(unavailableCatalog, /کاتالوگ موقتاً در دسترس نیست/);
+  assert.ok(unavailableCatalog.includes('href="/shop?q=unavailable&amp;offset=12"'), 'retry should retain search and page');
+  failVariants = true;
+  const detail = await (await fetch(`${origin}/shop/${productId}?q=search`)).text();
+  assert.ok(detail.includes(product.name), 'a variant failure should preserve the product details');
+  assert.match(detail, /فهرست گونه‌های این محصول بارگذاری نشد/);
+  assert.ok(detail.includes(`href="/shop/${productId}?q=search"`), 'variant retry should retain the catalog search');
+  failVariants = false;
+  console.log('PASS catalog empty result, search-preserving retry, and product details with unavailable variants.');
 
   const journey = spawn(process.execPath, ['scripts/public-showcase-journey.mjs'], {
     env: { ...process.env, FRONTEND_ORIGIN: origin, NEXT_PUBLIC_AROMAN_API_BASE_URL: '/api/v1' },

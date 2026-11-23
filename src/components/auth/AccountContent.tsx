@@ -3,9 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ApiError, concepts, type Concept, type User } from '@/lib/api/client';
+import { normalizeSearch } from '@/lib/normalize-search';
+import { Dialog } from '@/components/ui/Dialog';
 import { useAuth } from './AuthProvider';
 
 type Layer = 'top' | 'heart' | 'base';
+type CollectionAction = { kind: 'duplicate'; copy: Concept } | { kind: 'delete' };
+
+const conceptEditorHref = (id: string) => '/studio/creative?concept=' + encodeURIComponent(id);
 
 const layerDetails: { key: Layer; name: string; accent: string; track: string }[] = [
   { key: 'top', name: 'آغازین', accent: 'bg-[#d6ad72]', track: 'bg-[#f7ead7]' },
@@ -49,37 +54,25 @@ function LayerPreview({ notes }: { notes: Concept['notes'] }) {
 
 function ConceptCard({
   concept,
-  position,
   busy,
   onAction,
 }: {
   concept: Concept;
-  position: number;
   busy: boolean;
   onAction: (id: string, kind: 'duplicate' | 'delete') => void;
 }) {
   return (
     <article className="card flex h-full min-w-0 flex-col overflow-hidden shadow-[0_12px_32px_rgba(56,42,61,0.035)] transition-shadow hover:shadow-[0_18px_44px_rgba(56,42,61,0.09)]">
-      <div className="relative overflow-hidden bg-[linear-gradient(125deg,#f6ebee,#f8f1e6_55%,#eff2e9)] px-5 pb-5 pt-6 sm:px-6">
-        <div className="pointer-events-none absolute -left-8 -top-16 h-48 w-48 rounded-full border border-white/80" aria-hidden="true" />
-        <div className="relative mb-5 flex items-center justify-between gap-3">
-          <span className="eyebrow">AROMAN ATELIER</span>
-          <span className="rounded-full border border-[#daccd3] bg-white/70 px-3 py-1 text-xs text-[#715b72]">
-            شماره {position.toLocaleString('fa-IR')}
-          </span>
-        </div>
-        <div className="relative">
-          <LayerPreview notes={concept.notes} />
-        </div>
+      <div className="account-concept-preview px-5 py-5 sm:px-6">
+        <LayerPreview notes={concept.notes} />
       </div>
       <div className="flex flex-1 flex-col p-5 sm:p-6">
-        <p className="eyebrow">مفهوم ذخیره‌شده</p>
         <h3 className="mt-2 break-words text-2xl font-semibold leading-relaxed">{concept.name}</h3>
         <p className="mt-2 text-sm leading-7 text-[#806f7d]">
-          ترکیب شخصی شما با {concept.notes.length.toLocaleString('fa-IR')} نت در لایه‌های رایحه
+          {concept.notes.length.toLocaleString('fa-IR')} نت در ترکیب
         </p>
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-6">
-          <Link className="btn btn-primary flex-1 text-center" href={'/studio/creative?concept=' + encodeURIComponent(concept.id)}>
+          <Link className="btn btn-primary flex-1 text-center" href={conceptEditorHref(concept.id)}>
             باز کردن و ویرایش
           </Link>
           <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => onAction(concept.id, 'duplicate')}>
@@ -94,14 +87,13 @@ function ConceptCard({
   );
 }
 
-export function AccountContent() {
+export function AccountContent({ demoCheckout = false }: { demoCheckout?: boolean }) {
   const { user, loading, error: authError } = useAuth();
 
   if (authError && !user) return <p role="status">پس از بررسی دوباره نشست، محتوای حساب نمایش داده می‌شود.</p>;
   if (loading) return <p role="status">در حال بررسی نشست…</p>;
   if (!user) return (
     <div className="card mx-auto max-w-2xl p-8 text-center sm:p-12">
-      <p className="eyebrow">MY AROMAN</p>
       <h1 className="heading mt-4">حساب من</h1>
       <p className="my-6 leading-8 text-[#715b72]">برای دیدن و ادامه‌دادن رایحه‌های شخصی خود وارد شوید.</p>
       <Link className="btn btn-primary" href="/login">ورود</Link>
@@ -110,28 +102,43 @@ export function AccountContent() {
 
   // Each authenticated identity owns a fresh collection and in-flight loading state.
   // Never render the previous account's saved concepts while another user loads.
-  return <AuthenticatedAccountContent key={user.id} user={user} />;
+  return <AuthenticatedAccountContent key={user.id} user={user} demoCheckout={demoCheckout} />;
 }
 
-function AuthenticatedAccountContent({ user }: { user: User }) {
+function AuthenticatedAccountContent({ user, demoCheckout }: { user: User; demoCheckout: boolean }) {
   const { logout } = useAuth();
   const [items, setItems] = useState<Concept[]>([]);
+  const [search, setSearch] = useState('');
   const [busy, setBusy] = useState('');
+  const [deleteCandidate, setDeleteCandidate] = useState<Concept | null>(null);
+  const cancelDeleteButton = useRef<HTMLButtonElement>(null);
+  const collectionHeading = useRef<HTMLHeadingElement>(null);
+  const focusCollectionAfterDelete = useRef(false);
+  const closeDeleteDialog = useCallback(() => setDeleteCandidate(null), []);
+
+  useEffect(() => {
+    if (deleteCandidate || !focusCollectionAfterDelete.current) return;
+    focusCollectionAfterDelete.current = false;
+    collectionHeading.current?.focus();
+  }, [deleteCandidate]);
   const actionRef = useRef(false);
   const activeListRequest = useRef<AbortController | null>(null);
   const mounted = useRef(false);
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [listError, setListError] = useState(false);
+  const [completedAction, setCompletedAction] = useState<CollectionAction | null>(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loadingItems, setLoadingItems] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const query = normalizeSearch(search);
+  const visibleItems = query ? items.filter(item => normalizeSearch(item.name).includes(query)) : items;
 
   const loadPage = useCallback(async (nextOffset = 0) => {
     if (!mounted.current || activeListRequest.current) return;
     const controller = new AbortController();
     activeListRequest.current = controller;
-    setError('');
+    setListError(false);
     if (nextOffset === 0) setLoadingItems(true);
     else setLoadingMore(true);
     try {
@@ -140,10 +147,8 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
       setItems(current => nextOffset ? [...current, ...page] : page);
       setOffset(nextOffset + page.length);
       setHasMore(page.length === 20);
-    } catch (cause) {
-      if (!controller.signal.aborted) {
-        setError(cause instanceof ApiError ? cause.message : 'بارگذاری انجام نشد.');
-      }
+    } catch {
+      if (!controller.signal.aborted) setListError(true);
     } finally {
       if (!controller.signal.aborted) {
         activeListRequest.current = null;
@@ -166,19 +171,20 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
 
   const runAction = async (id: string, kind: 'duplicate' | 'delete') => {
     if (actionRef.current || activeListRequest.current) return;
-    if (kind === 'delete' && !window.confirm('این مفهوم حذف شود؟')) return;
     actionRef.current = true;
     setBusy(id);
     setError('');
-    setMessage('');
+    setCompletedAction(null);
     try {
+      let completed: CollectionAction;
       if (kind === 'duplicate') {
-        await concepts.duplicate(id);
+        completed = { kind, copy: await concepts.duplicate(id) };
       } else {
         await concepts.remove(id);
+        completed = { kind };
       }
       if (!mounted.current) return;
-      setMessage(kind === 'duplicate' ? 'مفهوم کپی شد.' : 'مفهوم حذف شد.');
+      setCompletedAction(completed);
       setItems([]);
       setOffset(0);
       setHasMore(false);
@@ -193,11 +199,10 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
 
   return (
     <div dir="rtl">
-      <header className="relative overflow-hidden rounded-[2rem] border border-[#e7d9dd] bg-[linear-gradient(120deg,#fffaf6,#f5eaf0)] px-6 py-8 sm:px-9 sm:py-10 lg:px-12">
+      <header className="account-intro relative overflow-hidden rounded-2xl border px-6 py-8 sm:px-9 sm:py-10 lg:px-12">
         <div className="pointer-events-none absolute -left-14 -top-20 h-64 w-64 rounded-full border border-white/80" aria-hidden="true" />
         <div className="relative flex flex-col justify-between gap-7 lg:flex-row lg:items-end">
           <div className="max-w-2xl">
-            <p className="eyebrow">MY AROMAN · فضای شخصی شما</p>
             <h1 className="heading mt-3">مفاهیم من</h1>
             <p className="mt-3 max-w-xl leading-8 text-[#715b72]">
               رایحه‌هایی که ساخته‌اید، همین‌جا منتظر ادامهٔ داستان شما هستند.
@@ -209,6 +214,7 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Link className="btn btn-primary" href="/studio/creative">ساخت رایحه تازه</Link>
+            {demoCheckout && <a className="btn btn-secondary" href="#demo-orders">سفارش‌های آزمایشی</a>}
             <button
               type="button"
               className="btn btn-secondary"
@@ -221,17 +227,25 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
       </header>
 
       {error && <div role="alert" className="mt-6 rounded-2xl bg-blush p-4 leading-7">{error}</div>}
-      {message && <div role="status" className="mt-6 rounded-2xl bg-sage/30 p-4 leading-7">{message}</div>}
+      {completedAction && (
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-sage/30 p-4 leading-7">
+          <p role="status">
+            {completedAction.kind === 'duplicate' ? <>مفهوم کپی شد. <strong className="break-words">«{completedAction.copy.name}»</strong></> : 'مفهوم حذف شد.'}
+          </p>
+          {completedAction.kind === 'duplicate' && (
+            <Link className="btn btn-secondary" href={conceptEditorHref(completedAction.copy.id)}>ویرایش نسخهٔ کپی</Link>
+          )}
+        </div>
+      )}
 
       <section aria-labelledby="account-concepts-heading" className="mt-9 sm:mt-12">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="eyebrow">YOUR COLLECTION</p>
-            <h2 id="account-concepts-heading" className="mt-2 text-2xl font-semibold sm:text-3xl">مجموعهٔ رایحه‌های شما</h2>
+            <h2 id="account-concepts-heading" ref={collectionHeading} tabIndex={-1} className="mt-2 text-2xl font-semibold sm:text-3xl">مجموعهٔ رایحه‌های شما</h2>
           </div>
           {!loadingItems && items.length > 0 && (
             <p className="rounded-full border border-[#e5d9ce] bg-white/70 px-4 py-2 text-sm text-[#715b72]">
-              {items.length.toLocaleString('fa-IR')} مفهوم نمایش داده‌شده
+              {visibleItems.length.toLocaleString('fa-IR')} مفهوم نمایش داده‌شده
             </p>
           )}
         </div>
@@ -240,7 +254,7 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
           <div role="status" className="card p-9 text-center leading-8">در حال بارگذاری مفاهیم شما…</div>
         )}
 
-        {!loadingItems && items.length === 0 && !error && (
+        {!loadingItems && items.length === 0 && !listError && (
           <div className="card relative overflow-hidden px-6 py-12 text-center sm:px-10 sm:py-16">
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-[#f3e7ee]" aria-hidden="true">
               <span className="text-4xl text-[#806080]">✦</span>
@@ -256,39 +270,88 @@ function AuthenticatedAccountContent({ user }: { user: User }) {
           </div>
         )}
 
-        {!loadingItems && items.length === 0 && error && (
+        {!loadingItems && items.length === 0 && listError && (
           <div className="card p-8 text-center">
-            <p className="leading-8">مفاهیم ذخیره‌شده بارگذاری نشدند.</p>
-            <button className="btn btn-secondary mt-5" type="button" onClick={() => void loadPage()}>
+            <p role="alert" className="leading-8">مفاهیم ذخیره‌شده بارگذاری نشدند.</p>
+            <button className="btn btn-secondary mt-5" type="button" disabled={Boolean(busy)} onClick={() => void loadPage()}>
               تلاش دوباره
             </button>
           </div>
         )}
 
         {items.length > 0 && (
+          <div className="account-collection-search">
+            <label htmlFor="account-concept-search">جستجو بر اساس نام رایحه</label>
+            <div className="account-collection-search-controls">
+              <input
+                className="input"
+                id="account-concept-search"
+                type="search"
+                value={search}
+                onChange={event => setSearch(event.target.value)}
+                aria-describedby={hasMore ? 'account-concept-search-scope' : undefined}
+              />
+              {search && <button className="btn btn-secondary" type="button" onClick={() => setSearch('')}>پاک کردن</button>}
+            </div>
+            {hasMore && <p id="account-concept-search-scope">جستجو در رایحه‌های بارگذاری‌شده انجام می‌شود. برای بررسی بقیه، «نمایش بیشتر» را بزنید.</p>}
+          </div>
+        )}
+
+        {items.length > 0 && visibleItems.length === 0 && (
+          <p className="card p-6" role="status">
+            {hasMore ? 'در رایحه‌های بارگذاری‌شده نامی مطابق جستجو پیدا نشد.' : 'رایحه‌ای با این نام پیدا نشد.'}
+          </p>
+        )}
+
+        {visibleItems.length > 0 && (
           <div className="grid gap-5 md:grid-cols-2">
-            {items.map((item, index) => (
+            {visibleItems.map(item => (
               <ConceptCard
                 key={item.id}
                 concept={item}
-                position={index + 1}
                 busy={Boolean(busy) || loadingItems || loadingMore}
-                onAction={(id, kind) => void runAction(id, kind)}
+                onAction={(id, kind) => {
+                  if (kind === 'delete') setDeleteCandidate(item);
+                  else void runAction(id, kind);
+                }}
               />
             ))}
           </div>
         )}
 
         {hasMore && (
-          <div className="mt-8 flex justify-center">
+          <div className="mt-8 flex flex-col items-center gap-3 text-center">
+            {listError && <p role="alert" className="card px-5 py-3">دریافت رایحه‌های بیشتر انجام نشد. می‌توانید دوباره همین صفحه را دریافت کنید.</p>}
+            {loadingMore && <p role="status" className="sr-only">در حال دریافت رایحه‌های بیشتر…</p>}
             <button type="button" className="btn btn-secondary" disabled={loadingItems || loadingMore || Boolean(busy)} onClick={() => {
               if (!actionRef.current) void loadPage(offset);
             }}>
-              {loadingMore ? 'در حال بارگذاری…' : 'نمایش بیشتر'}
+              {loadingMore ? 'در حال بارگذاری…' : listError ? 'تلاش دوباره برای دریافت رایحه‌های بیشتر' : 'نمایش بیشتر'}
             </button>
           </div>
         )}
       </section>
+
+      {deleteCandidate && (
+        <Dialog title="حذف رایحهٔ ذخیره‌شده" onClose={closeDeleteDialog} initialFocusRef={cancelDeleteButton}>
+          <h2 className="text-xl">این رایحه حذف شود؟</h2>
+          <p className="mt-3 break-words leading-8">«{deleteCandidate.name}» از مجموعهٔ شما حذف می‌شود و بازگرداندن آن ممکن نیست.</p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button ref={cancelDeleteButton} type="button" className="btn btn-secondary" onClick={closeDeleteDialog}>انصراف</button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                focusCollectionAfterDelete.current = true;
+                closeDeleteDialog();
+                void runAction(deleteCandidate.id, 'delete');
+              }}
+            >
+              حذف رایحه
+            </button>
+          </div>
+        </Dialog>
+      )}
     </div>
   );
 }

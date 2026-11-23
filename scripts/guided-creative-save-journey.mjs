@@ -123,7 +123,7 @@ try {
   const guidedSnapshot = { name: guidedName, selections: guidedSelections };
   assertValidSnapshot(guidedSnapshot, 'Guided result');
 
-  const nextStep = page.getByRole('region', { name: 'ادامه در استودیوی خلاق' });
+  const nextStep = page.getByRole('region', { name: 'ترکیب را به سلیقهٔ خودتان بچینید' });
   const creativeLink = nextStep.getByRole('button', { name: 'رفتن به استودیوی خلاق', exact: true });
   assert.equal(await creativeLink.getAttribute('aria-describedby'), 'guided-transfer-description');
   await creativeLink.click();
@@ -325,7 +325,7 @@ try {
   const accountListResponsePromise = page.waitForResponse(response =>
     new URL(response.url()).pathname === '/api/v1/fragrance-concepts' && response.request().method() === 'GET',
   );
-  await page.goto(`${frontendOrigin}/account`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('link', { name: 'دیدن مفاهیم ذخیره‌شده', exact: true }).click();
   await page.waitForURL(`${frontendOrigin}/account`);
   await page.getByRole('heading', { name: 'مفاهیم من' }).waitFor();
   const accountListResponse = await accountListResponsePromise;

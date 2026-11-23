@@ -3,6 +3,7 @@
 import { useId, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Brand, Family } from '@/lib/api/client';
+import { catalogSearchSuffix } from '@/lib/catalog-search';
 
 type Props = {
   q: string;
@@ -12,25 +13,16 @@ type Props = {
   families: Family[];
 };
 
-function catalogUrl(q: string, brandId: string, familyId: string) {
-  const query = new URLSearchParams();
-  const search = q.trim().slice(0, 100);
-  if (search) query.set('q', search);
-  if (brandId) query.set('brand_id', brandId);
-  if (familyId) query.set('family_id', familyId);
-  const suffix = query.toString();
-  return suffix ? `/shop?${suffix}` : '/shop';
-}
-
 export function CatalogControls({ q, brandId, familyId, brands, families }: Props) {
   const router = useRouter();
   const fieldId = useId();
   const [search, setSearch] = useState(q);
   const [brand, setBrand] = useState(brandId);
   const [family, setFamily] = useState(familyId);
+  const [showFilters, setShowFilters] = useState(Boolean(brandId || familyId));
 
   const apply = (nextSearch: string, nextBrand: string, nextFamily: string) => {
-    router.push(catalogUrl(nextSearch, nextBrand, nextFamily));
+    router.push('/shop' + catalogSearchSuffix({ q: nextSearch, brand_id: nextBrand, family_id: nextFamily }));
   };
 
   const removeAll = () => {
@@ -59,16 +51,16 @@ export function CatalogControls({ q, brandId, familyId, brands, families }: Prop
       <form
         role="search"
         aria-label="جستجو و فیلتر محصولات"
-        className="card grid gap-4 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+        className="card catalog-search-form"
         onSubmit={event => {
           event.preventDefault();
           apply(search, brand, family);
         }}
       >
-        <div className="grid min-w-0 gap-2 sm:col-span-2 lg:col-span-1">
-          <label className="text-sm" htmlFor={`${fieldId}-search`}>جستجوی نام</label>
+        <div className="catalog-search-field">
+          <label className="text-sm" htmlFor="catalog-product-search">جستجوی نام</label>
           <input
-            id={`${fieldId}-search`}
+            id="catalog-product-search"
             className="input"
             type="search"
             maxLength={100}
@@ -77,21 +69,27 @@ export function CatalogControls({ q, brandId, familyId, brands, families }: Prop
             placeholder="نام محصول"
           />
         </div>
-        <div className="grid min-w-0 gap-2">
-          <label className="text-sm" htmlFor={`${fieldId}-brand`}>برند</label>
-          <select className="input" id={`${fieldId}-brand`} value={brand} onChange={event => setBrand(event.target.value)}>
-            <option value="">همه برندها</option>
-            {brands.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
+        <button type="button" className="btn btn-secondary catalog-filter-toggle" aria-expanded={showFilters}
+          aria-controls={`${fieldId}-options`} onClick={() => setShowFilters(open => !open)}>
+          فیلترهای برند و خانواده
+        </button>
+        <div id={`${fieldId}-options`} className="catalog-filter-options" data-expanded={showFilters}>
+          <div className="grid min-w-0 gap-2">
+            <label className="text-sm" htmlFor={`${fieldId}-brand`}>برند</label>
+            <select className="input" id={`${fieldId}-brand`} value={brand} onChange={event => setBrand(event.target.value)}>
+              <option value="">همه برندها</option>
+              {brands.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </div>
+          <div className="grid min-w-0 gap-2">
+            <label className="text-sm" htmlFor={`${fieldId}-family`}>خانواده رایحه</label>
+            <select className="input" id={`${fieldId}-family`} value={family} onChange={event => setFamily(event.target.value)}>
+              <option value="">همه خانواده‌ها</option>
+              {families.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </div>
         </div>
-        <div className="grid min-w-0 gap-2">
-          <label className="text-sm" htmlFor={`${fieldId}-family`}>خانواده رایحه</label>
-          <select className="input" id={`${fieldId}-family`} value={family} onChange={event => setFamily(event.target.value)}>
-            <option value="">همه خانواده‌ها</option>
-            {families.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
-        </div>
-        <button type="submit" className="btn btn-primary self-end sm:col-span-2 lg:col-span-1">اعمال فیلتر</button>
+        <button type="submit" className="btn btn-primary catalog-search-submit">اعمال فیلتر</button>
       </form>
 
       {activeFilters.length > 0 && (
@@ -101,14 +99,14 @@ export function CatalogControls({ q, brandId, familyId, brands, families }: Prop
             <button
               key={filter.key}
               type="button"
-              className="rounded-full border border-[#d9c5d4] bg-white/70 px-4 py-2 text-sm text-plum transition-colors hover:bg-[#f5eaf0]"
+              className="catalog-filter-chip"
               onClick={filter.clear}
               aria-label={`حذف ${filter.label}`}
             >
               {filter.label} <span aria-hidden="true">×</span>
             </button>
           ))}
-          <button type="button" className="px-3 py-2 text-sm underline underline-offset-4" onClick={removeAll}>
+          <button type="button" className="min-h-11 px-3 py-2 text-sm underline underline-offset-4" onClick={removeAll}>
             پاک کردن همه فیلترها
           </button>
         </div>

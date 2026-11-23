@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { catalog, type Family, type Product } from '@/lib/api/client';
 import { ProductCard } from '@/components/catalog/ProductCard';
 import { FamilyCard } from '@/components/home/FamilyCard';
-import { AtelierHeroArtwork } from '@/components/home/AtelierHeroArtwork';
+import Image from 'next/image';
+import { feelingOptions } from '@/lib/studio/guided/presentation';
 import { StudioInvitationArtwork } from '@/components/home/StudioInvitationArtwork';
 
 export default async function Home() {
@@ -19,23 +20,34 @@ export default async function Home() {
     <section className="atelier-hero">
       <div className="atelier-hero-inner container">
         <div className="atelier-hero-copy">
-          <p className="eyebrow"><span className="hero-kicker-mark" aria-hidden="true">✳</span> آتلیه‌ی رایحه‌ی آرومان</p>
-          <h1>رایحه‌ای که<br /><em>از شما آغاز می‌شود.</em></h1>
-          <p className="atelier-hero-lede">با چند پرسش از سلیقه‌تان شروع کنید، نت‌های دلخواهتان را بچینید یا مجموعهٔ نمایشی رایحه‌ها را ببینید.</p>
+          <p className="eyebrow">آتلیهٔ رایحهٔ آرومان</p>
+          <h1>رایحه‌ای که<br /><em>شبیه شماست.</em></h1>
+          <p className="atelier-hero-lede">از یک حس شروع کنید. در ۶ گام، نت‌های دلخواهتان را پیدا کنید و ایدهٔ رایحهٔ شخصی‌تان را ببینید.</p>
           <nav className="atelier-hero-actions" aria-label="مسیرهای شروع آرومان">
             <Link className="btn btn-primary" href="/studio/guided">شروع کشف با راهنما <span aria-hidden="true">←</span></Link>
-            <Link className="btn btn-atelier-outline" href="/studio/creative">ساخت مفهوم رایحه</Link>
-            <Link className="btn btn-atelier-outline" href="/shop">کشف مجموعه رایحه‌ها</Link>
+            <Link className="text-link" href="/shop">کشف مجموعه رایحه‌ها</Link>
+            <Link className="text-link" href="/studio/creative">ساخت مفهوم رایحه</Link>
           </nav>
+          <div className="hero-feelings" role="group" aria-labelledby="hero-feelings-label">
+            <p id="hero-feelings-label">رایحهٔ شما چه حسی داشته باشد؟</p>
+            <ul>
+              {feelingOptions.filter(({ value }) => value === 'calm' || value === 'bright' || value === 'intimate').map(({ value, label, tone }) => (
+                <li key={value}><Link href={`/studio/guided?feeling=${value}`} data-tone={tone}>{label}</Link></li>
+              ))}
+            </ul>
+          </div>
         </div>
-        <AtelierHeroArtwork />
+        <figure className="hero-photo">
+          <Image src="/images/atelier-editorial.webp" alt="" fill preload sizes="(max-width: 760px) 100vw, 55vw" />
+          <figcaption>تصویر مفهومی</figcaption>
+        </figure>
       </div>
     </section>
 
     <section className="home-discovery section" id="discover">
       <div className="container">
         <header className="section-editorial-heading">
-          <div><p className="eyebrow">۰۱ / مجموعه‌ی آرومان</p><h2 className="heading">رایحه‌هایی برای کشف</h2><p>با مجموعه‌ی نمایشی کاتالوگ آشنا شوید.</p></div>
+          <div><h2 className="heading">رایحه‌هایی برای کشف</h2><p>برای شناخت رایحه‌ها، از نمونه‌های این مجموعه شروع کنید.</p></div>
           <Link className="text-link" href="/shop">دیدن مجموعه رایحه‌ها <span aria-hidden="true">←</span></Link>
         </header>
         {unavailable ? <p className="catalog-state" role="status">کاتالوگ در دسترس نیست. لطفاً کمی بعد دوباره سر بزنید.</p> : products.length ? <div className="home-product-grid">{products.map(product => <ProductCard key={product.id} product={product} />)}</div> : <p className="catalog-state">هنوز محصولی در کاتالوگ ثبت نشده است.</p>}
@@ -46,10 +58,9 @@ export default async function Home() {
     <section className="family-atelier section">
       <div className="container">
         <header className="section-editorial-heading family-heading">
-          <div><p className="eyebrow">۰۲ / جهان‌های بویایی</p><h2 className="heading">از کدام فضا آغاز کنیم؟</h2><p>خانواده‌های رایحه را از کاتالوگ انتخاب کنید و مسیر کشف را ادامه دهید.</p></div>
-          <span className="family-heading-note">هر خانواده<br />یک حال‌وهوا</span>
+          <div><h2 className="heading">از کدام فضا آغاز کنیم؟</h2><p>خانواده‌های رایحه را از کاتالوگ انتخاب کنید و مسیر کشف را ادامه دهید.</p></div>
         </header>
-        {unavailable ? <p className="catalog-state" role="status">خانواده‌های رایحه اکنون در دسترس نیستند.</p> : families.length ? <div className="family-world-grid">{families.map((family, index) => <FamilyCard key={family.id} family={family} index={index} />)}</div> : <p className="catalog-state">هنوز خانواده‌ی رایحه‌ای ثبت نشده است.</p>}
+        {unavailable ? <p className="catalog-state" role="status">خانواده‌های رایحه اکنون در دسترس نیستند.</p> : families.length ? <div className="family-world-grid">{families.map(family => <FamilyCard key={family.id} family={family} />)}</div> : <p className="catalog-state">هنوز خانواده‌ی رایحه‌ای ثبت نشده است.</p>}
       </div>
     </section>
 
@@ -57,10 +68,9 @@ export default async function Home() {
       <div className="container studio-invitation-inner">
         <StudioInvitationArtwork />
         <div className="studio-invitation-copy">
-          <p className="eyebrow">۰۳ / استودیو خلاق</p>
+          <p className="eyebrow">استودیو خلاق</p>
           <h2 className="heading">ساختن، راه دیگری برای کشف است.</h2>
           <p>از میان نت‌های کاتالوگ انتخاب کنید، آن‌ها را در سه لایه بچینید و پیش‌نمایش مفهومی روایت خود را ببینید.</p>
-          <div className="invitation-facts"><span>تا ۶ نت</span><span>۳ لایه‌ی رایحه</span><span>یک مفهوم شخصی</span></div>
           <Link className="btn btn-light" href="/studio/creative">ورود به استودیو خلاق <span aria-hidden="true">↗</span></Link>
         </div>
       </div>
@@ -68,7 +78,7 @@ export default async function Home() {
 
     <section className="guided-invitation section">
       <div className="container guided-invitation-inner">
-        <div><p className="eyebrow">۰۴ / استودیو راهنما</p><h2 className="heading">با چند پرسش، مسیر رایحه‌تان را پیدا کنید</h2><p>به چند پرسش دربارهٔ حس‌وحال و سلیقه‌تان پاسخ دهید تا یک پیشنهاد مفهومی رایحه دریافت کنید.</p><Link className="text-link" href="/studio/guided">شروع استودیو راهنما <span aria-hidden="true">←</span></Link></div>
+        <div><p className="eyebrow">استودیو راهنما</p><h2 className="heading">با چند پرسش، مسیر رایحه‌تان را پیدا کنید</h2><p>به چند پرسش دربارهٔ حس‌وحال و سلیقه‌تان پاسخ دهید تا یک پیشنهاد مفهومی رایحه دریافت کنید.</p><Link className="text-link" href="/studio/guided">شروع استودیو راهنما <span aria-hidden="true">←</span></Link></div>
         <div className="guided-note"><span aria-hidden="true">✳</span><p>از یک حس آغاز کنید؛<br />پیشنهاد مفهومی خود را ببینید.</p><small>شش گام برای کشف رایحه</small></div>
       </div>
     </section>

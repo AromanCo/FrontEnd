@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { AccountContent } from './AccountContent';
 
 const mocks = vi.hoisted(() => ({
@@ -70,6 +70,22 @@ describe('AccountContent dashboard', () => {
     expect(screen.getByRole('button', { name: 'خروج' })).toBeTruthy();
   });
 
+  it('filters loaded concepts by Persian names and preserves search as more concepts load', async () => {
+    const firstPage = Array.from({ length: 20 }, (_, index) => ({ ...first, id: `page-one-${index + 1}` }));
+    mocks.list.mockResolvedValueOnce(firstPage).mockResolvedValueOnce([second]);
+    render(<AccountContent />);
+
+    const search = await screen.findByRole('searchbox', { name: 'جستجو بر اساس نام رایحه' });
+    fireEvent.change(search, { target: { value: 'رايحه‌باغ' } });
+    expect(screen.getByText('در رایحه‌های بارگذاری‌شده نامی مطابق جستجو پیدا نشد.')).toBeTruthy();
+    expect(mocks.list).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'نمایش بیشتر' }));
+    expect(await screen.findByRole('heading', { name: 'رایحه باغ' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'رایحه باران' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'پاک کردن' }));
+    expect(screen.getAllByRole('heading', { name: 'رایحه باران' })).toHaveLength(20);
+  });
+
   it('offers creative and guided starting points only for a genuinely empty account', async () => {
     mocks.list.mockResolvedValue([]);
     render(<AccountContent />);
@@ -104,6 +120,23 @@ describe('AccountContent dashboard', () => {
     await waitFor(() => expect(mocks.duplicate).toHaveBeenCalledWith('concept-1'));
     expect(await screen.findByRole('heading', { name: 'رایحه باغ' })).toBeTruthy();
     expect(screen.getByRole('status').textContent).toContain('مفهوم کپی شد.');
+    expect(screen.getByRole('status').textContent).toContain(second.name);
+    expect(screen.getByRole('link', { name: 'ویرایش نسخهٔ کپی' }).getAttribute('href'))
+      .toBe('/studio/creative?concept=concept-2');
+  });
+
+  it('keeps the direct copy link when refreshing the collection fails', async () => {
+    mocks.list.mockResolvedValueOnce([first]).mockRejectedValueOnce(new Error('refresh unavailable'));
+    mocks.duplicate.mockResolvedValue(second);
+    render(<AccountContent />);
+
+    await screen.findByRole('heading', { name: first.name });
+    fireEvent.click(screen.getByRole('button', { name: 'کپی' }));
+
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'ویرایش نسخهٔ کپی' }).getAttribute('href'))
+      .toBe('/studio/creative?concept=concept-2');
+    expect(mocks.duplicate).toHaveBeenCalledTimes(1);
   });
 
   it('does not send a second duplicate request while the first is unresolved', async () => {
@@ -128,18 +161,24 @@ describe('AccountContent dashboard', () => {
   });
 
   it('requires delete confirmation and does not replay an uncertain delete', async () => {
-    const confirmation = vi.spyOn(window, 'confirm').mockReturnValue(false);
     mocks.list.mockResolvedValue([first]);
     mocks.remove.mockRejectedValueOnce(new Error('uncertain network response'));
     render(<AccountContent />);
 
     await screen.findByRole('heading', { name: 'رایحه باران' });
-    fireEvent.click(screen.getByRole('button', { name: 'حذف' }));
-    expect(confirmation).toHaveBeenCalledTimes(1);
+    const remove = screen.getByRole('button', { name: 'حذف' });
+    remove.focus();
+    fireEvent.click(remove);
+    const dialog = screen.getByRole('dialog', { name: 'حذف رایحهٔ ذخیره‌شده' });
+    expect(within(dialog).getByText(/«رایحه باران»/)).toBeTruthy();
+    expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'انصراف' }));
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(remove);
     expect(mocks.remove).not.toHaveBeenCalled();
 
-    confirmation.mockReturnValue(true);
-    fireEvent.click(screen.getByRole('button', { name: 'حذف' }));
+    fireEvent.click(remove);
+    fireEvent.click(screen.getByRole('button', { name: 'حذف رایحه' }));
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(mocks.remove).toHaveBeenCalledTimes(1);
     expect(mocks.remove).toHaveBeenCalledWith('concept-1');
@@ -162,7 +201,7 @@ describe('AccountContent dashboard', () => {
     expect(mocks.list).toHaveBeenCalledTimes(2);
     expect(mocks.list.mock.calls[1].slice(0, 2)).toEqual([20, 20]);
 
-    fireEvent.click(screen.getByRole('button', { name: 'نمایش بیشتر' }));
+    fireEvent.click(screen.getByRole('button', { name: 'تلاش دوباره برای دریافت رایحه‌های بیشتر' }));
     expect(await screen.findByRole('heading', { name: 'رایحه باغ' })).toBeTruthy();
     expect(mocks.list).toHaveBeenCalledTimes(3);
     expect(mocks.list.mock.calls[2].slice(0, 2)).toEqual([20, 20]);
@@ -201,7 +240,6 @@ describe('AccountContent dashboard', () => {
   });
 
   it('retries the list alone after a confirmed delete and failed refresh', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     mocks.remove.mockResolvedValue(undefined);
     mocks.list.mockResolvedValueOnce([first])
       .mockRejectedValueOnce(new Error('refresh unavailable'))
@@ -210,6 +248,7 @@ describe('AccountContent dashboard', () => {
 
     await screen.findByRole('heading', { name: 'رایحه باران' });
     fireEvent.click(screen.getByRole('button', { name: 'حذف' }));
+    fireEvent.click(screen.getByRole('button', { name: 'حذف رایحه' }));
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(screen.getByText('مفهوم حذف شد.')).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'رایحه باران' })).toBeNull();

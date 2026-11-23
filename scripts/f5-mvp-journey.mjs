@@ -125,6 +125,7 @@ async function checkCatalog(page, context) {
 
   const filters = page.getByRole('search', { name: 'جستجو و فیلتر محصولات' });
   await filters.getByRole('searchbox').fill(target.name);
+  await filters.getByRole('button', { name: 'فیلترهای برند و خانواده' }).click();
   await filters.getByLabel('برند').selectOption(target.brand_id);
   await filters.getByLabel('خانواده رایحه').selectOption(target.family_id);
   await filters.getByRole('button', { name: 'اعمال فیلتر' }).click();
@@ -132,11 +133,15 @@ async function checkCatalog(page, context) {
     url.searchParams.get('brand_id') === target.brand_id && url.searchParams.get('family_id') === target.family_id);
   await page.getByRole('button', { name: 'پاک کردن همه فیلترها' }).waitFor();
   await waitForCatalogCards(page, filteredPaths);
-  await page.locator('.product-editorial-card .product-detail-link[href="' + targetPath + '"]:visible').click();
-  await page.waitForURL(frontendOrigin + targetPath);
+  const searchContext = new URL(page.url()).search;
+  await page.locator('.product-editorial-card .product-detail-link:visible').click();
+  await page.waitForURL(frontendOrigin + targetPath + searchContext);
   await page.getByRole('heading', { name: target.name, exact: true }).waitFor();
   await page.getByRole('heading', { name: 'گونه‌ها', exact: true }).waitFor();
   await page.getByRole('listitem').filter({ hasText: 'نمونه مفهومی · نمایشی' }).waitFor();
+  await page.getByRole('link', { name: 'بازگشت به نتایج', exact: true }).click();
+  await page.waitForURL(frontendOrigin + '/shop' + searchContext);
+  await waitForCatalogCards(page, filteredPaths);
 
   const repeated = new URLSearchParams([
     ['q', target.name], ['q', 'aroman-f5-missing'], ['brand_id', target.brand_id],

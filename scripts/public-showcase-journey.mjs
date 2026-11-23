@@ -73,6 +73,17 @@ try {
     }
     const primary = paths.getByRole('link').first();
     assert.equal(await primary.getAttribute('href'), '/studio/guided');
+
+    const firstChoice = homePage.getByRole('group', { name: 'رایحهٔ شما چه حسی داشته باشد؟' });
+    await firstChoice.getByRole('link', { name: 'نزدیک و لطیف', exact: true }).click();
+    await homePage.waitForURL(url => url.pathname === '/studio/guided' && url.searchParams.get('feeling') === 'intimate');
+    const selected = homePage.locator('input[name="feeling"][value="intimate"]');
+    await selected.waitFor({ state: 'attached' });
+    assert.ok(await selected.isChecked(), `${viewport} should preserve the homepage choice in Guided`);
+    await homePage.locator('label').filter({ has: homePage.locator('input[name="feeling"][value="bright"]') }).click();
+    assert.ok(await homePage.locator('input[name="feeling"][value="bright"]').isChecked(), `${viewport} should be able to change the choice`);
+    assert.ok(!(await selected.isChecked()), `${viewport} should keep only one choice`);
+    await homePage.goto(new URL('/', origin).href);
   }
   for (const href of ['/login', '/account', '/cart', '/checkout']) {
     assert.equal(await desktopPage.locator(`a[href="${href}"]`).count(), 0, `public page chrome must omit ${href}`);
@@ -84,6 +95,14 @@ try {
   await catalogGuidedLink.waitFor({ state: 'visible' });
   assert.equal(await catalogGuidedLink.getAttribute('href'), '/studio/guided');
   const filters = shopMain.getByRole('search', { name: 'جستجو و فیلتر محصولات' });
+  const filterToggle = filters.getByRole('button', { name: 'فیلترهای برند و خانواده' });
+  assert.equal(await filterToggle.getAttribute('aria-expanded'), 'false');
+  assert.ok(await filters.getByRole('searchbox').isVisible());
+  await filterToggle.click();
+  assert.equal(await filterToggle.getAttribute('aria-expanded'), 'true');
+  await filterToggle.focus();
+  await page.keyboard.press('Tab');
+  assert.ok(await filters.getByLabel('برند', { exact: true }).evaluate(element => element === document.activeElement));
   await filters.getByLabel('برند', { exact: true }).waitFor({ state: 'visible' });
   await filters.getByLabel('خانواده رایحه', { exact: true }).waitFor({ state: 'visible' });
   await shopMain.locator('.product-detail-link').first().click();

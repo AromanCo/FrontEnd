@@ -137,8 +137,19 @@ async function runViewport(width) {
     await page.keyboard.press('Space');
     assert.equal(await feeling.isChecked(), true);
     await next('جهان‌های رایحه');
+    const moodSummary = page.getByRole('list', { name: 'انتخاب‌های قبلی شما' });
+    assert.equal(await moodSummary.textContent(), 'آرام و آسوده');
     await pointerChoice('checkbox', /گلی/);
+    const reviewFeeling = page.getByRole('button', { name: 'بازبینی مرحلهٔ حال‌وهوا' });
+    await activate(reviewFeeling);
+    const feelingHeading = page.getByRole('heading', { name: 'حال‌وهوای شما', exact: true });
+    await feelingHeading.waitFor();
+    assert.ok(await feelingHeading.evaluate(heading => heading === document.activeElement), 'Reviewed step should receive focus');
+    assert.equal(await feeling.isChecked(), true, 'Reviewed answer should remain selected');
+    await next('جهان‌های رایحه');
+    assert.equal(await page.getByRole('checkbox', { name: /گلی/ }).isChecked(), true, 'Later answers should remain selected');
     await next('دمای حسی');
+    assert.ok((await page.getByRole('list', { name: 'انتخاب‌های قبلی شما' }).textContent()).includes('گلی'));
     await pointerChoice('radio', /نرم و متعادل/);
     await next('یک تصویر برای خیال');
     await pointerChoice('radio', /گوشه‌ای پر از گل/);
@@ -163,6 +174,10 @@ async function runViewport(width) {
     await activate(page.getByRole('button', { name: 'دیدن پیشنهاد من', exact: true }));
     await page.getByRole('heading', { name: 'این تصویرِ رایحهٔ شماست', exact: true }).waitFor();
     await layout('Guided result');
+    assert.match(await page.getByRole('list', { name: 'خلاصهٔ پیشنهاد' }).textContent(), /آرام و آسوده/);
+    const composition = page.getByRole('region', { name: 'نت‌ها در سه لایه' });
+    const likedResultNote = composition.getByRole('listitem').filter({ has: page.getByText('رز', { exact: true }) });
+    assert.equal(await likedResultNote.getByText('پسندیدهٔ شما', { exact: true }).isVisible(), true);
     await activate(page.getByRole('button', { name: 'رفتن به استودیوی خلاق', exact: true }));
     await page.waitForURL(`${frontendOrigin}/studio/creative?from=guided`);
     await page.getByRole('status').filter({ hasText: 'پیشنهاد استودیوی هدایت‌شده برای ویرایش وارد شد.' }).waitFor();
@@ -188,6 +203,17 @@ async function runViewport(width) {
     await page.keyboard.press('Enter');
     assert.equal(await layer.inputValue(), targetLayer, 'Keyboard must change the selected layer');
     await panel(1).locator(`.composition-layer[data-layer="${targetLayer}"] [data-selected-note-id="${firstId}"]`).waitFor();
+    if (mobile) {
+      await activate(panel(1).getByRole('button', { name: 'دیدن پیش‌نمایش رایحه', exact: true }));
+      await selectedTab(2);
+      await page.waitForFunction(() => document.activeElement?.id === 'studio-panel-2-heading');
+      await panel(2).locator(`.preview-note-layer[data-layer="${targetLayer}"] [data-preview-note-id="${firstId}"]`).waitFor();
+      assert.equal(await panel(2).getByRole('heading', { name: `${name}، ویرایش‌شده` }).isVisible(), true);
+      await activate(panel(2).getByRole('button', { name: 'برگشت به ترکیب', exact: true }));
+      await selectedTab(1);
+      await page.waitForFunction(() => document.activeElement?.id === 'studio-panel-1-heading');
+      assert.equal(await conceptName.inputValue(), `${name}، ویرایش‌شده`);
+    }
     // Free one slot, then exercise real note selection without depending on recommendation size.
     await activate(panel(1).locator(`[data-selected-note-id="${firstId}"]`).getByRole('button', { name: 'حذف', exact: true }));
     assert.equal(await panel(1).locator('.composition-note').count(), initialCount - 1);

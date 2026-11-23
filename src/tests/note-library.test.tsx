@@ -15,15 +15,16 @@ const notes: Note[] = Array.from({ length: 24 }, (_, index) => ({
   family_id: family.id,
 }));
 
-function Harness() {
+function Harness({ loading = false, noteError = '', hasMore = false, onRetry = vi.fn() } = {}) {
   const [query, setQuery] = useState('');
   const [familyId, setFamilyId] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const filtered = notes.filter(note => (!query || note.name.includes(query)) && (!familyId || note.family_id === familyId));
   return <NoteLibrary
     notes={filtered} families={[family]} selectedIds={selected} count={selected.size} query={query} familyId={familyId}
-    loading={false} noteError="" familyError="" hasMore={false} active onQuery={setQuery} onFamily={setFamilyId}
-    onSelect={note => setSelected(current => new Set(current).add(note.id))} onRetry={vi.fn()} onRetryFamilies={vi.fn()}
+    loading={loading} noteError={noteError} familyError="" hasMore={hasMore} active onQuery={setQuery} onFamily={setFamilyId}
+    onClearFilters={() => { setQuery(''); setFamilyId(''); }}
+    onSelect={note => setSelected(current => new Set(current).add(note.id))} onRetry={onRetry} onRetryFamilies={vi.fn()}
     onMore={vi.fn()} onContinue={vi.fn()}
   />;
 }
@@ -55,5 +56,29 @@ describe('Creative Studio note library progressive disclosure', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'خانواده رایحه' }), { target: { value: family.id } });
     await waitFor(() => expect(screen.getByRole('button', { name: 'نمایش ۱۴ نت دیگر' })).toHaveAttribute('aria-expanded', 'false'));
     expect(screen.getAllByRole('button', { name: /خانواده گلی/ })).toHaveLength(24);
+  });
+
+  it('offers to clear filters after an empty search', () => {
+    render(<Harness />);
+    const search = screen.getByRole('textbox', { name: 'جستجوی نت' });
+    fireEvent.change(search, { target: { value: 'بدون نتیجه' } });
+    expect(screen.getByRole('status')).toHaveTextContent('نتی با این فیلترها پیدا نشد');
+    fireEvent.click(screen.getByRole('button', { name: 'پاک کردن فیلترهای نت' }));
+    expect(search).toHaveValue('');
+    expect(screen.getAllByRole('button', { name: /خانواده گلی/ })).toHaveLength(24);
+  });
+
+  it('leaves loaded notes available while loading and retrying another page', () => {
+    const onRetry = vi.fn();
+    const { rerender } = render(<Harness loading hasMore />);
+    expect(screen.getByRole('status')).toHaveTextContent('در حال دریافت نت‌های بیشتر');
+    expect(screen.getAllByRole('button', { name: /خانواده گلی/ })).toHaveLength(24);
+    expect(screen.getByRole('button', { name: 'دریافت نت‌های بیشتر از کاتالوگ' })).toBeDisabled();
+
+    rerender(<Harness noteError="خطا" hasMore onRetry={onRetry} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('دریافت نت‌های بیشتر انجام نشد');
+    expect(screen.getAllByRole('button', { name: /خانواده گلی/ })).toHaveLength(24);
+    fireEvent.click(screen.getByRole('button', { name: 'تلاش دوباره برای دریافت نت‌های بیشتر' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

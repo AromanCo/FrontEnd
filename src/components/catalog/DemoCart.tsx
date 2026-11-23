@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '@/lib/api/client';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { LoginForm } from '@/components/auth/LoginForm';
@@ -26,6 +26,11 @@ export function DemoCart() {
   const submitLock = useRef(false);
   const [orderError, setOrderError] = useState('');
   const [receipt, setReceipt] = useState<{ userId: string; id: string; subtotal: number } | null>(null);
+  const receiptPanel = useRef<HTMLElement>(null);
+  const visibleReceipt = receipt?.userId === user?.id ? receipt : null;
+  const closeLogin = useCallback(() => setLoginOpen(false), []);
+
+  useEffect(() => { if (visibleReceipt) receiptPanel.current?.focus(); }, [visibleReceipt]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -100,37 +105,41 @@ export function DemoCart() {
   };
 
   return (
-    <div className="container section">
+    <div className="container section cart-page">
       <h1 className="heading">سبد آزمایشی</h1>
       <p className="mt-3 leading-8">مبالغ به ریال و برای محصولات ساختگی هستند. سفارش آزمایشی موقت است و پرداختی انجام نمی‌شود.</p>
       {storageError && <p role="alert" className="mt-4">{storageError}</p>}
-      {orderError && <p role="alert" className="mt-4">{orderError}</p>}
-      {receipt && user?.id === receipt.userId && (
-        <section className="card mt-5 p-4" role="status" aria-label="رسید سفارش آزمایشی">
+      {visibleReceipt && (
+        <section ref={receiptPanel} tabIndex={-1} className="card mt-5 p-5" role="status" aria-label="رسید سفارش آزمایشی">
           <h2 className="font-semibold">سفارش آزمایشی ثبت شد.</h2>
-          <p className="mt-2">شمارهٔ سفارش <bdi>{receipt.id}</bdi></p>
-          <p>مبلغ سفارش {number.format(receipt.subtotal)} ریال</p>
+          <p className="mt-2 [overflow-wrap:anywhere]">شمارهٔ سفارش <bdi>{visibleReceipt.id}</bdi></p>
+          <p>مبلغ سفارش {number.format(visibleReceipt.subtotal)} ریال</p>
           <Link className="text-link mt-3" href="/account#demo-orders">مشاهدهٔ سفارش‌های آزمایشی</Link>
         </section>
       )}
       {!items && !storageError && <p role="status" className="mt-4">در حال خواندن سبد…</p>}
-      {items?.length === 0 && <p className="mt-5">سبد آزمایشی خالی است.</p>}
+      {items?.length === 0 && (
+        <div className="card mt-5 p-5 sm:p-7">
+          <h2>سبد آزمایشی خالی است.</h2>
+          <Link className="btn btn-primary mt-4" href="/shop">بازگشت به کاتالوگ</Link>
+        </div>
+      )}
       {!!items?.length && (
-        <>
-          <ul className="mt-6 space-y-3">
+        <div className="mt-6 grid items-start gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          <ul className="min-w-0 space-y-3">
             {items.map(item => {
               const line = current?.quote?.items.find(entry => entry.variant_id === item.variant_id);
               return (
                 <li className="card flex flex-wrap items-center justify-between gap-4 p-4" key={item.variant_id}>
-                  <div>
-                    <h2 className="font-semibold">{item.name}</h2>
+                  <div className="min-w-0">
+                    <h2 className="font-semibold [overflow-wrap:anywhere]">{item.name}</h2>
                     {line && <p className="mt-2 text-sm">قیمت واحد {number.format(line.unit_price)} ریال · جمع {number.format(line.line_total)} ریال</p>}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <label className="flex items-center gap-2">
                       تعداد
                       <select
-                        className="rounded-lg border border-plum/25 bg-white p-2"
+                        className="min-h-11 min-w-11 rounded-lg border border-plum/25 bg-white p-2"
                         aria-label={`تعداد ${item.name}`}
                         value={item.quantity}
                         disabled={submitting}
@@ -150,25 +159,29 @@ export function DemoCart() {
               );
             })}
           </ul>
-          {!current && <p className="mt-5" role="status">در حال دریافت مبلغ سبد…</p>}
-          {current?.error && (
-            <div className="mt-5">
-              <p role="alert">{current.error}</p>
-              <button className="btn btn-secondary mt-3" type="button" onClick={() => setAttempt(value => value + 1)}>تلاش دوباره</button>
-            </div>
-          )}
-          {current?.quote && <>
-            <p className="mt-5 font-semibold" role="status">جمع سبد {number.format(current.quote.subtotal)} ریال</p>
-            <button className="btn btn-primary mt-4" type="button" disabled={submitting || authLoading} onClick={() => void place()}>
-              {submitting ? 'در حال ثبت…' : user ? 'ثبت سفارش آزمایشی' : 'ورود برای ثبت سفارش آزمایشی'}
-            </button>
-          </>}
-        </>
+          <section className="card min-w-0 p-5 sm:p-6" aria-labelledby="demo-cart-summary">
+            <h2 id="demo-cart-summary" className="text-lg">خلاصهٔ سبد</h2>
+            {orderError && <p role="alert" className="mt-3 rounded-xl bg-blush p-3 leading-7">{orderError}</p>}
+            {!current && <p className="mt-3" role="status">در حال دریافت مبلغ سبد…</p>}
+            {current?.error && (
+              <div className="mt-3">
+                <p role="alert">{current.error}</p>
+                <button className="btn btn-secondary mt-3" type="button" onClick={() => setAttempt(value => value + 1)}>تلاش دوباره</button>
+              </div>
+            )}
+            {current?.quote && <>
+              <p className="mt-3 font-semibold" role="status">جمع سبد {number.format(current.quote.subtotal)} ریال</p>
+              <button className="btn btn-primary mt-4 w-full text-center" type="button" disabled={submitting || authLoading} onClick={() => void place()}>
+                {submitting ? 'در حال ثبت…' : user ? 'ثبت سفارش آزمایشی' : 'ورود برای ثبت سفارش آزمایشی'}
+              </button>
+            </>}
+          </section>
+        </div>
       )}
-      <Link className="btn btn-secondary mt-6" href="/shop">بازگشت به کاتالوگ</Link>
+      {items?.length !== 0 && <Link className="btn btn-secondary mt-6" href="/shop">بازگشت به کاتالوگ</Link>}
       {loginOpen && (
-        <Dialog title="ورود برای سفارش آزمایشی" onClose={() => setLoginOpen(false)}>
-          <LoginForm onSuccess={() => { setLoginOpen(false); setOrderError(''); }} />
+        <Dialog title="ورود برای سفارش آزمایشی" onClose={closeLogin}>
+          <LoginForm onSuccess={() => { closeLogin(); setOrderError(''); }} />
         </Dialog>
       )}
     </div>

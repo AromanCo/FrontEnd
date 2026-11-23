@@ -17,6 +17,14 @@ import type { AdvisorCatalog, AdvisorResult, CompositionSnapshot } from '@/lib/s
 
 const tabs = ['نت‌ها', 'ترکیب', 'نتیجه'] as const;
 const tabNumbers = ['۰۱', '۰۲', '۰۳'];
+
+function savedCompositionKey(body: ReturnType<typeof payload>) {
+  const notes = body.notes ?? [];
+  return JSON.stringify({
+    name: body.name,
+    notes: layers.flatMap(layer => notes.filter(note => note.layer === layer)),
+  });
+}
 type SavedConceptLoadProblem = 'missing-notes' | 'catalog-conflict' | 'invalid-concept';
 
 class SavedConceptLoadError extends Error {
@@ -124,6 +132,7 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
   const [failedConceptId, setFailedConceptId] = useState<string | null>(null);
   const [savedConceptAttempt, setSavedConceptAttempt] = useState(0);
   const [savedId, setSavedId] = useState('');
+  const [savedComposition, setSavedComposition] = useState<{ ownerId: string; key: string; confirmed: boolean } | null>(null);
   const [advisorResult, setAdvisorResult] = useState<AdvisorResult | null>(null);
   const [advisorLoading, setAdvisorLoading] = useState(false);
   const [advisorAccepted, setAdvisorAccepted] = useState(false);
@@ -159,6 +168,16 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
   const initializedTransferIds = useRef(new Set<string>());
   const importedInThisMount = useRef(false);
   const focusAdvisorForkImport = useRef(false);
+  const panelFocusRequest = useRef<number | null>(null);
+
+  const openPanel = (target: number) => {
+    if (target === tab) {
+      document.getElementById(`studio-panel-${target}-heading`)?.focus();
+      return;
+    }
+    panelFocusRequest.current = target;
+    setTab(target);
+  };
   const savedConceptLoaded = !conceptId || loadedConceptId === conceptId;
   const savedConceptLoadFailed = Boolean(conceptId && failedConceptId === conceptId);
   const guidedDraftExpired = Boolean(fromGuided && !conceptId && !importedInThisMount.current && (!guidedDraft || guidedDraft.origin === 'advisor-fork' || navigationIntentId !== guidedDraft.transferId));
@@ -167,6 +186,9 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
   const advisorImportLocked = Boolean(fromAdvisor && !conceptId && !advisorImportAuthorized);
   const savedConceptLocked = Boolean(conceptId && (!savedConceptLoaded || savedConceptLoadFailed));
   const editorLocked = advisorImportLocked || savedConceptLocked;
+  const activeSavedComposition = user && savedId && !editorLocked && savedComposition?.ownerId === user.id ? savedComposition : null;
+  const hasSavedEdits = activeSavedComposition !== null
+    && activeSavedComposition.key !== savedCompositionKey(payload(name, selected));
   const selectedIds = new Set(selected.map(item => item.note.id));
 
   const setAdvisorState = useCallback((value: AdvisorResult | null) => {
@@ -210,6 +232,7 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
     setSelected(nextSelected);
   }, [invalidateAdvisor]);
   const changeSavedTarget = useCallback((nextId: string) => {
+    if (!nextId) setSavedComposition(null);
     if (savedIdRef.current === nextId) {
       setSavedId(nextId);
       return;
@@ -475,6 +498,7 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
         const loadedSelection = resolveSavedConceptSelection(concept, all);
         replaceComposition(concept.name, loadedSelection);
         changeSavedTarget(concept.id);
+        setSavedComposition({ ownerId: userId, key: savedCompositionKey(payload(concept.name, loadedSelection)), confirmed: false });
         setError('');
         loadedConceptIdRef.current = conceptId;
         setLoadedConceptId(conceptId);
@@ -529,7 +553,8 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
     }
     replaceComposition(resolution.name, [...resolution.selected]);
     changeSavedTarget('');
-    setTab(1);
+    if (isAdvisorFork) setTab(1);
+    else openPanel(1);
     setError('');
     setNotice(isAdvisorFork
       ? 'نسخهٔ مستقل برای ویرایش آماده است؛ نسخهٔ اصلی محفوظ مانده و این پیش‌نویس هنوز ذخیره نشده است.'
@@ -627,6 +652,12 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
   useEffect(() => {
     importRequest.current += 1;
   }, [routeIntent]);
+
+  useEffect(() => {
+    if (panelFocusRequest.current !== tab || editorLocked || busy) return;
+    panelFocusRequest.current = null;
+    document.getElementById(`studio-panel-${tab}-heading`)?.focus();
+  }, [tab, editorLocked, busy, name, selected]);
 
   useEffect(() => {
     if (!focusAdvisorForkImport.current || !importedInThisMount.current) return;
@@ -745,7 +776,7 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
         return;
       }
       changeSavedTarget(result.id);
-      setNotice('مفهوم رایحه با موفقیت ذخیره شد.');
+      setSavedComposition({ ownerId: user.id, key: savedCompositionKey(body), confirmed: true });
     } catch (cause) {
       if (saveContextIsCurrent()) {
         setError(cause instanceof ApiError ? cause.message : 'ذخیره انجام نشد.');
@@ -781,17 +812,13 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
     router.replace('/studio/creative?from=guided');
   };
 
-  const updateQuery = (value: string) => {
+  const updateNoteFilters = (nextQuery: string, nextFamily: string) => {
+    if (nextQuery === query && nextFamily === family) return;
     noteRequest.current++;
-    setQuery(value.slice(0, 100));
+    setQuery(nextQuery);
+    setFamily(nextFamily);
     setNotes([]);
-    setLoading(true);
-    setHasMore(false);
-  };
-  const updateFamily = (value: string) => {
-    noteRequest.current++;
-    setFamily(value);
-    setNotes([]);
+    setNoteError('');
     setLoading(true);
     setHasMore(false);
   };
@@ -856,9 +883,14 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
 
     <div className="container studio-workspace">
       {!explorationOnly && (
-        <p className="studio-save-help" id="studio-save-help">
-          برای ثبت ترکیب یا تغییرات در حساب خود، دکمهٔ ذخیره را بزنید.
-        </p>
+        <div className="studio-save-status" data-state={activeSavedComposition ? hasSavedEdits ? 'edited' : 'saved' : undefined}>
+          <p className="studio-save-help" id="studio-save-help" role="status">
+            {hasSavedEdits ? 'تغییرات ذخیره نشده‌اند.' : activeSavedComposition
+              ? activeSavedComposition.confirmed ? 'مفهوم رایحه با موفقیت ذخیره شد.' : 'این مفهوم در حساب شما ذخیره شده است.'
+              : 'برای ثبت ترکیب در حساب خود، دکمهٔ ذخیره را بزنید.'}
+          </p>
+          {activeSavedComposition && !hasSavedEdits && <Link className="studio-saved-link" href="/account">دیدن مفاهیم ذخیره‌شده</Link>}
+        </div>
       )}
       {(guidedImportError || guidedImportState === 'loading' || guidedImportState === 'invalid' || guidedDraftExpired || advisorDraftExpired || (advisorImportLocked && guidedDraft?.origin === 'advisor-fork' && guidedImportState === 'idle')) && <div className={guidedImportState === 'loading' || (advisorImportLocked && guidedDraft?.origin === 'advisor-fork' && guidedImportState === 'idle' && !advisorDraftExpired) ? 'studio-global-notice' : 'studio-global-error'} role={guidedImportState === 'loading' || (advisorImportLocked && guidedDraft?.origin === 'advisor-fork' && guidedImportState === 'idle' && !advisorDraftExpired) ? 'status' : 'alert'}>
         <p>{guidedImportState === 'loading' ? 'پیش‌نویس در حال بررسی با کاتالوگ فعلی است…' : advisorImportLocked && guidedDraft?.origin === 'advisor-fork' && guidedImportState === 'idle' && !advisorDraftExpired ? 'پیش‌نویس مستقل در حال بررسی است؛ تا تأیید کامل کاتالوگ، ترکیب و ذخیره مسدود می‌ماند.' : advisorDraftExpired ? 'انتقال نسخهٔ مستقل در حافظهٔ این برگه پیدا نشد یا با این نشانی هم‌خوان نیست؛ احتمالاً صفحه تازه‌سازی شده است. مفهوم ذخیره‌شده حذف نشده است.' : guidedDraftExpired ? 'پیش‌نویس انتقال در حافظه پیدا نشد؛ احتمالاً صفحه تازه‌سازی شده است. پیشنهاد را دوباره بسازید.' : guidedImportError}</p>
@@ -887,8 +919,9 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
 
       <div className="studio-grid" inert={editorLocked || busy} aria-busy={Boolean(editorLocked || busy || guidedImportState === 'loading')}>
         <NoteLibrary notes={notes} families={families} selectedIds={selectedIds} count={selected.length} query={query} familyId={family} loading={loading} noteError={noteError} familyError={familyError} hasMore={hasMore} active={tab === 0}
-          onQuery={updateQuery} onFamily={updateFamily} onSelect={select} onRetry={() => void loadNotes(failedOffset)} onRetryFamilies={loadFamilies} onMore={() => void loadNotes(offset)} onContinue={() => setTab(1)} />
-        <CompositionWorkspace selected={selected} name={name} active={tab === 1} onName={changeName}
+          onQuery={value => updateNoteFilters(value.slice(0, 100), family)} onFamily={value => updateNoteFilters(query, value)}
+          onClearFilters={() => updateNoteFilters('', '')} onSelect={select} onRetry={() => void loadNotes(failedOffset)} onRetryFamilies={loadFamilies} onMore={() => void loadNotes(offset)} onContinue={() => openPanel(1)} />
+        <CompositionWorkspace selected={selected} name={name} active={tab === 1} onName={changeName} onBrowse={() => openPanel(0)} onPreview={() => openPanel(2)}
           onLayer={(id, layer) => changeSelected(current => moveNote(current, id, layer))}
           onRemove={id => { if (!savingRef.current) { changeSelected(current => current.filter(item => item.note.id !== id)); setNotice(''); } }}
           onReorder={(id, direction) => changeSelected(current => reorder(current, id, direction))}
@@ -896,7 +929,7 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
             open={advisorOpen} focusRequest={advisorFocusRequest} onOpenChange={setAdvisorOpen}
             applyBlockedMessage={advisorApplyBlock} forkBlockedMessage={advisorForkBlock} requestBlockedMessage={advisorRequestBlock}
             allowFork={authEnabled} onRequest={() => void requestAdvisor()} onApply={applyAdvisorSuggestion} onFork={openAdvisorForkConfirmation} onReject={rejectAdvisorSuggestion} onUndo={undoAdvisorSuggestion} />} />
-        <ConceptPreview selected={selected} families={families} name={name} active={tab === 2} busy={busy || editorLocked} saved={Boolean(savedId)} onSave={() => void save()} allowSaving={authEnabled} />
+        <ConceptPreview selected={selected} families={families} name={name} active={tab === 2} busy={busy || editorLocked} saved={Boolean(savedId)} onSave={() => void save()} allowSaving={authEnabled} onEdit={() => openPanel(selected.length ? 1 : 0)} />
       </div>
     </div>
 
@@ -919,6 +952,5 @@ function CreativeStudioEditor({ conceptId, fromGuided = false, fromAdvisor = fal
     {guidedCandidate && guidedCandidate.routeIntent === routeIntent && confirmGuidedReplace && replaceConfirmationRoute === routeIntent && <Dialog title="جایگزینی ترکیب فعلی" onClose={() => setConfirmGuidedReplace(false)}>
       <div className="space-y-4"><h2 className="text-xl font-semibold">ترکیب فعلی جایگزین شود؟</h2><p>با تأیید، مفهوم ذخیره‌شده از نشانی ویرایش جدا می‌شود و پیشنهاد هدایت‌شده در یک پیش‌نویس تازه بارگذاری خواهد شد. مفهوم قبلی بدون تغییر می‌ماند.</p><div className="flex flex-wrap gap-3"><button type="button" className="guided-button-secondary" onClick={() => setConfirmGuidedReplace(false)}>بازگشت</button><button type="button" className="guided-button-primary" onClick={confirmReplaceWithGuidedDraft} disabled={busy}>جایگزینی و بارگذاری</button></div></div>
     </Dialog>}
-    {authEnabled && savedId && <div className="studio-saved-link"><Link href="/account">مفاهیم ذخیره‌شده</Link></div>}
   </div>;
 }
