@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
+import { publicShowcaseRuntimeEnv } from './public-showcase-start.mjs';
 
 const origin = process.env.FRONTEND_ORIGIN || 'http://127.0.0.1:3201';
 const apiOrigin = 'http://127.0.0.1:18762';
@@ -26,13 +27,14 @@ const apiServer = createServer((request, response) => {
 });
 await new Promise(resolve => apiServer.listen(18762, '127.0.0.1', resolve));
 
+const runtimeEnv = {
+  ...process.env,
+  AROMAN_RELEASE_SCOPE: 'public-showcase',
+  AROMAN_CATALOG_UPSTREAM_URL: `${apiOrigin}/api/v1`,
+};
+delete runtimeEnv.AROMAN_API_BASE_URL;
 const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', new URL(origin).port], {
-  env: {
-    ...process.env,
-    AROMAN_RELEASE_SCOPE: 'public-showcase',
-    AROMAN_API_BASE_URL: `${apiOrigin}/api/v1`,
-    AROMAN_CATALOG_UPSTREAM_URL: `${apiOrigin}/api/v1`,
-  },
+  env: publicShowcaseRuntimeEnv(runtimeEnv),
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let serverLog = '';
@@ -63,6 +65,8 @@ try {
   assert.equal(unsupportedMethod.status, 405, 'unsupported method should be rejected by the running Next.js server');
   assert.equal(upstreamCalls.length, upstreamCallsBeforeRejectedRequests, 'rejected requests must not reach the upstream fixture');
 
+  const catalog = await (await fetch(`${origin}/shop`)).text();
+  assert.ok(catalog.includes(product.name), 'server-rendered catalog should use the configured private upstream');
   const emptyCatalog = await (await fetch(`${origin}/shop?q=no-match`)).text();
   assert.match(emptyCatalog, /برای این جستجو محصولی پیدا نشد/);
   const unavailableCatalog = await (await fetch(`${origin}/shop?q=unavailable&offset=12`)).text();
