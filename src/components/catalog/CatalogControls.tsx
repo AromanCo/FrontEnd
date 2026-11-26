@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useId, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Brand, Family } from '@/lib/api/client';
 import { catalogSearchSuffix } from '@/lib/catalog-search';
@@ -16,20 +16,20 @@ type Props = {
 export function CatalogControls({ q, brandId, familyId, brands, families }: Props) {
   const router = useRouter();
   const fieldId = useId();
-  const [search, setSearch] = useState(q);
-  const [brand, setBrand] = useState(brandId);
-  const [family, setFamily] = useState(familyId);
+  const [pending, startTransition] = useTransition();
+  const [draft, setDraft] = useState({ q, brandId, familyId });
+  const [applied, setApplied] = useState({ q, brandId, familyId });
   const [showFilters, setShowFilters] = useState(Boolean(brandId || familyId));
 
-  const apply = (nextSearch: string, nextBrand: string, nextFamily: string) => {
-    router.push('/shop' + catalogSearchSuffix({ q: nextSearch, brand_id: nextBrand, family_id: nextFamily }));
-  };
+  if (applied.q !== q || applied.brandId !== brandId || applied.familyId !== familyId) {
+    setApplied({ q, brandId, familyId });
+    setDraft({ q, brandId, familyId });
+  }
 
-  const removeAll = () => {
-    setSearch('');
-    setBrand('');
-    setFamily('');
-    router.push('/shop');
+  const apply = (nextSearch: string, nextBrand: string, nextFamily: string) => {
+    startTransition(() => {
+      router.push('/shop' + catalogSearchSuffix({ q: nextSearch, brand_id: nextBrand, family_id: nextFamily }), { scroll: false });
+    });
   };
 
   const activeFilters = [
@@ -54,7 +54,7 @@ export function CatalogControls({ q, brandId, familyId, brands, families }: Prop
         className="card catalog-search-form"
         onSubmit={event => {
           event.preventDefault();
-          apply(search, brand, family);
+          if (!pending) apply(draft.q, draft.brandId, draft.familyId);
         }}
       >
         <div className="catalog-search-field">
@@ -64,8 +64,8 @@ export function CatalogControls({ q, brandId, familyId, brands, families }: Prop
             className="input"
             type="search"
             maxLength={100}
-            value={search}
-            onChange={event => setSearch(event.target.value)}
+            value={draft.q}
+            onChange={event => setDraft({ ...draft, q: event.target.value })}
             placeholder="نام محصول"
           />
         </div>
@@ -76,20 +76,23 @@ export function CatalogControls({ q, brandId, familyId, brands, families }: Prop
         <div id={`${fieldId}-options`} className="catalog-filter-options" data-expanded={showFilters}>
           <div className="grid min-w-0 gap-2">
             <label className="text-sm" htmlFor={`${fieldId}-brand`}>برند</label>
-            <select className="input" id={`${fieldId}-brand`} value={brand} onChange={event => setBrand(event.target.value)}>
+            <select className="input" id={`${fieldId}-brand`} value={draft.brandId} onChange={event => setDraft({ ...draft, brandId: event.target.value })}>
               <option value="">همه برندها</option>
               {brands.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </div>
           <div className="grid min-w-0 gap-2">
             <label className="text-sm" htmlFor={`${fieldId}-family`}>خانواده رایحه</label>
-            <select className="input" id={`${fieldId}-family`} value={family} onChange={event => setFamily(event.target.value)}>
+            <select className="input" id={`${fieldId}-family`} value={draft.familyId} onChange={event => setDraft({ ...draft, familyId: event.target.value })}>
               <option value="">همه خانواده‌ها</option>
               {families.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </div>
         </div>
-        <button type="submit" className="btn btn-primary catalog-search-submit">اعمال فیلتر</button>
+        <button type="submit" className="btn btn-primary catalog-search-submit" disabled={pending}>
+          <span className={pending ? 'catalog-submit-label' : undefined}>اعمال فیلتر</span>
+          {pending && <span role="status" className="catalog-submit-pending">در حال به‌روزرسانی…</span>}
+        </button>
       </form>
 
       {activeFilters.length > 0 && (
@@ -101,12 +104,13 @@ export function CatalogControls({ q, brandId, familyId, brands, families }: Prop
               type="button"
               className="catalog-filter-chip"
               onClick={filter.clear}
+              disabled={pending}
               aria-label={`حذف ${filter.label}`}
             >
               {filter.label} <span aria-hidden="true">×</span>
             </button>
           ))}
-          <button type="button" className="min-h-11 px-3 py-2 text-sm underline underline-offset-4" onClick={removeAll}>
+          <button type="button" className="min-h-11 px-3 py-2 text-sm underline underline-offset-4" onClick={() => apply('', '', '')} disabled={pending}>
             پاک کردن همه فیلترها
           </button>
         </div>

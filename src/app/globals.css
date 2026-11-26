@@ -834,3 +834,17 @@ body {
   .product-detail-layout .product-detail-art { grid-column: 1; grid-row: 1 / span 2; }
   .product-detail-heading, .product-detail-body { grid-column: 2; }
 }
+
+.catalog-search-submit { position: relative; }
+.catalog-submit-pending {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  visibility: hidden;
+  font-size: .75rem;
+  animation: catalog-show-pending 0s 350ms forwards;
+}
+.catalog-submit-label { animation: catalog-hide-label 0s 350ms forwards; }
+@keyframes catalog-show-pending { to { visibility: visible; } }
+@keyframes catalog-hide-label { to { visibility: hidden; } }
