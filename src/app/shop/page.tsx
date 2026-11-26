@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { catalog, type Brand, type Family, type Product } from '@/lib/api/client';
 import { ProductCard } from '@/components/catalog/ProductCard';
-import { CatalogControls } from '@/components/catalog/CatalogControls';
+import { CatalogContinuity } from '@/components/catalog/CatalogContinuity';
 import { catalogSearchSuffix, readCatalogSearch } from '@/lib/catalog-search';
 
 export default async function Shop({
@@ -22,7 +22,7 @@ export default async function Shop({
           شروع کشف با راهنما
         </Link>
       </header>
-      <Suspense key={catalogSearchSuffix(search)} fallback={<CatalogLoading />}>
+      <Suspense fallback={<CatalogLoading />}>
         <CatalogResults search={search} />
       </Suspense>
     </div>
@@ -32,9 +32,10 @@ export default async function Shop({
 function CatalogLoading() {
   return (
     <div className="mt-8">
-      <p role="status" className="card px-5 py-4 text-sm">در حال دریافت محصولات…</p>
+      <p role="status" className="sr-only">در حال دریافت محصولات…</p>
+      <div aria-hidden="true" className="card h-24 bg-plum/5" />
       <div aria-hidden="true" className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {[1, 2, 3].map(card => <div key={card} className="card min-h-52 bg-plum/5" />)}
+        {[1, 2, 3].map(card => <div key={card} className="card min-h-96 bg-plum/5" />)}
       </div>
     </div>
   );
@@ -63,19 +64,11 @@ async function CatalogResults({ search }: { search: ReturnType<typeof readCatalo
   const pageUrl = (nextOffset: number) => '/shop' + catalogSearchSuffix({ ...search, offset: nextOffset });
 
   return (
-    <>
-      <CatalogControls key={JSON.stringify([q, brand_id, family_id])} q={q} brandId={brand_id || ''} familyId={family_id || ''} brands={brands} families={families} />
-
-      {error ? (
-        <section className="card mt-8 p-6 sm:p-8" aria-label="بازیابی کاتالوگ">
-          <h2 className="text-xl font-semibold">کاتالوگ موقتاً در دسترس نیست</h2>
-          <p role="alert" className="mt-2 leading-8">اتصال به کاتالوگ برقرار نشد. با تلاش دوباره، همین جستجو تکرار می‌شود.</p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <a className="btn btn-primary" href={pageUrl(offset)}>تلاش دوباره</a>
-            {active && <Link className="btn btn-secondary" href="/shop">نمایش همه محصولات</Link>}
-          </div>
-        </section>
-      ) : products.length ? (
+    <CatalogContinuity
+      filters={{ q, brandId: brand_id || '', familyId: family_id || '', brands, families }}
+      retryHref={error ? pageUrl(offset) : undefined}
+    >
+      {error ? null : products.length ? (
         <>
           <p className="catalog-result-count" aria-live="polite">
             نمایش {products.length.toLocaleString('fa-IR')} محصول در این صفحه
@@ -116,6 +109,6 @@ async function CatalogResults({ search }: { search: ReturnType<typeof readCatalo
           )}
         </div>
       )}
-    </>
+    </CatalogContinuity>
   );
 }

@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import { existsSync } from 'node:fs';
+import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { publicShowcaseRuntimeEnv } from './public-showcase-start.mjs';
@@ -15,15 +17,19 @@ const product = {
 };
 const upstreamCalls = [];
 let failVariants = false;
-const apiServer = createServer((request, response) => {
+let failRefresh = true;
+const apiServer = createServer(async (request, response) => {
   const url = new URL(request.url || '/', apiOrigin);
   upstreamCalls.push(`${request.method} ${url.pathname}`);
   const isProducts = url.pathname === '/api/v1/products';
   const query = url.searchParams.get('q');
-  const unavailable = (isProducts && query === 'unavailable')
+  const isRefresh = isProducts && query === 'retry-preview';
+  if (isRefresh) await delay(1500);
+  const unavailable = (isProducts && query === 'unavailable') || (isRefresh && failRefresh)
     || (failVariants && url.pathname === `/api/v1/products/${productId}/variants`);
   response.writeHead(unavailable ? 503 : 200, { 'content-type': 'application/json' });
-  response.end(JSON.stringify(isProducts && !['no-match', 'unavailable'].includes(query) ? [product] : []));
+  response.end(JSON.stringify(isProducts && !['no-match', 'unavailable'].includes(query)
+    ? [{ ...product, name: isRefresh ? 'محصول به‌روزشده' : product.name }] : []));
 });
 await new Promise(resolve => apiServer.listen(18762, '127.0.0.1', resolve));
 
@@ -79,6 +85,32 @@ try {
   assert.ok(detail.includes(`href="/shop/${productId}?q=search"`), 'variant retry should retain the catalog search');
   failVariants = false;
   console.log('PASS catalog empty result, search-preserving retry, and product details with unavailable variants.');
+
+  const executablePath = process.env.CHROME_BIN || ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable'].find(existsSync);
+  const browser = await chromium.launch({ executablePath, args: ['--no-sandbox', '--no-proxy-server'] });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await page.goto(`${origin}/shop`);
+    const previousCard = page.getByText(product.name, { exact: true });
+    await previousCard.waitFor();
+    const input = page.getByRole('searchbox', { name: 'جستجوی نام' });
+    await input.fill('retry-preview');
+    await page.getByRole('button', { name: 'اعمال فیلتر' }).click();
+    await page.getByText('در حال به‌روزرسانی…', { exact: true }).waitFor();
+    assert.ok(await previousCard.isVisible(), 'the previous card should stay visible while updating');
+    assert.equal(await input.inputValue(), 'retry-preview', 'the filter should stay in place while updating');
+
+    await page.getByText(/نتایج قبلی هنوز نمایش داده می‌شوند/).waitFor();
+    assert.ok(await previousCard.isVisible(), 'the previous card should survive an upstream failure');
+    failRefresh = false;
+    await page.getByRole('link', { name: 'تلاش دوباره' }).click();
+    assert.ok(await previousCard.isVisible(), 'the previous card should stay visible during retry');
+    await page.getByText('محصول به‌روزشده', { exact: true }).waitFor();
+    assert.equal(await previousCard.count(), 0, 'the previous card should be replaced after retry succeeds');
+    console.log('PASS catalog retained the form and cards during a slow response and recovered after an upstream error.');
+  } finally {
+    await browser.close();
+  }
 
   const journey = spawn(process.execPath, ['scripts/public-showcase-journey.mjs'], {
     env: { ...process.env, FRONTEND_ORIGIN: origin, NEXT_PUBLIC_AROMAN_API_BASE_URL: '/api/v1' },

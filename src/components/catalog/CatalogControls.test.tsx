@@ -61,7 +61,7 @@ describe('CatalogControls', () => {
   it('clears all filters without requiring an additional form submit', () => {
     mount('رایحه', 'brand-1', '');
     fireEvent.click(screen.getByRole('button', { name: 'پاک کردن همه فیلترها' }));
-    expect(mockRouter.push).toHaveBeenCalledWith('/shop');
+    expect(mockRouter.push).toHaveBeenCalledWith('/shop', { scroll: false });
   });
 
   it('does not show misleading active-filter controls for an unfiltered catalog', () => {
